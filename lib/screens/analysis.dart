@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../utils/colors.dart';
 
 class EmotionAnalysisCard extends StatelessWidget {
   final String emotion;
@@ -30,6 +29,7 @@ class EmotionAnalysisCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.grey.withOpacity(0.07),
             blurRadius: 8,
             offset: const Offset(0, 3),
@@ -99,7 +99,7 @@ class EmotionTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFE3B3),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
