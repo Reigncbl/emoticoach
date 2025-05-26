@@ -88,24 +88,3 @@ class EmotionAnalysisCard extends StatelessWidget {
     );
   }
 }
-
-class EmotionTag extends StatelessWidget {
-  final String text;
-
-  const EmotionTag({super.key, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(fontSize: 13, color: Color(0xFF7A4F00)),
-      ),
-    );
-  }
-}

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import './response.dart';
 import '../utils/colors.dart';
 import './emotion_analysis_loader.dart';
+import './latest_message.dart'; // <-- import your new widget
 
 class OverlayScreen extends StatefulWidget {
   const OverlayScreen({super.key});
@@ -13,59 +12,22 @@ class OverlayScreen extends StatefulWidget {
 }
 
 class _OverlayScreenState extends State<OverlayScreen> {
-  String _latestMessage = 'Loading latest message...';
   int _selectedTab = 0; // 0=Emotion, 1=Response, 2=Tone
 
-  @override
-  void initState() {
-    super.initState();
-    _fetchLatestMessage();
-  }
-
-  Future<void> _fetchLatestMessage() async {
-    try {
-      final url = Uri.parse(
-        'https://976d4bbc4a7f64092bb74e2b011a0e71.serveo.net/messages',
-      );
-      final Map<String, dynamic> requestBody = {
-        "phone": "9762325664",
-        "first_name": "Carlo",
-        "last_name": "Lorieta",
-      };
-
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestBody),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data.containsKey("messages") &&
-            (data["messages"] as List).isNotEmpty) {
-          final firstMsg = data["messages"][0];
-          setState(() => _latestMessage = '${firstMsg["text"]}');
-        } else if (data.containsKey("error")) {
-          setState(() => _latestMessage = 'Error: ${data["error"]}');
-        } else {
-          setState(() => _latestMessage = 'No messages found.');
-        }
-      } else {
-        setState(
-          () => _latestMessage =
-              'Failed to fetch message. Status: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      setState(() => _latestMessage = 'Error: $e');
-    }
-  }
+  // These are your contact details used for both /messages and /analyze_messages
+  final String phone = "9615365763";
+  final String firstName = "Carlo";
+  final String lastName = "Lorieta";
 
   @override
   Widget build(BuildContext context) {
     Widget content;
     if (_selectedTab == 0) {
-      content = const EmotionAnalysis();
+      content = EmotionAnalysis(
+        phone: phone,
+        firstName: firstName,
+        lastName: lastName,
+      );
     } else if (_selectedTab == 1) {
       content = const ResponseSuggestionScreen();
     } else {
@@ -96,15 +58,11 @@ class _OverlayScreenState extends State<OverlayScreen> {
               style: TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              margin: const EdgeInsets.only(bottom: 16, top: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF6E3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(_latestMessage, style: const TextStyle(fontSize: 15)),
+            LatestMessageBox(
+              messageApiUrl: 'http://10.0.2.2:8000/analyze_messages',
+              phone: phone,
+              firstName: firstName,
+              lastName: lastName,
             ),
             Row(
               children: [
@@ -134,19 +92,28 @@ class _OverlayScreenState extends State<OverlayScreen> {
   }
 }
 
-// Separated Emotion Analysis widget
+// Separated Emotion Analysis widget, now takes contact info from parent
 class EmotionAnalysis extends StatelessWidget {
-  const EmotionAnalysis({super.key});
+  final String phone;
+  final String firstName;
+  final String lastName;
+
+  const EmotionAnalysis({
+    super.key,
+    required this.phone,
+    required this.firstName,
+    required this.lastName,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Scaffold(
-        appBar: AppBar(title: Text('Emotion Analysis')),
-        body: EmotionAnalysisLoader(
-          analysisApiUrl: 'http://localhost:11434', // Your API endpoint
-        ),
+      padding: const EdgeInsets.all(16),
+      child: EmotionAnalysisLoader(
+        analysisApiUrl: 'http://10.0.2.2:8000/analyze_messages',
+        phone: phone,
+        firstName: firstName,
+        lastName: lastName,
       ),
     );
   }
@@ -191,7 +158,7 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// Response suggestion screen
+// Response suggestion screen (unchanged)
 class ResponseSuggestionScreen extends StatelessWidget {
   const ResponseSuggestionScreen({super.key});
 

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'screens/home.dart';
 import 'screens/overlay.dart';
 
+final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
+
 // Placeholder screens - replace with real implementations later
 class LearnScreen extends StatelessWidget {
   const LearnScreen({super.key});
@@ -27,6 +29,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
       theme: ThemeData(primarySwatch: Colors.blue),

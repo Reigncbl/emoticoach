@@ -10,9 +10,8 @@ from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest
 from telethon.tl.types import InputPhoneContact
 
-api_id = os.getenv('TELEGRAM_API_ID')
-api_hash = os.getenv('TELEGRAM_API_HASH')
-
+api_id = '21398172'
+api_hash = '4bb0f51ffa700b91f87f07742d6f1d33'
 session = 'name'
 client = TelegramClient(session, api_id, api_hash)
 app = FastAPI()
