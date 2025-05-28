@@ -1,0 +1,372 @@
+{
+  "results": [
+    {
+      "text": "Dude, sobrang excited na ako!!! 😄🔥",
+      "timestamp": "2025-05-21 02:36:42+00:00",
+      "analysis": [
+        {
+          "analysis": "The exclamation and fire emoji clearly express intense enthusiasm and delight.",
+          "dim": "joy",
+          "score": 9.5
+        },
+        {
+          "analysis": "No specific indication of acceptance is present in the text.",
+          "dim": "acceptance",
+          "score": 1.0
+        },
+        {
+          "analysis": "There's no element of danger or threat present, thus no fear is indicated.",
+          "dim": "fear",
+          "score": 0.0
+        },
+        {
+          "analysis": "The user's expression is unexpected and emphatic, suggesting an immediate reaction.",
+          "dim": "surprise",
+          "score": 6.0
+        },
+        {
+          "analysis": "The text conveys a lack of happiness or contentment, offering no positive sentiment.",
+          "dim": "sadness",
+          "score": 0.0
+        },
+        {
+          "analysis": "The text lacks any expression of revulsion or disapproval.",
+          "dim": "disgust",
+          "score": 0.0
+        },
+        {
+          "analysis": "The text doesn't display feelings of frustration or antagonism.",
+          "dim": "anger",
+          "score": 0.0
+        },
+        {
+          "analysis": "The user's statement anticipates a positive event or outcome.",
+          "dim": "anticipation",
+          "score": 7.5
+        }
+      ]
+    },
+    {
+      "text": "Same here, bro! Like, I can't even... 😩🙌",
+      "timestamp": "2025-05-21 02:36:48+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses a feeling of being overwhelmed and distressed.",
+          "dim": "sadness",
+          "score": 7.2
+        },
+        {
+          "analysis": "The use of 'can't even' reflects a sense of being unable to cope.",
+          "dim": "fear",
+          "score": 4.8
+        },
+        {
+          "analysis": "The enthusiastic emoji conveys a burst of energy and excitement.",
+          "dim": "joy",
+          "score": 6.5
+        },
+        {
+          "analysis": "The exclamation marks suggest a heightened emotional state.",
+          "dim": "surprise",
+          "score": 5.1
+        },
+        {
+          "analysis": "The inability to function highlights a potential feeling of helplessness.",
+          "dim": "sadness",
+          "score": 6.0
+        },
+        {
+          "analysis": "The frustrated tone suggests a strong negative feeling.",
+          "dim": "anger",
+          "score": 3.9
+        },
+        {
+          "analysis": "The statement implies an expectation of something positive.",
+          "dim": "anticipation",
+          "score": 4.2
+        },
+        {
+          "analysis": "A feeling of discomfort or aversion.",
+          "dim": "disgust",
+          "score": 2.5
+        }
+      ]
+    },
+    {
+      "text": "Imagine, after all the hardships, we’re finally here. 💪✨",
+      "timestamp": "2025-05-21 02:37:03+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses triumph and relief after overcoming challenges.",
+          "dim": "joy",
+          "score": 8.5
+        },
+        {
+          "analysis": "Acknowledges a state of completion and resolution.",
+          "dim": "acceptance",
+          "score": 7.0
+        },
+        {
+          "analysis": "Implies a potential threat or unknown outcome following the achievement.",
+          "dim": "fear",
+          "score": 2.0
+        },
+        {
+          "analysis": "Highlights a sudden, momentous arrival after a period of waiting.",
+          "dim": "surprise",
+          "score": 6.5
+        },
+        {
+          "analysis": "Suggests a lingering sense of loss or difficulty endured.",
+          "dim": "sadness",
+          "score": 3.0
+        },
+        {
+          "analysis": "Indicates a strong aversion to something potentially negative or unpleasant.",
+          "dim": "disgust",
+          "score": 1.5
+        },
+        {
+          "analysis": "Reflects frustration and potentially resentment over past difficulties.",
+          "dim": "anger",
+          "score": 4.0
+        },
+        {
+          "analysis": "Points to a hopeful expectation of what’s to come.",
+          "dim": "anticipation",
+          "score": 7.5
+        }
+      ]
+    },
+    {
+      "text": "Oo nga, pare. Like, all the pagod was so worth it! 🤗🥲",
+      "timestamp": "2025-05-21 02:37:22+00:00",
+      "analysis": [
+        {
+          "analysis": "The speaker expresses immense satisfaction and relief after a tiring experience.",
+          "dim": "joy",
+          "score": 9.2
+        },
+        {
+          "analysis": "Acknowledging the effort involved, there's a feeling of coming to terms with the situation.",
+          "dim": "acceptance",
+          "score": 7.8
+        },
+        {
+          "analysis": "The phrase ‘pagod’ (tired) directly implies a sense of vulnerability and potential distress.",
+          "dim": "fear",
+          "score": 4.5
+        },
+        {
+          "analysis": "The exclamation suggests a sudden realization or discovery – a moment of surprise.",
+          "dim": "surprise",
+          "score": 6.9
+        },
+        {
+          "analysis": "The feeling of exhaustion and perhaps disappointment is a foundation for sadness.",
+          "dim": "sadness",
+          "score": 5.1
+        },
+        {
+          "analysis": "The text does not contain any elements suggesting aversion or revulsion.",
+          "dim": "disgust",
+          "score": 0.0
+        },
+        {
+          "analysis": "The use of ‘like’ and the enthusiastic tone hints at something yet to come.",
+          "dim": "anticipation",
+          "score": 6.3
+        },
+        {
+          "analysis": "The text doesn't indicate frustration or hostility.",
+          "dim": "anger",
+          "score": 0.0
+        }
+      ]
+    },
+    {
+      "text": "Legit, dude. Thank you for everything ha. Di ko kaya without you. 🙏❤️",
+      "timestamp": "2025-05-21 02:37:45+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses gratitude and acknowledges support, indicating a feeling of relief and warmth.",
+          "dim": "joy",
+          "score": 9.2
+        },
+        {
+          "analysis": "Highlights a dependence on the other person, suggesting vulnerability and a desire for reassurance.",
+          "dim": "acceptance",
+          "score": 7.5
+        },
+        {
+          "analysis": "The use of '🙏' (folded hands) implies a plea for help or a feeling of helplessness.",
+          "dim": "fear",
+          "score": 6.1
+        },
+        {
+          "analysis": "The exclamation 'Legit, dude!' conveys excitement and validation.",
+          "dim": "surprise",
+          "score": 7.8
+        },
+        {
+          "analysis": "The statement 'Di ko kaya without you' suggests disappointment and a sense of loss.",
+          "dim": "sadness",
+          "score": 6.9
+        },
+        {
+          "analysis": "The text doesn't contain anything overtly repulsive or unpleasant.",
+          "dim": "disgust",
+          "score": 1.0
+        },
+        {
+          "analysis": "The continued expression of reliance and appreciation implies a hopeful expectation of future events.",
+          "dim": "anticipation",
+          "score": 6.5
+        },
+        {
+          "analysis": "While appreciative, the expression doesn't contain any resentment or frustration.",
+          "dim": "anger",
+          "score": 1.5
+        }
+      ]
+    },
+    {
+      "text": "No prob, pre! Ride or die tayo, diba? 🤝💙",
+      "timestamp": "2025-05-21 02:38:01+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses strong loyalty and support, indicating a positive and committed feeling.",
+          "dim": "joy",
+          "score": 9.2
+        },
+        {
+          "analysis": "Acknowledges a shared bond and willingness to stand together, representing trust and comfort.",
+          "dim": "acceptance",
+          "score": 8.5
+        },
+        {
+          "analysis": "The phrase carries a subtle undercurrent of potential vulnerability and risk.",
+          "dim": "fear",
+          "score": 3.1
+        },
+        {
+          "analysis": "The exclamation suggests excitement and a declaration of unwavering dedication.",
+          "dim": "surprise",
+          "score": 6.8
+        },
+        {
+          "analysis": "Implies a feeling of melancholy or wistfulness associated with the idea of shared experiences.",
+          "dim": "sadness",
+          "score": 4.7
+        },
+        {
+          "analysis": "Suggests a reaction to something unpleasant or offensive – a strong aversion.",
+          "dim": "disgust",
+          "score": 2.3
+        },
+        {
+          "analysis": "Denotes frustration or annoyance at a situation or person.",
+          "dim": "anger",
+          "score": 5.9
+        },
+        {
+          "analysis": "A sense of eagerness and anticipation for what might happen next.",
+          "dim": "anticipation",
+          "score": 7.1
+        }
+      ]
+    },
+    {
+      "text": "Promise ha, walang iwanan? 🤞✨",
+      "timestamp": "2025-05-21 02:38:20+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses hope and a desire for continued support, reflecting optimism.",
+          "dim": "joy",
+          "score": 8.5
+        },
+        {
+          "analysis": "Implies a potential for difficulty or hardship, hinting at vulnerability.",
+          "dim": "fear",
+          "score": 4.0
+        },
+        {
+          "analysis": "The use of 'promise' suggests a willingness to commit, creating a sense of trust.",
+          "dim": "acceptance",
+          "score": 6.5
+        },
+        {
+          "analysis": "The emoji evokes a feeling of excitement and anticipation for what's to come.",
+          "dim": "anticipation",
+          "score": 7.0
+        },
+        {
+          "analysis": "Suggests a potential for disappointment if the promise is broken.",
+          "dim": "sadness",
+          "score": 3.0
+        },
+        {
+          "analysis": "The emoji represents aversion to something unpleasant or disturbing.",
+          "dim": "disgust",
+          "score": 2.0
+        },
+        {
+          "analysis": "There's a slight undercurrent of tension and potential conflict.",
+          "dim": "anger",
+          "score": 1.5
+        },
+        {
+          "analysis": "The statement implies a reaction to something unexpected or intriguing.",
+          "dim": "surprise",
+          "score": 5.0
+        }
+      ]
+    },
+    {
+      "text": "Promise, bro. 💯🔥",
+      "timestamp": "2025-05-21 02:38:37+00:00",
+      "analysis": [
+        {
+          "analysis": "Expresses confidence and commitment with emphatic language.",
+          "dim": "joy",
+          "score": 9.0
+        },
+        {
+          "analysis": "Acknowledges a situation without expressing strong feeling.",
+          "dim": "acceptance",
+          "score": 7.0
+        },
+        {
+          "analysis": "Suggests a potential threat or uncertainty.",
+          "dim": "fear",
+          "score": 3.0
+        },
+        {
+          "analysis": "Implies an unexpected or shocking element.",
+          "dim": "surprise",
+          "score": 6.0
+        },
+        {
+          "analysis": "Indicates a feeling of sorrow or disappointment.",
+          "dim": "sadness",
+          "score": 2.0
+        },
+        {
+          "analysis": "Doesn't convey a sense of aversion or revulsion.",
+          "dim": "disgust",
+          "score": 1.0
+        },
+        {
+          "analysis": "Potentially indicates frustration or resentment.",
+          "dim": "anger",
+          "score": 4.0
+        },
+        {
+          "analysis": "Hints at an upcoming event or outcome.",
+          "dim": "anticipation",
+          "score": 8.0
+        }
+      ]
+    }
+  ]
+}

@@ -1,3 +1,5 @@
+# uvicorn backend.api:app --reload
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 from telethon import TelegramClient
@@ -9,6 +11,7 @@ import re
 from ollama import AsyncClient
 import json
 import os
+
 
 # Telegram API credentials
 api_id = '21398172'
@@ -25,7 +28,7 @@ class ContactRequest(BaseModel):
 
 # SYSTEM PROMPT for the LLM
 SYSTEM_PROMPT = """
-You are an expert emotional analysis assistant. Your task is to analyze input text and assign scores (1-10) to 8 fundamental emotions: **joy, acceptance, fear, surprise, sadness, disgust, anger, and anticipation**.
+You are an expert emotional analysis assistant. Your task is to analyze input text and assign scores (0.0-10.0) to 8 fundamental emotions: **joy, acceptance, fear, surprise, sadness, disgust, anger, and anticipation**.
 
 For each emotion, provide a concise reason for the assigned score.
 
@@ -46,6 +49,7 @@ Output your analysis as a valid Python list in the following format:
 * Each of the 8 emotions must be included exactly once.
 * Reasons for scores must be logical, concise, and directly support the assigned intensity.
 * Adhere strictly to the specified JSON output format.
+* Make the analysis short and simple
 """
 
 DEFAULT_MODEL = "gemma3:4b"
@@ -61,7 +65,6 @@ async def analyze_emotion(prompt: str, model: str = DEFAULT_MODEL) -> list[dict]
     try:
         response = await AsyncClient().chat(model=model, messages=[{'role': 'user', 'content': full_prompt}])
         content = response.message.content
-        print("OLLAMA RAW RESPONSE:", content)
         json_str = extract_json_list(content or "")
         if not json_str:
             return None
@@ -152,3 +155,4 @@ async def analyze_last_message(data: ContactRequest):
             "analysis": analysis
         }
     })
+

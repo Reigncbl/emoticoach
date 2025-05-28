@@ -3,6 +3,7 @@ import os
 import json
 import re
 from chatInference import textExtraction
+from RAGPipeline import suggestionGeneration
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI,Query
 from pydantic import BaseModel
@@ -14,6 +15,7 @@ api_id = '21398172'
 api_hash = '4bb0f51ffa700b91f87f07742d6f1d33'
 session = 'name'
 client = TelegramClient(session, api_id, api_hash)
+
 app = FastAPI()
 
 class ContactRequest(BaseModel):
@@ -73,5 +75,12 @@ async def get_messages(data: ContactRequest):
 @app.get("/generate")
 async def generate():
     result = await textExtraction()
+   
+    return JSONResponse(result)
+
+
+@app.get("/suggestion")
+async def generate():
+    result = await suggestionGeneration()
    
     return JSONResponse(result)
