@@ -117,7 +117,7 @@ async def analyze_json_file(json_path: str) -> list[dict] | None:
     return results
 
 async def textExtraction():
-    file = r"C:\Users\John Carlo\telegram\Backend\saved_messages\reign.json"
+    file = r"C:\3rd year sec sem\Capstone\Telegram\emoticoach\backend\saved_messages\reign.json"
     print("Analyzing:", file)
     results = await analyze_json_file(file)
     if not results:

@@ -2,8 +2,8 @@
 import os
 import json
 import re
-from chatInference import textExtraction
-from RAGPipeline import suggestionGeneration
+from .chatInference import textExtraction
+from .RAGPipeline import suggestionGeneration
 from fastapi.responses import JSONResponse
 from fastapi import FastAPI,Query
 from pydantic import BaseModel

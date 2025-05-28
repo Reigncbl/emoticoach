@@ -37,7 +37,7 @@ async def suggestionGeneration():
     Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text:latest')
 
     loader = JSONReader()
-    documents = loader.load_data(Path(r'C:\Users\John Carlo\telegram\Backend\saved_messages\reign_analysis.json'))
+    documents = loader.load_data(Path(r'C:\3rd year sec sem\Capstone\Telegram\emoticoach\backend\saved_messages\reign_analysis.json'))
 
     client = qdrant_client.QdrantClient(path="./qdrant_data")
     vector_store = QdrantVectorStore(client=client, collection_name="analysis")
