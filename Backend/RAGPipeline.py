@@ -3,6 +3,7 @@ import qdrant_client
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.embeddings.ollama import OllamaEmbedding 
 from llama_index.llms.ollama import Ollama
+import json # Add this if not present
 from llama_index.readers.json import JSONReader
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
@@ -10,13 +11,11 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 prompt = """
 You are Carlo in the metadata, generate the appropriate response to the receiver.
 Analyze the metadata provided.
-Generate 5 reply suggestions for how the user should respond to the last message based on the context of the data.
+Generate 3 reply suggestions for how the user should respond to the last message based on the context of the data.
 
 For analysis, USE ONE WORD
 Use the following format for your response:
 [
-  {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
-  {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
   {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
   {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
   {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"}
@@ -32,12 +31,12 @@ RULES:
 7. Use the language switching behavior of the data.
 """
 
-async def suggestionGeneration():
+async def suggestionGeneration(file_path: str): # Modified signature
     Settings.llm = Ollama(model="gemma3:4b", request_timeout=1000)
     Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text:latest')
 
     loader = JSONReader()
-    documents = loader.load_data(Path(r'C:\3rd year sec sem\Capstone\Telegram\emoticoach\backend\saved_messages\reign_analysis.json'))
+    documents = loader.load_data(Path(file_path)) # Use file_path argument
 
     client = qdrant_client.QdrantClient(path="./qdrant_data")
     vector_store = QdrantVectorStore(client=client, collection_name="analysis")
@@ -46,7 +45,16 @@ async def suggestionGeneration():
     index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
 
     query_engine = index.as_query_engine()
-    response = query_engine.query(prompt)
-    # Consider parsing response.response if it is a stringified JSON
-    return {"suggestions": response.response}
+    response = query_engine.query(prompt) # Prompt is updated to ask for 3 suggestions
+
+    # Parse the response string to a Python list
+    # Assuming response.response is a JSON string like '[{...}, {...}, {...}]'
+    try:
+        suggestions_list = json.loads(response.response)
+    except json.JSONDecodeError as e:
+        # Handle error, maybe return an empty list or re-raise
+        print(f"Error decoding JSON from LLM response: {e}")
+        suggestions_list = [] # Or handle as appropriate
+    
+    return suggestions_list # Return the list directly
 
