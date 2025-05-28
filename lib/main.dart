@@ -4,14 +4,14 @@ import 'screens/overlay.dart';
 
 // Placeholder screens - replace with real implementations later
 class LearnScreen extends StatelessWidget {
-  const LearnScreen({Key? key}) : super(key: key);
+  const LearnScreen({super.key});
   @override
   Widget build(BuildContext context) =>
       Scaffold(body: Center(child: Text("Learn Screen")));
 }
 
 class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
   @override
   Widget build(BuildContext context) =>
       Scaffold(body: Center(child: Text("Profile Screen")));
@@ -22,7 +22,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({Key? key}) : super(key: key);
+  const MainScreen({super.key});
 
   @override
   State<MainScreen> createState() => _MainScreenState();

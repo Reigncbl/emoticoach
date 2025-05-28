@@ -1,0 +1,31 @@
+{
+  "sender": "Carlo",
+  "receiver": "Carlo Lorieta",
+  "messages": [
+    {
+      "from": "Carlo",
+      "date": "2025-05-21 02:36:42+00:00",
+      "text": "meroon ba?"
+    },
+    {
+      "from": "Carlo",
+      "date": "2025-05-21 02:36:30+00:00",
+      "text": "try"
+    },
+    {
+      "from": "Carlo Lorieta",
+      "date": "2025-05-21 02:24:33+00:00",
+      "text": "pre chat ka nga nawala mga reply mo eh"
+    },
+    {
+      "from": "Carlo Lorieta",
+      "date": "2025-05-18 08:52:48+00:00",
+      "text": "lagay mo nga sa repo yan pre para pareho na ng files nag tatry palang naman ako eh"
+    },
+    {
+      "from": "Carlo Lorieta",
+      "date": "2025-05-18 08:36:49+00:00",
+      "text": "nakakabaliw pala yung overlay pero may docu naman na kaya skill issue lang"
+    }
+  ]
+}
