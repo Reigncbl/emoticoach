@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import './response.dart';
-import './analysis.dart';
 import '../utils/colors.dart';
+import './emotion_analysis_loader.dart';
 
 class OverlayScreen extends StatefulWidget {
   const OverlayScreen({super.key});
@@ -25,7 +25,7 @@ class _OverlayScreenState extends State<OverlayScreen> {
   Future<void> _fetchLatestMessage() async {
     try {
       final url = Uri.parse(
-        'https://fdc1a305cd90b86d285110afa65d6883.serveo.net/messages',
+        'https://976d4bbc4a7f64092bb74e2b011a0e71.serveo.net/messages',
       );
       final Map<String, dynamic> requestBody = {
         "phone": "9762325664",
@@ -142,46 +142,11 @@ class EmotionAnalysis extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              EmotionTag(text: "joy (9/10)"),
-              EmotionTag(text: "surprise (7/10)"),
-              EmotionTag(text: "acceptance (6/10)"),
-              EmotionTag(text: "anticipation (5/10)"),
-            ],
-          ),
-          SizedBox(height: 12),
-          EmotionAnalysisCard(
-            emotion: "Joy",
-            percent: 90,
-            description:
-                "The laughter and use of 'HAHAHAHAHA' clearly indicates a feeling of joy and amusement at the prospect of not having to face technical questions.",
-            highlighted: true,
-          ),
-          EmotionAnalysisCard(
-            emotion: "Surprise",
-            percent: 70,
-            description:
-                "The statement is unexpected, a sudden shift from potentially serious matters to a humorous dismissal. This creates a sense of surprise.",
-          ),
-          EmotionAnalysisCard(
-            emotion: "Acceptance",
-            percent: 60,
-            description:
-                "There's a subtle element of playful avoidance, suggesting a mild acceptance of the situation - agreeing to not be challenged with technicalities.",
-          ),
-          EmotionAnalysisCard(
-            emotion: "Anticipation",
-            percent: 50,
-            description:
-                "The statement is unexpected, a sudden shift from potentially serious matters to a humorous dismissal. This creates a sense of surprise.",
-          ),
-        ],
+      child: Scaffold(
+        appBar: AppBar(title: Text('Emotion Analysis')),
+        body: EmotionAnalysisLoader(
+          analysisApiUrl: 'http://localhost:11434', // Your API endpoint
+        ),
       ),
     );
   }
