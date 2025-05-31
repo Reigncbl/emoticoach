@@ -72,15 +72,15 @@ async def get_messages(data: ContactRequest):
             "file_path": file_path,
             **response_data
         }
-@app.get("/generate")
-async def generate():
-    result = await textExtraction()
+@app.get("/analyze_messages")
+async def analyze_messages(file_path: str = Query(..., description="Path to the JSON file to be analyzed")):
+    result = await textExtraction(file_path=file_path)
    
     return JSONResponse(result)
 
 
 @app.get("/suggestion")
-async def generate():
-    result = await suggestionGeneration()
+async def suggestion(file_path: str = Query(..., description="Path to the JSON file containing messages")):
+    result = await suggestionGeneration(file_path=file_path)
    
     return JSONResponse(result)

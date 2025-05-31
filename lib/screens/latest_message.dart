@@ -1,58 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import '../utils/api_service.dart';
 
 class LatestMessageBox extends StatelessWidget {
-  final String phone;
-  final String firstName;
-  final String lastName;
-  final String messageApiUrl;
+  final String filePath; // Changed constructor parameter
+  final APIService _apiService = APIService(); // Added APIService instance
 
-  const LatestMessageBox({
+  LatestMessageBox({
+    // Constructor updated
     super.key,
-    required this.phone,
-    required this.firstName,
-    required this.lastName,
-    required this.messageApiUrl,
+    required this.filePath,
   });
 
-  Future<String> _fetchLatestMessage() async {
-    final Uri url = Uri.parse(messageApiUrl);
-    final Map<String, dynamic> requestBody = {
-      "phone": phone,
-      "first_name": firstName,
-      "last_name": lastName,
-    };
+  Future<String> _fetchAnalyzedMessageText() async {
+    // Method renamed and logic updated
     try {
-      final response = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(requestBody),
+      final Map<String, dynamic> data = await _apiService.analyzeMessages(
+        filePath,
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data.containsKey("messages") &&
-            (data["messages"] as List).isNotEmpty) {
-          final firstMsg = data["messages"][0];
-          return '${firstMsg["text"]}';
-        } else if (data.containsKey("error")) {
-          return 'Error: ${data["error"]}';
-        } else {
-          return 'No messages found.';
+      if (data.containsKey("results")) {
+        // Ensure "results" is a List
+        if (data["results"] is! List) {
+          return 'Error: "results" field is not a list.';
         }
+        final List<dynamic> resultsList = data["results"] as List;
+
+        if (resultsList.isNotEmpty) {
+          // Ensure the first item is a Map
+          if (resultsList.first is! Map<String, dynamic>) {
+            return 'Error: First item in "results" is not a valid map.';
+          }
+          final Map<String, dynamic> firstResult =
+              resultsList.first as Map<String, dynamic>;
+
+          if (firstResult.containsKey("text")) {
+            return firstResult["text"]?.toString() ?? 'No message text found.';
+          } else {
+            return 'No message text found in the first result.';
+          }
+        } else {
+          return 'No results found.';
+        }
+      } else if (data.containsKey("error")) {
+        return 'Error from API: ${data["error"]}';
       } else {
-        return 'Failed to fetch message. Status: ${response.statusCode}';
+        // Check if the entire response is an error structure from APIService itself
+        // (e.g. if APIService throws and something catches it and returns a map)
+        // This part might be redundant if APIService always throws on HTTP error.
+        return 'No message data found in API response.';
       }
     } catch (e) {
-      return 'Error: $e';
+      // This will catch errors thrown by APIService (e.g., network issues, HTTP errors)
+      // or any other issue within the try block.
+      return 'Error fetching message: $e';
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
-      future: _fetchLatestMessage(),
+      future: _fetchAnalyzedMessageText(), // Updated future method
       builder: (context, snapshot) {
         String message;
         if (snapshot.connectionState == ConnectionState.waiting) {
