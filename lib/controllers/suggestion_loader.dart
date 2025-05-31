@@ -13,27 +13,19 @@ class SuggestionLoader with ChangeNotifier {
   String? _error;
   String? get error => _error;
 
-  // Variables to hold message data
-  // We no longer need _filePath here as it's passed in loadSuggestions
-  // String? _filePath;
-  // String? get filePath => _filePath; // Getter for filePath
-  // Map<String, dynamic>? _messageData; // Uncomment if needed
-
-  // Modified loadSuggestions to accept messageFilePath
-  Future<void> loadSuggestions({
-    required String messageFilePath, // Accept messageFilePath
-  }) async {
+  Future<void> loadSuggestions({required String messageFilePath}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      // We already have the file path, no need to fetch messages again
-      // Use the provided messageFilePath to fetch suggestions
-      _suggestions = await _apiService.fetchSuggestions(messageFilePath);
+      final result = await _apiService.fetchSuggestions(messageFilePath);
+      _suggestions = result.whereType<Map<String, dynamic>>().toList();
+      _error = null;
     } catch (e) {
       print('Error in loadSuggestions: $e');
       _error = e.toString();
+      _suggestions = [];
     } finally {
       _isLoading = false;
       notifyListeners();

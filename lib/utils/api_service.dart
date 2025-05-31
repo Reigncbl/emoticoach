@@ -42,25 +42,18 @@ class APIService {
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
-      if (decoded is List) {
-        List<Map<String, dynamic>> suggestions = [];
-        for (int i = 0; i < decoded.length; i += 2) {
-          if (i + 1 < decoded.length) {
-            suggestions.add({
-              "analysis": decoded[i] as String,
-              "suggestion": decoded[i + 1] as String,
-            });
-          }
+
+      // Expect the backend to always return a Map with a 'suggestions' key
+      if (decoded is Map<String, dynamic> &&
+          decoded.containsKey('suggestions')) {
+        final suggestions = decoded['suggestions'];
+        if (suggestions is List) {
+          // Ensure each item is a Map
+          return suggestions.cast<Map<String, dynamic>>();
         }
-        return suggestions;
-      } else if (decoded is String) {
-        // The backend sent a string (error or empty)
-        print('Suggestion endpoint returned a string: $decoded');
-        return []; // Just return an empty list
-      } else {
-        print('Unexpected suggestions response type: ${decoded.runtimeType}');
-        return [];
       }
+      // fallback: no suggestions key found, return empty list
+      return [];
     } else {
       print('Failed to fetch suggestions: ${response.statusCode}');
       print('Response body: ${response.body}');

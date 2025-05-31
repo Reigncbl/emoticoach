@@ -78,9 +78,10 @@ async def analyze_messages(file_path: str = Query(..., description="Path to the 
    
     return JSONResponse(result)
 
-
 @app.get("/suggestion")
 async def suggestion(file_path: str = Query(..., description="Path to the JSON file containing messages")):
     result = await suggestionGeneration(file_path=file_path)
-   
-    return JSONResponse(result)
+    if isinstance(result, list):
+        return JSONResponse({"suggestions": result})
+    else:
+        return JSONResponse(result)
