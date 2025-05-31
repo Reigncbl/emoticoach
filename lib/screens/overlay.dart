@@ -103,14 +103,14 @@ class _OverlayScreenState extends State<OverlayScreen> {
     // Tab content
     Widget tabContent;
     if (_selectedTab == 0) {
-      tabContent = EmotionAnalysis(filePath: _filePath!);
+      tabContent = EmotionAnalysis(
+        filePath: _filePath!,
+      ); // Pass messageFilePath for analysis
     } else if (_selectedTab == 1) {
       tabContent = ChangeNotifierProvider(
         create: (_) => SuggestionLoader(),
         child: ResponseSuggestionScreen(
-          phone: phone,
-          firstName: firstName,
-          lastName: lastName,
+          messageFilePath: _filePath!, // Pass messageFilePath to suggestions
         ),
       );
     } else {
@@ -208,15 +208,11 @@ class _TabButton extends StatelessWidget {
 
 // Response suggestion screen
 class ResponseSuggestionScreen extends StatefulWidget {
-  final String phone;
-  final String firstName;
-  final String lastName;
+  final String messageFilePath; // Accept messageFilePath
 
   const ResponseSuggestionScreen({
     super.key,
-    required this.phone,
-    required this.firstName,
-    required this.lastName,
+    required this.messageFilePath, // Require messageFilePath in the constructor
   });
 
   @override
@@ -228,12 +224,10 @@ class _ResponseSuggestionScreenState extends State<ResponseSuggestionScreen> {
   @override
   void initState() {
     super.initState();
-    // Provider is created above, so we can use it here
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SuggestionLoader>(
-        context,
-        listen: false,
-      ).loadSuggestions(widget.phone, widget.firstName, widget.lastName);
+      Provider.of<SuggestionLoader>(context, listen: false).loadSuggestions(
+        messageFilePath: widget.messageFilePath,
+      ); // Pass messageFilePath to loadSuggestions
     });
   }
 

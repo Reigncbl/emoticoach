@@ -2,14 +2,19 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class APIService {
+  final http.Client _client;
   String baseUrl = "http://10.0.2.2:8000"; // Standard for Android emulator
+
+  // Constructor allowing http.Client injection for testing
+  APIService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<Map<String, dynamic>> fetchMessagesAndPath(
     String phone,
     String firstName,
     String lastName,
   ) async {
-    final response = await http.post(
+    final response = await _client.post(
+      // Use _client
       Uri.parse('$baseUrl/messages'),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
@@ -31,7 +36,8 @@ class APIService {
   }
 
   Future<List<Map<String, dynamic>>> fetchSuggestions(String filePath) async {
-    final response = await http.get(
+    final response = await _client.get(
+      // Use _client
       Uri.parse(
         '$baseUrl/suggestion?file_path=${Uri.encodeComponent(filePath)}',
       ),
@@ -39,7 +45,16 @@ class APIService {
 
     if (response.statusCode == 200) {
       List<dynamic> decodedList = jsonDecode(response.body);
-      return decodedList.map((item) => item as Map<String, dynamic>).toList();
+      List<Map<String, dynamic>> suggestions = [];
+      for (int i = 0; i < decodedList.length; i += 2) {
+        if (i + 1 < decodedList.length) {
+          suggestions.add({
+            "analysis": decodedList[i] as String,
+            "suggestion": decodedList[i + 1] as String,
+          });
+        }
+      }
+      return suggestions;
     } else {
       print('Failed to fetch suggestions: ${response.statusCode}');
       print('Response body: ${response.body}');
@@ -53,7 +68,8 @@ class APIService {
       '$baseUrl/analyze_messages?file_path=${Uri.encodeComponent(filePath)}',
     ); // URL updated, using Uri.encodeComponent
     try {
-      final response = await http.get(
+      final response = await _client.get(
+        // Use _client
         uri,
       ); // Removed Content-Type header for GET
 
