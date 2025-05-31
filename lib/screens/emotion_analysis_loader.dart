@@ -1,7 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import './analysis.dart';
+// import 'package:http/http.dart' as http; // No longer needed directly here
+import '../utils/api_service.dart'; // Added APIService import
+import './analysis.dart'; // For EmotionAnalysisCard
 
 // DATA MODEL
 class EmotionAnalysis {
@@ -63,17 +63,11 @@ class EmotionTagPill extends StatelessWidget {
 
 // LOADER WIDGET WITH CLICKABLE FILTER TABS
 class EmotionAnalysisLoader extends StatefulWidget {
-  final String analysisApiUrl;
-  final String phone;
-  final String firstName;
-  final String lastName;
+  final String filePath; // Changed constructor
 
   const EmotionAnalysisLoader({
     super.key,
-    required this.analysisApiUrl,
-    required this.phone,
-    required this.firstName,
-    required this.lastName,
+    required this.filePath, // Store filePath
   });
 
   @override
@@ -83,6 +77,7 @@ class EmotionAnalysisLoader extends StatefulWidget {
 class _EmotionAnalysisLoaderState extends State<EmotionAnalysisLoader> {
   late Future<List<EmotionAnalysis>> _futureEmotions;
   String? _selectedEmotion; // null means show all
+  final APIService _apiService = APIService(); // Added APIService instance
 
   @override
   void initState() {
@@ -91,27 +86,61 @@ class _EmotionAnalysisLoaderState extends State<EmotionAnalysisLoader> {
   }
 
   Future<List<EmotionAnalysis>> fetchEmotions() async {
-    final url = Uri.parse(widget.analysisApiUrl);
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'phone': widget.phone,
-        'first_name': widget.firstName,
-        'last_name': widget.lastName,
-      }),
-    );
-    if (response.statusCode == 200) {
-      final body = json.decode(response.body);
-      if (body['last_message_analysis'] == null ||
-          body['last_message_analysis']['analysis'] == null) {
-        throw Exception('No analysis found for last message.');
+    try {
+      final Map<String, dynamic> body = await _apiService.analyzeMessages(
+        widget.filePath,
+      );
+
+      // Check for 'results' key and if it's a non-empty list
+      if (body['results'] == null ||
+          body['results'] is! List ||
+          (body['results'] as List).isEmpty) {
+        // Check for an error message from the backend if results are not as expected
+        if (body['error'] != null) {
+          throw Exception('Failed to load emotion analysis: ${body['error']}');
+        }
+        throw Exception(
+          'No results found in analysis response or results key is missing/empty.',
+        );
       }
 
-      final List<dynamic> analysis = body['last_message_analysis']['analysis'];
-      return analysis.map((item) => EmotionAnalysis.fromJson(item)).toList();
-    } else {
-      throw Exception('Failed to load emotion analysis: ${response.body}');
+      final List<dynamic> resultsList = body['results'] as List;
+
+      // Find the first result item that contains an 'analysis' list.
+      // This assumes we are interested in the analysis of the first message/segment that has one.
+      final Map<String, dynamic>? firstResultWithAnalysis = resultsList
+          .firstWhere(
+            (item) =>
+                item is Map<String, dynamic> &&
+                item['analysis'] != null &&
+                (item['analysis'] is List),
+            orElse: () => null, // Return null if no such item is found
+          );
+
+      if (firstResultWithAnalysis == null) {
+        throw Exception('No valid analysis data found in any of the results.');
+      }
+
+      final List<dynamic> analysisList =
+          firstResultWithAnalysis['analysis'] as List;
+      if (analysisList.isEmpty) {
+        // This case might be valid (e.g. text had no discernible emotions by the model)
+        // but for now, let's treat it as "no data to display" or an issue if we expect emotions.
+        // Depending on requirements, you might return an empty list or throw.
+        // For now, returning an empty list to avoid breaking UI that expects a list.
+        print(
+          "Warning: Analysis list is empty for filePath: ${widget.filePath}",
+        );
+        return [];
+      }
+
+      return analysisList
+          .map((item) => EmotionAnalysis.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      // Catch errors from APIService or from parsing logic above
+      print('Error in fetchEmotions: $e for filePath: ${widget.filePath}');
+      throw Exception('Failed to load emotion analysis: $e');
     }
   }
 

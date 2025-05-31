@@ -82,15 +82,15 @@ async def analyze_emotion(prompt: str, model: str = DEFAULT_MODEL) -> list[dict]
         print(f"An unexpected error occurred during emotion analysis: {e}")
         return None
 
-async def analyze_json_file(json_path: str) -> list[dict] | None:
+async def analyze_json_file(file_path: str) -> list[dict] | None:
     """
     Analyze the json file for the embedding
     """
-    if not os.path.exists(json_path):
+    if not os.path.exists(file_path):
         return None
     # Open the file and read the data
     try:
-        with open(json_path, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return None
@@ -116,19 +116,21 @@ async def analyze_json_file(json_path: str) -> list[dict] | None:
         results.append({"text": text, "timestamp": ts, "analysis": emotion})
     return results
 
-async def textExtraction():
-    file = r"C:\3rd year sec sem\Capstone\Telegram\emoticoach\backend\saved_messages\reign.json"
-    print("Analyzing:", file)
-    results = await analyze_json_file(file)
+async def textExtraction(file_path: str):
+    print("Analyzing:", file_path)
+    results = await analyze_json_file(file_path)
     if not results:
         return {"error": "No analysis results or an error occurred during file analysis."}
-    out = os.path.splitext(file)[0] + "_analysis.json"
+    
+    out_dir = os.path.dirname(file_path)
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    out = os.path.join(out_dir, f"{base_name}_analysis.json")
+
     try:
         with open(out, "w", encoding="utf-8") as f:
             json.dump({"results": results}, f, indent=2, ensure_ascii=False)
-        print("Saved:", out)
+        print("Saved analysis to:", out)
         return {"results": results, "output_file": out}
     except Exception as e:
         print("Save error:", e)
         return {"error": f"Failed to save analysis results: {e}"}
-

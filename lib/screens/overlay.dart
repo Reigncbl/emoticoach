@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import './response.dart';
 import '../utils/colors.dart';
+import '../controllers/suggestion_loader.dart';
 import './emotion_analysis_loader.dart';
-import './latest_message.dart'; // <-- import your new widget
+import './latest_message.dart';
+import '../utils/api_service.dart';
 
 class OverlayScreen extends StatefulWidget {
   const OverlayScreen({super.key});
@@ -14,26 +17,48 @@ class OverlayScreen extends StatefulWidget {
 class _OverlayScreenState extends State<OverlayScreen> {
   int _selectedTab = 0; // 0=Emotion, 1=Response, 2=Tone
 
-  // These are your contact details used for both /messages and /analyze_messages
+  // Contact details
   final String phone = "9615365763";
   final String firstName = "Carlo";
   final String lastName = "Lorieta";
 
+  // State variables for filePath fetching
+  String? _filePath;
+  bool _isLoadingFilePath = true;
+  String? _filePathError;
+  final APIService _apiService = APIService();
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchInitialData();
+  }
+
+  Future<void> _fetchInitialData() async {
+    try {
+      final response = await _apiService.fetchMessagesAndPath(
+        phone,
+        firstName,
+        lastName,
+      );
+      if (mounted) {
+        setState(() {
+          _filePath = response['file_path'];
+          _isLoadingFilePath = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _filePathError = e.toString();
+          _isLoadingFilePath = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    Widget content;
-    if (_selectedTab == 0) {
-      content = EmotionAnalysis(
-        phone: phone,
-        firstName: firstName,
-        lastName: lastName,
-      );
-    } else if (_selectedTab == 1) {
-      content = const ResponseSuggestionScreen();
-    } else {
-      content = const Center(child: Text("Tone Adjuster Coming Soon!"));
-    }
-
     return Scaffold(
       backgroundColor: kBgCream,
       appBar: AppBar(
@@ -50,71 +75,93 @@ class _OverlayScreenState extends State<OverlayScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: _buildBodyContent(),
+      ),
+    );
+  }
+
+  Widget _buildBodyContent() {
+    if (_isLoadingFilePath) {
+      return const Center(
+        child: CircularProgressIndicator(key: ValueKey("filePathLoading")),
+      );
+    }
+    if (_filePathError != null) {
+      return Center(
+        child: Text(
+          'Error loading message data: $_filePathError',
+          key: ValueKey("filePathError"),
+        ),
+      );
+    }
+    if (_filePath == null) {
+      return const Center(
+        child: Text('File path not available.', key: ValueKey("filePathNull")),
+      );
+    }
+
+    // Tab content
+    Widget tabContent;
+    if (_selectedTab == 0) {
+      tabContent = EmotionAnalysis(filePath: _filePath!);
+    } else if (_selectedTab == 1) {
+      tabContent = ChangeNotifierProvider(
+        create: (_) => SuggestionLoader(),
+        child: ResponseSuggestionScreen(
+          phone: phone,
+          firstName: firstName,
+          lastName: lastName,
+        ),
+      );
+    } else {
+      tabContent = const Center(child: Text("Tone Adjuster Coming Soon!"));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Message from Carlo:",
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        LatestMessageBox(filePath: _filePath!),
+        Row(
           children: [
-            const Text(
-              "Message from Carlo:",
-              style: TextStyle(fontWeight: FontWeight.w600),
+            _TabButton(
+              text: "Emotion\nAnalysis",
+              selected: _selectedTab == 0,
+              onTap: () => setState(() => _selectedTab = 0),
             ),
-            const SizedBox(height: 4),
-            LatestMessageBox(
-              messageApiUrl: 'http://10.0.2.2:8000/analyze_messages',
-              phone: phone,
-              firstName: firstName,
-              lastName: lastName,
+            _TabButton(
+              text: "Response\nSuggestion",
+              selected: _selectedTab == 1,
+              onTap: () => setState(() => _selectedTab = 1),
             ),
-            Row(
-              children: [
-                _TabButton(
-                  text: "Emotion\nAnalysis",
-                  selected: _selectedTab == 0,
-                  onTap: () => setState(() => _selectedTab = 0),
-                ),
-                _TabButton(
-                  text: "Response\nSuggestion",
-                  selected: _selectedTab == 1,
-                  onTap: () => setState(() => _selectedTab = 1),
-                ),
-                _TabButton(
-                  text: "Tone Adjuster",
-                  selected: _selectedTab == 2,
-                  onTap: () => setState(() => _selectedTab = 2),
-                ),
-              ],
+            _TabButton(
+              text: "Tone Adjuster",
+              selected: _selectedTab == 2,
+              onTap: () => setState(() => _selectedTab = 2),
             ),
-            const SizedBox(height: 16),
-            Expanded(child: content),
           ],
         ),
-      ),
+        const SizedBox(height: 16),
+        Expanded(child: tabContent),
+      ],
     );
   }
 }
 
-// Separated Emotion Analysis widget, now takes contact info from parent
 class EmotionAnalysis extends StatelessWidget {
-  final String phone;
-  final String firstName;
-  final String lastName;
+  final String filePath;
 
-  const EmotionAnalysis({
-    super.key,
-    required this.phone,
-    required this.firstName,
-    required this.lastName,
-  });
+  const EmotionAnalysis({super.key, required this.filePath});
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: EmotionAnalysisLoader(
-        analysisApiUrl: 'http://10.0.2.2:8000/analyze_messages',
-        phone: phone,
-        firstName: firstName,
-        lastName: lastName,
-      ),
+      child: EmotionAnalysisLoader(filePath: filePath),
     );
   }
 }
@@ -123,6 +170,7 @@ class _TabButton extends StatelessWidget {
   final String text;
   final bool selected;
   final VoidCallback onTap;
+
   const _TabButton({
     required this.text,
     required this.selected,
@@ -158,30 +206,71 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-// Response suggestion screen (unchanged)
-class ResponseSuggestionScreen extends StatelessWidget {
-  const ResponseSuggestionScreen({super.key});
+// Response suggestion screen
+class ResponseSuggestionScreen extends StatefulWidget {
+  final String phone;
+  final String firstName;
+  final String lastName;
+
+  const ResponseSuggestionScreen({
+    super.key,
+    required this.phone,
+    required this.firstName,
+    required this.lastName,
+  });
+
+  @override
+  State<ResponseSuggestionScreen> createState() =>
+      _ResponseSuggestionScreenState();
+}
+
+class _ResponseSuggestionScreenState extends State<ResponseSuggestionScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Provider is created above, so we can use it here
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SuggestionLoader>(
+        context,
+        listen: false,
+      ).loadSuggestions(widget.phone, widget.firstName, widget.lastName);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: kBgCream,
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          ResponseSuggestionCard(
-            title: "Polite",
-            tone: "Friendly",
-            message:
-                "Thank you for letting me know. I appreciate your honesty!",
-          ),
-          ResponseSuggestionCard(
-            title: "Curious",
-            tone: "Inquisitive",
-            message: "Oh really? What changed your mind?",
-          ),
-        ],
-      ),
+    return Consumer<SuggestionLoader>(
+      builder: (context, loader, child) {
+        if (loader.isLoading && loader.suggestions.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (loader.error != null) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text('Error: ${loader.error}\n\nPlease try again.'),
+            ),
+          );
+        }
+        if (loader.suggestions.isEmpty) {
+          return const Center(child: Text('No suggestions available.'));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16.0),
+          itemCount: loader.suggestions.length,
+          itemBuilder: (context, index) {
+            final suggestion = loader.suggestions[index];
+            return ResponseSuggestionCard(
+              title: 'Suggestion ${index + 1}',
+              tone: suggestion['analysis']?.toString() ?? 'N/A',
+              message: suggestion['suggestion']?.toString() ?? 'No message',
+              onUse: () {
+                // Add logic here for using a suggestion, e.g. copying to clipboard
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
