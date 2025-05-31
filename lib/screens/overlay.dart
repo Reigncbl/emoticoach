@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import './response.dart';
 import '../utils/colors.dart';
 import '../controllers/suggestion_loader.dart';
 import './emotion_analysis_loader.dart';
-import './latest_message.dart';
 import '../utils/api_service.dart';
+import 'package:emoticoach/screens/latest_message.dart' as latest_msg;
+import 'package:emoticoach/screens/response.dart' as response;
 
 class OverlayScreen extends StatefulWidget {
   const OverlayScreen({super.key});
@@ -28,6 +28,10 @@ class _OverlayScreenState extends State<OverlayScreen> {
   String? _filePathError;
   final APIService _apiService = APIService();
 
+  // State variables for analysis data
+  Map<String, dynamic>? _analysisData;
+  String? _analysisError;
+
   @override
   void initState() {
     super.initState();
@@ -44,13 +48,39 @@ class _OverlayScreenState extends State<OverlayScreen> {
       if (mounted) {
         setState(() {
           _filePath = response['file_path'];
-          _isLoadingFilePath = false;
+          // _isLoadingFilePath = false; // Moved to finally
         });
+      }
+
+      if (_filePath != null) {
+        try {
+          final analysisData = await _apiService.analyzeMessages(_filePath!);
+          if (mounted) {
+            setState(() {
+              _analysisData = analysisData;
+              _analysisError = null;
+            });
+          }
+        } catch (e) {
+          if (mounted) {
+            setState(() {
+              _analysisError = 'Error analyzing messages: $e';
+              _analysisData = null;
+            });
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _filePathError = e.toString();
+          _filePath = null;
+          _analysisData = null;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
           _isLoadingFilePath = false;
         });
       }
@@ -90,27 +120,41 @@ class _OverlayScreenState extends State<OverlayScreen> {
       return Center(
         child: Text(
           'Error loading message data: $_filePathError',
-          key: ValueKey("filePathError"),
+          key: const ValueKey("filePathError"),
         ),
       );
     }
-    if (_filePath == null) {
+    // After file path checks, check for analysis error
+    if (_analysisError != null) {
+      return Center(
+        child: Text(
+          'Error loading analysis data: $_analysisError',
+          key: const ValueKey("analysisError"),
+        ),
+      );
+    }
+
+    if (_filePath == null || _analysisData == null) {
       return const Center(
-        child: Text('File path not available.', key: ValueKey("filePathNull")),
+        child: Text(
+          'File path or analysis data not available.',
+          key: const ValueKey("dataNull"),
+        ),
       );
     }
 
     // Tab content
     Widget tabContent;
     if (_selectedTab == 0) {
-      tabContent = EmotionAnalysis(filePath: _filePath!);
+      tabContent = EmotionAnalysis(
+        // filePath parameter removed
+        analysisData: _analysisData!,
+      );
     } else if (_selectedTab == 1) {
       tabContent = ChangeNotifierProvider(
         create: (_) => SuggestionLoader(),
         child: ResponseSuggestionScreen(
-          phone: phone,
-          firstName: firstName,
-          lastName: lastName,
+          messageFilePath: _filePath!, // Pass messageFilePath to suggestions
         ),
       );
     } else {
@@ -125,7 +169,10 @@ class _OverlayScreenState extends State<OverlayScreen> {
           style: TextStyle(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 4),
-        LatestMessageBox(filePath: _filePath!),
+        latest_msg.LatestMessageBox(
+          // filePath parameter removed
+          latestMessageText: _getLatestMessageText(),
+        ),
         Row(
           children: [
             _TabButton(
@@ -150,18 +197,44 @@ class _OverlayScreenState extends State<OverlayScreen> {
       ],
     );
   }
+
+  String _getLatestMessageText() {
+    try {
+      // Safely access the nested data
+      final results = _analysisData?['results'] as List?;
+      if (results != null && results.isNotEmpty) {
+        final firstResult = results.first as Map?;
+        if (firstResult != null && firstResult.containsKey('text')) {
+          return firstResult['text']?.toString() ??
+              'No message text available.';
+        }
+      }
+    } catch (e) {
+      // Log error or handle appropriately
+      print('Error extracting latest message: $e');
+    }
+    return 'Latest message not found.';
+  }
 }
 
 class EmotionAnalysis extends StatelessWidget {
-  final String filePath;
+  // filePath field removed
+  final Map<String, dynamic> analysisData;
 
-  const EmotionAnalysis({super.key, required this.filePath});
+  const EmotionAnalysis({
+    super.key,
+    // required this.filePath, // filePath field removed
+    required this.analysisData,
+  });
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
-      child: EmotionAnalysisLoader(filePath: filePath),
+      child: EmotionAnalysisLoader(
+        // filePath parameter removed
+        analysisData: analysisData,
+      ),
     );
   }
 }
@@ -208,15 +281,11 @@ class _TabButton extends StatelessWidget {
 
 // Response suggestion screen
 class ResponseSuggestionScreen extends StatefulWidget {
-  final String phone;
-  final String firstName;
-  final String lastName;
+  final String messageFilePath; // Accept messageFilePath
 
   const ResponseSuggestionScreen({
     super.key,
-    required this.phone,
-    required this.firstName,
-    required this.lastName,
+    required this.messageFilePath, // Require messageFilePath in the constructor
   });
 
   @override
@@ -228,12 +297,10 @@ class _ResponseSuggestionScreenState extends State<ResponseSuggestionScreen> {
   @override
   void initState() {
     super.initState();
-    // Provider is created above, so we can use it here
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<SuggestionLoader>(
-        context,
-        listen: false,
-      ).loadSuggestions(widget.phone, widget.firstName, widget.lastName);
+      Provider.of<SuggestionLoader>(context, listen: false).loadSuggestions(
+        messageFilePath: widget.messageFilePath,
+      ); // Pass messageFilePath to loadSuggestions
     });
   }
 
@@ -260,7 +327,7 @@ class _ResponseSuggestionScreenState extends State<ResponseSuggestionScreen> {
           itemCount: loader.suggestions.length,
           itemBuilder: (context, index) {
             final suggestion = loader.suggestions[index];
-            return ResponseSuggestionCard(
+            return response.ResponseSuggestionCard(
               title: 'Suggestion ${index + 1}',
               tone: suggestion['analysis']?.toString() ?? 'N/A',
               message: suggestion['suggestion']?.toString() ?? 'No message',
