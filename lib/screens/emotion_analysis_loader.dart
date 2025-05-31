@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-// import 'package:http/http.dart' as http; // No longer needed directly here
-import '../utils/api_service.dart'; // Added APIService import
-import './analysis.dart'; // For EmotionAnalysisCard
+import './analysis.dart';
 
 // DATA MODEL
 class EmotionAnalysis {
@@ -63,164 +61,174 @@ class EmotionTagPill extends StatelessWidget {
 
 // LOADER WIDGET WITH CLICKABLE FILTER TABS
 class EmotionAnalysisLoader extends StatefulWidget {
-  final String filePath; // Changed constructor
+  final Map<String, dynamic> analysisData;
 
-  const EmotionAnalysisLoader({
-    super.key,
-    required this.filePath, // Store filePath
-  });
+  const EmotionAnalysisLoader({super.key, required this.analysisData});
 
   @override
   State<EmotionAnalysisLoader> createState() => _EmotionAnalysisLoaderState();
 }
 
 class _EmotionAnalysisLoaderState extends State<EmotionAnalysisLoader> {
-  late Future<List<EmotionAnalysis>> _futureEmotions;
+  List<EmotionAnalysis>? _emotionsList;
+  String? _parsingError;
   String? _selectedEmotion; // null means show all
-  final APIService _apiService = APIService(); // Added APIService instance
 
   @override
   void initState() {
     super.initState();
-    _futureEmotions = fetchEmotions();
+    _parseAnalysisData();
   }
 
-  Future<List<EmotionAnalysis>> fetchEmotions() async {
+  void _parseAnalysisData() {
     try {
-      final Map<String, dynamic> body = await _apiService.analyzeMessages(
-        widget.filePath,
-      );
+      final Map<String, dynamic> body = widget.analysisData;
 
-      // Check for 'results' key and if it's a non-empty list
       if (body['results'] == null ||
           body['results'] is! List ||
           (body['results'] as List).isEmpty) {
-        // Check for an error message from the backend if results are not as expected
         if (body['error'] != null) {
-          throw Exception('Failed to load emotion analysis: ${body['error']}');
+          throw Exception('Analysis data error: ${body['error']}');
         }
         throw Exception(
-          'No results found in analysis response or results key is missing/empty.',
+          'No results found in analysis data or results key is missing/empty.',
         );
       }
 
       final List<dynamic> resultsList = body['results'] as List;
 
-      // Find the first result item that contains an 'analysis' list.
-      // This assumes we are interested in the analysis of the first message/segment that has one.
       final Map<String, dynamic>? firstResultWithAnalysis = resultsList
           .firstWhere(
             (item) =>
                 item is Map<String, dynamic> &&
                 item['analysis'] != null &&
-                (item['analysis'] is List),
-            orElse: () => null, // Return null if no such item is found
+                (item['analysis'] is List) &&
+                (item['analysis'] as List).isNotEmpty,
+            orElse: () => null,
           );
 
       if (firstResultWithAnalysis == null) {
-        throw Exception('No valid analysis data found in any of the results.');
+        setState(() {
+          _emotionsList = [];
+          _parsingError = null;
+        });
+        return;
       }
 
       final List<dynamic> analysisList =
           firstResultWithAnalysis['analysis'] as List;
+
       if (analysisList.isEmpty) {
-        // This case might be valid (e.g. text had no discernible emotions by the model)
-        // but for now, let's treat it as "no data to display" or an issue if we expect emotions.
-        // Depending on requirements, you might return an empty list or throw.
-        // For now, returning an empty list to avoid breaking UI that expects a list.
-        print(
-          "Warning: Analysis list is empty for filePath: ${widget.filePath}",
-        );
-        return [];
+        setState(() {
+          _emotionsList = [];
+          _parsingError = null;
+        });
+        return;
       }
 
-      return analysisList
+      final parsedEmotions = analysisList
           .map((item) => EmotionAnalysis.fromJson(item as Map<String, dynamic>))
           .toList();
+
+      setState(() {
+        _emotionsList = parsedEmotions;
+        _parsingError = null;
+      });
     } catch (e) {
-      // Catch errors from APIService or from parsing logic above
-      print('Error in fetchEmotions: $e for filePath: ${widget.filePath}');
-      throw Exception('Failed to load emotion analysis: $e');
+      print('Error parsing analysis data: $e');
+      setState(() {
+        _parsingError = 'Failed to parse emotion analysis: $e';
+        _emotionsList = null;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<EmotionAnalysis>>(
-      future: _futureEmotions,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-        final emotions = snapshot.data!;
-        final highest = emotions.reduce((a, b) => a.score > b.score ? a : b);
+    if (_parsingError != null) {
+      return Center(child: Text('Error: $_parsingError'));
+    }
 
-        // Sort by score descending for tag order
-        final sortedEmotions = List<EmotionAnalysis>.from(emotions)
-          ..sort((a, b) => b.score.compareTo(a.score));
+    if (_emotionsList == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-        // Tag Row (All + each emotion)
-        final tagRow = SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              EmotionTagPill(
-                text: "All",
-                selected: _selectedEmotion == null,
-                onTap: () {
-                  setState(() {
-                    _selectedEmotion = null;
-                  });
-                },
-              ),
-              ...sortedEmotions.map(
-                (e) => EmotionTagPill(
-                  text:
-                      '${e.emotion[0].toUpperCase()}${e.emotion.substring(1)} (${e.score.toInt()}/10)',
-                  selected:
-                      _selectedEmotion?.toLowerCase() ==
-                      e.emotion.toLowerCase(),
-                  onTap: () {
-                    setState(() {
-                      _selectedEmotion = e.emotion;
-                    });
-                  },
-                ),
-              ),
-            ],
+    if (_emotionsList!.isEmpty) {
+      return const Center(child: Text('No emotion analysis available.'));
+    }
+
+    final emotions = _emotionsList!;
+    final highest = emotions.reduce((a, b) => a.score > b.score ? a : b);
+
+    final sortedEmotions = List<EmotionAnalysis>.from(emotions)
+      ..sort((a, b) => b.score.compareTo(a.score));
+
+    final tagRow = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          EmotionTagPill(
+            text: "All",
+            selected: _selectedEmotion == null,
+            onTap: () {
+              setState(() {
+                _selectedEmotion = null;
+              });
+            },
           ),
-        );
-
-        // Filtered emotions for cards
-        final filtered = _selectedEmotion == null
-            ? emotions
-            : emotions
-                  .where(
-                    (e) =>
-                        e.emotion.toLowerCase() ==
-                        _selectedEmotion!.toLowerCase(),
-                  )
-                  .toList();
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            tagRow,
-            ...filtered.map(
-              (e) => EmotionAnalysisCard(
-                emotion: e.emotion,
-                percent: (e.score * 10).toInt(),
-                description: e.analysis,
-                highlighted: e.emotion == highest.emotion,
-              ),
+          ...sortedEmotions.map(
+            (e) => EmotionTagPill(
+              text:
+                  '${e.emotion[0].toUpperCase()}${e.emotion.substring(1)} (${e.score.toInt()}/10)',
+              selected:
+                  _selectedEmotion?.toLowerCase() == e.emotion.toLowerCase(),
+              onTap: () {
+                setState(() {
+                  _selectedEmotion = e.emotion;
+                });
+              },
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
+    );
+
+    final filtered = _selectedEmotion == null
+        ? emotions
+        : emotions
+              .where(
+                (e) =>
+                    e.emotion.toLowerCase() == _selectedEmotion!.toLowerCase(),
+              )
+              .toList();
+
+    if (filtered.isEmpty && _selectedEmotion != null) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          tagRow,
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: Text('No emotions found for this filter.')),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        tagRow,
+        ...filtered.map(
+          (e) => EmotionAnalysisCard(
+            emotion: e.emotion,
+            percent: (e.score * 10).toInt(),
+            description: e.analysis,
+            highlighted: e.emotion == highest.emotion,
+          ),
+        ),
+      ],
     );
   }
 }

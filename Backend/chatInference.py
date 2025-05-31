@@ -101,19 +101,27 @@ async def analyze_json_file(file_path: str) -> list[dict] | None:
         messages = data
     else:
         return None
-    results = []
-    for m in messages:
-        if isinstance(m, dict) and "text" in m:
-            text = m["text"]
-            ts = m.get("date", None)
-        elif isinstance(m, str):
-            text = m
-            ts = None
-        else:
-            continue  
 
-        emotion = await analyze_emotion(text)
-        results.append({"text": text, "timestamp": ts, "analysis": emotion})
+    if not messages:  # Check if the list of messages is empty
+        return []  # Return an empty list as per requirement
+
+    results = []
+    # Process only the first message (most recent)
+    m = messages[0] 
+
+    if isinstance(m, dict) and "text" in m:
+        text = m["text"]
+        ts = m.get("date", None)
+    elif isinstance(m, str):
+        text = m
+        ts = None
+    else:
+        # If the first message is not in the expected format, return empty list
+        return [] 
+
+    emotion = await analyze_emotion(text)
+    # Append analysis of the single message to results
+    results.append({"text": text, "timestamp": ts, "analysis": emotion})
     return results
 
 async def textExtraction(file_path: str):
