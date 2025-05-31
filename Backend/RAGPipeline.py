@@ -3,7 +3,6 @@ import qdrant_client
 from llama_index.core import VectorStoreIndex, StorageContext, Settings
 from llama_index.embeddings.ollama import OllamaEmbedding 
 from llama_index.llms.ollama import Ollama
-import json # Add this if not present
 from llama_index.readers.json import JSONReader
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 
@@ -53,11 +52,7 @@ async def suggestionGeneration(file_path: str): # Modified signature
     index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
 
     query_engine = index.as_query_engine()
-    response = query_engine.query(prompt) # Prompt is updated to ask for 3 suggestions
+    response = query_engine.query(prompt)
 
-    # Parse the response string to a Python list
-    # Assuming response.response is a JSON string like '[{...}, {...}, {...}]'
-
-    
     return response.response
 
