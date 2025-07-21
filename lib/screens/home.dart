@@ -9,7 +9,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBgCream,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -34,70 +34,30 @@ class HomePage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
 
-              // Quote of the Day Card
-              Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: kQuoteBlue,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.format_quote, color: Colors.white),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Quote of the Day',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '"The single biggest problem in communication is the illusion that it has taken place."',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.bottomRight,
-                      child: Text(
-                        '— George Bernard Shaw',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-
               // Daily Challenge Card
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: kDailyChallengeBg,
-                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topRight: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.red.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: Offset(0, 2),
+                      color: Colors.black12,
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
                     ),
                   ],
-                  border: Border.all(
-                    color: kDailyChallengeRed.withOpacity(0.15),
+                  border: Border(
+                    left: BorderSide(color: kDailyChallengeRed, width: 4),
                   ),
                 ),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -110,6 +70,7 @@ class HomePage extends StatelessWidget {
                           style: TextStyle(
                             color: kDailyChallengeRed,
                             fontWeight: FontWeight.bold,
+                            fontSize: 18,
                           ),
                         ),
                       ],
@@ -119,105 +80,73 @@ class HomePage extends StatelessWidget {
                       'Ask someone about their day and really listen to their response without interrupting.',
                       style: TextStyle(color: Colors.black87, fontSize: 15),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kDailyChallengeRed,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(12),
                           ),
                           elevation: 0,
                         ),
                         onPressed: () {},
                         child: const Text(
                           'Mark Complete',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
-
               // Practice Chat & Learn
+              const SizedBox(height: 25),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  Flexible(
-                    flex: 1,
-                    child: _QuickAction(
+                  Expanded(
+                    child: QuickAction(
                       icon: Icons.chat_bubble_outline,
                       label: 'Practice Chat',
                       subtitle: 'Simulate Conversations',
+                      iconBgColor: const Color(0xFFC7D3E2), // pastel blue
+                      iconColor: const Color(0xFF1666C4), // bright blue
+                      labelColor: const Color(0xFF1666C4), // bright blue
                       onTap: () {},
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Flexible(
-                    flex: 1,
-                    child: _QuickAction(
+                  Expanded(
+                    child: QuickAction(
                       icon: Icons.menu_book_outlined,
                       label: 'Learn',
                       subtitle: 'Articles & Books',
+                      iconBgColor: const Color(0xFFE3D9DF), // pastel red/purple
+                      iconColor: const Color(0xFFE66C47), // orange/red
+                      labelColor: const Color(0xFFE66C47), // orange/red
                       onTap: () {},
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 25),
 
-              // Progress
-              Text(
-                'Your Progress',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 15,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: 2850 / 3000,
-                      color: kProgressBar,
-                      backgroundColor: kProgressBar.withOpacity(0.15),
-                      minHeight: 7,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '2,850/3,000 XP',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '150 XP left to advance to the next level',
-                style: TextStyle(color: Colors.grey[700], fontSize: 13),
-              ),
-              const SizedBox(height: 24),
-
-              // Your Activity section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Your Activity',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
                       color: Colors.black87,
                     ),
                   ),
@@ -225,8 +154,8 @@ class HomePage extends StatelessWidget {
                     'My library',
                     style: TextStyle(
                       color: kPrimaryBlue,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -263,6 +192,54 @@ class HomePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
+              // Recent Achievements (Image 3 UI)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recent Achievements',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      Text(
+                        'View All',
+                        style: TextStyle(
+                          color: kPrimaryBlue,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  // Achievement cards
+                  AchievementCard(
+                    icon: Icons.emoji_emotions_outlined,
+                    iconBgColor: const Color(0xFFCADCF3),
+                    iconColor: const Color(0xFF1666C4),
+                    title: 'Empathy Explorer',
+                    subtitle: 'Completed empathy scenario',
+                    timeAgo: '2h ago',
+                  ),
+                  const SizedBox(height: 12),
+                  AchievementCard(
+                    icon: Icons.groups_outlined,
+                    iconBgColor: const Color(0xFFF0E3E1),
+                    iconColor: const Color(0xFFE66C47),
+                    title: 'Team Player',
+                    subtitle: 'Aced group communication',
+                    timeAgo: '1d ago',
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ],
           ),
         ),
@@ -272,58 +249,55 @@ class HomePage extends StatelessWidget {
 }
 
 // Quick Action Button (Practice Chat, Learn)
-class _QuickAction extends StatelessWidget {
+class QuickAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final String subtitle;
+  final Color iconBgColor;
+  final Color iconColor;
+  final Color labelColor;
   final VoidCallback onTap;
 
-  const _QuickAction({
+  const QuickAction({
+    Key? key,
     required this.icon,
     required this.label,
     required this.subtitle,
+    required this.iconBgColor,
+    required this.iconColor,
+    required this.labelColor,
     required this.onTap,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
-      child: Container(
-        height: 120,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 8,
-              offset: Offset(0, 2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            backgroundColor: iconBgColor,
+            radius: 33,
+            child: Icon(icon, color: iconColor, size: 28),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: labelColor,
+              fontSize: 16,
             ),
-          ],
-        ),
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: kPrimaryBlue, size: 30),
-            const SizedBox(height: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: kPrimaryBlue,
-                fontSize: 15,
-              ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 13, color: Colors.black87),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
@@ -450,6 +424,76 @@ class _ActivityCard extends StatelessWidget {
                 ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class AchievementCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconBgColor;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String timeAgo;
+
+  const AchievementCard({
+    super.key,
+    required this.icon,
+    required this.iconBgColor,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.timeAgo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFCADDF3).withOpacity(0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: iconBgColor,
+            radius: 22,
+            child: Icon(icon, color: iconColor, size: 26),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: iconColor,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: TextStyle(color: Colors.black87, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(timeAgo, style: TextStyle(color: Colors.black54, fontSize: 13)),
         ],
       ),
     );

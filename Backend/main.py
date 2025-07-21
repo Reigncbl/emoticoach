@@ -1,4 +1,4 @@
-
+# uvicorn backend.main:app --reload
 import os
 import json
 import re
