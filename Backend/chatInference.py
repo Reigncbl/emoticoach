@@ -5,140 +5,147 @@ import json
 import os
 
 SYSTEM_PROMPT = """
-You are an expert emotional analysis assistant. Your task is to analyze input text and assign scores (0.0-10.0) to 8 fundamental emotions: **joy, acceptance, fear, surprise, sadness, disgust, anger, and anticipation**.
 
-For each emotion, provide a concise reason for the assigned score.
+Below is the instruction that 
 
-Output your analysis as a valid Python list in the following format:
+*MANDATORY EMOTION LIST - ONLY THESE 28 ALLOWED:*
 
+0. admiration    1. amusement     2. anger         3. annoyance     4. approval
+5. caring        6. confusion     7. curiosity     8. desire        9. disappointment
+10. disapproval  11. disgust      12. embarrassment 13. excitement   14. fear
+15. gratitude    16. grief        17. joy          18. love         19. nervousness
+20. optimism     21. pride        22. realization  23. relief       24. remorse
+25. sadness      26. surprise     27. neutral
+
+*ABSOLUTE RULE:* 
+You MUST always respond with valid JSON. If unsure about emotion, use "neutral".
+
+*CRITICAL:* Your response must be EXACTLY this format with no extra text:
 [
-    {"analysis": "<REASON>", "dim": "joy", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "acceptance", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "fear", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "surprise", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "sadness", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "disgust", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "anticipation", "score": <SCORE>},
-    {"analysis": "<REASON>", "dim": "anger", "score": <SCORE>}
+    {"analysis": "brief reason here", "dim": "emotion_name", "score": 5.0}
 ]
 
-**Rules:**
-* Each of the 8 emotions must be included exactly once.
-* Reasons for scores must be logical, concise, and directly support the assigned intensity.
-* Adhere strictly to the specified JSON output format.
-* Make the analysis short and simple
+*PROCESS:*
+1. Read the input text
+2. Pick the best emotion from the 28 above (or "neutral" if none fit)
+3. Write a brief analysis explaining why
+4. Give a score 0.0-10.0
+5. Format as JSON array with one object
+
+*EXAMPLES:*
+Text: "You know the answer man, you are programmed to capture those codes they send you, don't avoid them!"
+Response: [{"analysis": "Text shows confrontational and accusatory tone", "dim": "annoyance", "score": 7.5}]
+
+Text: "I miss the old days"
+Response: [{"analysis": "Nostalgic feeling not in list, using fallback", "dim": "neutral", "score": 5.0}]
+
+Text: "This is amazing!"
+Response: [{"analysis": "Text expresses strong positive reaction", "dim": "joy", "score": 8.0}]
+
+*REQUIREMENTS:*
+- Always output valid JSON array format
+- Use only emotions from the numbered list 0-27
+- Keep analysis brief (under 15 words)
+- Score must be between 0.0 and 10.0
+- No extra text before or after the JSON
 """
 
-EMOTIONS = ["joy", "acceptance", "fear", "surprise", "sadness", "disgust", "anger", "anticipation"]
-DEFAULT_MODEL = "gemma3:4b"
+DEFAULT_MODEL = "gemma3n:e2b"
 
 def extract_json_list(text: str) -> str | None:
     match = re.search(r'\[\s*{.*?}\s*\]', text, re.DOTALL)
-    if match:
-        return match.group(0)
-    return None
+    return match.group(0) if match else None
 
-async def analyze_emotion(prompt: str, model: str = DEFAULT_MODEL) -> list[dict] | None:
-    """
-    Emotion Analyzer through LLM Inference
-    """
-    print(f"Sending prompt to LLM: '{prompt[:70]}...'")
+async def analyze_emotion(text: str, model: str = DEFAULT_MODEL) -> dict | None:
+    """Analyze emotion of a single text"""
     messages = [
         {'role': 'system', 'content': SYSTEM_PROMPT},
-        {'role': 'user', 'content': prompt}
+        {'role': 'user', 'content': text}
     ]
+    
     try:
         response = await AsyncClient().chat(model=model, messages=messages)
-        content = response.message.content
-        print("Raw LLM output:\n", content)
-
-        json_str = extract_json_list(content)
+        json_str = extract_json_list(response.message.content)
+        
         if not json_str:
-            print("Error: No valid JSON list found in LLM output.")
             return None
-
+            
         emotion_data = json.loads(json_str)
-        print("Parsed emotion data:\n", json.dumps(emotion_data, indent=2))
-
-        #Score Validation
-        for item in emotion_data:
-            if "score" in item:
-                try:
-                    score_float = float(item["score"])
-                    if not (0.0 <= score_float <= 10.0):
-                        print(f"Warning: Score for '{item.get('dim')}' ({score_float}) is out of expected range (0-10).")
-                        item["score"] = max(0.0, min(10.0, score_float))
-                    else:
-                        item["score"] = score_float
-                except (ValueError, TypeError):
-                    print(f"Warning: Invalid score type for '{item.get('dim')}'. Expected a number, got '{item['score']}'.")
-                    item["score"] = 0.0
-        return emotion_data
-
-    except json.JSONDecodeError as e:
-        print(f"Error: Failed to decode JSON from LLM output: {e}")
-        return None
+        
+        # Validate and fix score
+        if emotion_data and len(emotion_data) > 0:
+            item = emotion_data[0]
+            score = float(item.get("score", 0))
+            item["score"] = max(0.0, min(10.0, score))
+            return item
+            
     except Exception as e:
-        print(f"An unexpected error occurred during emotion analysis: {e}")
-        return None
+        print(f"Error analyzing emotion: {e}")
+        
+    return None
 
-async def analyze_json_file(file_path: str) -> list[dict] | None:
-    """
-    Analyze the json file for the embedding
-    """
-    if not os.path.exists(file_path):
-        return None
-    # Open the file and read the data
+async def analyze_file(file_path: str) -> list[dict]:
+    """Analyze emotions in a JSON file containing messages"""
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
-        return None
+    except Exception as e:
+        print(f"Error reading file: {e}")
+        return []
 
+    # Extract messages
     if isinstance(data, dict) and "messages" in data:
         messages = data["messages"]
     elif isinstance(data, list):
         messages = data
     else:
-        return None
-
-    if not messages:  # Check if the list of messages is empty
-        return []  # Return an empty list as per requirement
-
+        print("Invalid file format")
+        return []
+    
     results = []
-    # Process only the first message (most recent)
-    m = messages[0] 
-
-    if isinstance(m, dict) and "text" in m:
-        text = m["text"]
-        ts = m.get("date", None)
-    elif isinstance(m, str):
-        text = m
-        ts = None
-    else:
-        # If the first message is not in the expected format, return empty list
-        return [] 
-
-    emotion = await analyze_emotion(text)
-    # Append analysis of the single message to results
-    results.append({"text": text, "timestamp": ts, "analysis": emotion})
+    for msg in messages:
+        # Extract text from message
+        if isinstance(msg, dict) and "text" in msg:
+            text = msg["text"]
+            timestamp = msg.get("date")
+        elif isinstance(msg, str):
+            text = msg
+            timestamp = None
+        else:
+            continue
+            
+        # Analyze emotion
+        emotion = await analyze_emotion(text)
+        if emotion:
+            results.append({
+                "text": text,
+                "timestamp": timestamp,
+                "emotion": emotion["dim"],
+                "score": emotion["score"],
+                "analysis": emotion["analysis"]
+            })
+    
     return results
 
-async def textExtraction(file_path: str):
-    print("Analyzing:", file_path)
-    results = await analyze_json_file(file_path)
-    if not results:
-        return {"error": "No analysis results or an error occurred during file analysis."}
+async def main():
+    file_path = r"C:\Users\John Carlo\telegram\Backend\saved_messages\reign.json"
     
-    out_dir = os.path.dirname(file_path)
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    out = os.path.join(out_dir, f"{base_name}_analysis.json")
-
+    print(f"Analyzing: {file_path}")
+    results = await analyze_file(file_path)
+    
+    if not results:
+        print("No results found")
+        return
+    
+    # Save results
+    output_path = os.path.splitext(file_path)[0] + "_analysis.json"
     try:
-        with open(out, "w", encoding="utf-8") as f:
-            json.dump({"results": results}, f, indent=2, ensure_ascii=False)
-        print("Saved analysis to:", out)
-        return {"results": results, "output_file": out}
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, indent=2, ensure_ascii=False)
+        print(f"Saved {len(results)} results to: {output_path}")
     except Exception as e:
-        print("Save error:", e)
-        return {"error": f"Failed to save analysis results: {e}"}
+        print(f"Error saving results: {e}")
+
+
+if _name_ == "_main_":
+    asyncio.run(main())
