@@ -6,6 +6,7 @@ from llama_index.llms.ollama import Ollama
 from llama_index.readers.json import JSONReader
 from llama_index.vector_stores.qdrant import QdrantVectorStore
 import json  # Added for output parsing
+import asyncio
 
 prompt = """
 You are Carlo in the metadata. Generate the appropriate response to the receiver.
@@ -60,3 +61,5 @@ async def suggestionGeneration(file_path: str):  # Modified signature
         return json.loads(raw)
     except Exception as e:
         return {"error": "Failed to parse LLM response as JSON", "detail": response.response, "exception": str(e)}
+    
+    asynchio.run(suggestiionGeneration())

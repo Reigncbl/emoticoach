@@ -1,5 +1,4 @@
 // ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 
@@ -21,7 +20,7 @@ class HomePage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Good morning, John Paul!',
+                      'Good morning, Darlene Erika!',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
@@ -174,6 +173,7 @@ class HomePage extends StatelessWidget {
                       icon: Icons.psychology_alt,
                       buttonText: 'Replay Scenario',
                       onButtonPressed: () {},
+                      height: 200,
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -187,6 +187,7 @@ class HomePage extends StatelessWidget {
                       buttonText: 'Continue Reading',
                       progress: 0.6,
                       onButtonPressed: () {},
+                      height: 200,
                     ),
                   ),
                 ],
@@ -312,6 +313,7 @@ class _ActivityCard extends StatelessWidget {
   final String buttonText;
   final double? progress;
   final VoidCallback onButtonPressed;
+  final int height;
 
   const _ActivityCard({
     required this.color,
@@ -320,13 +322,14 @@ class _ActivityCard extends StatelessWidget {
     required this.icon,
     required this.buttonText,
     required this.onButtonPressed,
+    required this.height,
     this.progress,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200,
+      height: height.toDouble(),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.circular(16),
