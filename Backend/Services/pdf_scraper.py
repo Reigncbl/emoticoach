@@ -1,0 +1,58 @@
+import pymupdf
+import os
+
+def rgb_int_to_hex(rgb_int):
+    return "#{:06x}".format(rgb_int & 0xFFFFFF)
+
+doc = pymupdf.open(r"C:\Users\John Carlo\emoticoach\emoticoach\PDFs\Full.pdf")
+html_output = "<html><body>\n"
+
+os.makedirs("images", exist_ok=True)
+image_counter = 0
+
+for page_num, page in enumerate(doc):
+    html_output += f"<!-- Page {page_num + 1} -->\n"
+
+    # Images
+    for img_index, img in enumerate(page.get_images(full=True)):
+        xref = img[0]
+        base_image = doc.extract_image(xref)
+        image_bytes = base_image["image"]
+        image_ext = base_image["ext"]
+        image_filename = f"images/page{page_num + 1}_img{img_index + 1}.{image_ext}"
+
+        with open(image_filename, "wb") as img_file:
+            img_file.write(image_bytes)
+
+        html_output += f'<img src="{image_filename}" alt="Image {img_index + 1}"><br/>\n'
+
+    # Text
+    blocks = page.get_text("dict")["blocks"]
+    for block in blocks:
+        for line in block.get("lines", []):
+            html_line = ""
+            for span in line.get("spans", []):
+                text = span["text"].replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                font = span["font"]
+                size = span["size"]
+                color = rgb_int_to_hex(span["color"])
+                
+                is_bold = "Bold" in font or "bold" in font
+                is_italic = "Italic" in font or "Oblique" in font
+
+                style = f"font-size:{size}px; color:{color};"
+                if is_bold:
+                    style += " font-weight:bold;"
+                if is_italic:
+                    style += " font-style:italic;"
+                
+                html_line += f'<span style="{style}">{text}</span>'
+
+            html_output += f"<p>{html_line}</p>\n"
+
+html_output += "</body></html>"
+
+with open("outputws.html", "w", encoding="utf-8") as f:
+    f.write(html_output)
+
+print("✅ HTML with images saved as 'output.html'")
