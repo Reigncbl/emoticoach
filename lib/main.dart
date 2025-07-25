@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'screens/login.dart';
+import 'screens/signup.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
-// Placeholder screens - replace with real implementations later
+
 class LearnScreen extends StatelessWidget {
   const LearnScreen({super.key});
   @override
@@ -32,8 +34,11 @@ class MyApp extends StatelessWidget {
       navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MainScreen(),
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        fontFamily: 'OpenSans',
+      ),
+      home: const LoginScreen(),
     );
   }
 }
