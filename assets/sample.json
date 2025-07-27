@@ -1,0 +1,18 @@
+[
+    {
+        "BlockType": "heading",
+        "BlockContent": "CHAPTER 1: INTRODUCTION"
+    },
+    {
+        "BlockType": "paragraph",
+        "BlockContent": "Communication is essential in every aspect of life, from personal relationships to professional settings."
+    },
+    {
+        "BlockType": "image",
+        "BlockContent": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/Communication_Process.svg/800px-Communication_Process.svg.png"
+    },
+    {
+        "BlockType": "paragraph",
+        "BlockContent": "This chapter will explore the fundamentals of effective communication."
+    }
+]

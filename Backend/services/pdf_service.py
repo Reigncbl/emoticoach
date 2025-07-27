@@ -1,7 +1,8 @@
 import pymupdf
 from core.db_connection import get_db_connection
 from core.cloud_config import upload_image_to_cloudinary
-from utilities.helpers import rgb_int_to_hex
+from utilities.helpers
+import rgb_int_to_hex
 import os
 
 BOOK_ID = 1  # This can be passed as an argument
