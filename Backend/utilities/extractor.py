@@ -2,7 +2,7 @@ import os
 import fitz  # PyMuPDF
 
 
-class PDFMetadataExtractor:
+class PDFUtility:
     MODULE_TYPE_MAP = {
         "Communication Studies": {"Books": "COM-B", "Articles": "COM-A"},
         "General Communication Skills": {"Books": "GEN-B", "Articles": "GEN-A"},
@@ -11,7 +11,7 @@ class PDFMetadataExtractor:
         "Online": {"Books": "ONL-B", "Articles": "ONL-A"},
     }
 
-    def __init__(self, root_dir):
+    def __init__(self, root_dir=""):
         self.root_dir = root_dir
         self.results = []
 
@@ -29,9 +29,9 @@ class PDFMetadataExtractor:
             title, author = name.rsplit(" - ", 1)
         else:
             title, author = name, "UNKNOWN"
-        return title.title(), author.strip().upper()
+        return title, author.strip()
 
-    def extract_pdf_metadata(self, pdf_path, module_type):
+    def extract_pdf_info(self, pdf_path, module_type):
         doc = fitz.open(pdf_path)
         meta = doc.metadata
         page_count = doc.page_count
@@ -67,8 +67,8 @@ class PDFMetadataExtractor:
             for file in filenames:
                 if file.lower().endswith(".pdf"):
                     pdf_path = os.path.join(dirpath, file)
-                    metadata = self.extract_pdf_metadata(pdf_path, module_type)
-                    self.results.append(metadata)
+                    info = self.extract_pdf_info(pdf_path, module_type)
+                    self.results.append(info)
 
     def print_all(self):
         for idx, meta in enumerate(self.results, 1):
@@ -76,3 +76,7 @@ class PDFMetadataExtractor:
             print(f"  ReadingsID: R-{idx:05d}")
             for k, v in meta.items():
                 print(f"  {k}: {v}")
+
+
+# Backward compatibility alias
+PDFMetadataExtractor = PDFUtility
