@@ -2,10 +2,9 @@
 import os
 import json
 import re
-from .chatInference import textExtraction
-from .RAGPipeline import suggestionGeneration
+
 from fastapi.responses import JSONResponse
-from fastapi import FastAPI,Query
+from fastapi import APIRouter, FastAPI,Query
 from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest
@@ -16,18 +15,17 @@ api_hash = '4bb0f51ffa700b91f87f07742d6f1d33'
 session = 'name'
 client = TelegramClient(session, api_id, api_hash)
 
-app = FastAPI()
-
+message_router = APIRouter()
 class ContactRequest(BaseModel):
     phone: str
     first_name: str = ""
     last_name: str = ""
     
-@app.get("/")
+@message_router.get("/")
 async def get_messages():
     return {"message": "hello"}
     
-@app.post("/messages")
+@message_router.post("/messages")
 async def get_messages(data: ContactRequest):
     async with client:
         me = await client.get_me()
@@ -72,16 +70,22 @@ async def get_messages(data: ContactRequest):
             "file_path": file_path,
             **response_data
         }
-@app.get("/analyze_messages")
+        
+        """
+             
+@.get("/analyze_messages")
 async def analyze_messages(file_path: str = Query(..., description="Path to the JSON file to be analyzed")):
     result = await textExtraction(file_path=file_path)
    
     return JSONResponse(result)
 
-@app.get("/suggestion")
+@.get("/suggestion")
 async def suggestion(file_path: str = Query(..., description="Path to the JSON file containing messages")):
     result = await suggestionGeneration(file_path=file_path)
     if isinstance(result, list):
         return JSONResponse({"suggestions": result})
     else:
         return JSONResponse(result)
+
+        
+        """

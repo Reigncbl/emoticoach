@@ -1,18 +1,18 @@
 import os
 from model import ReadingsInfo
-from core.db_connection import SessionLocal
+from core.db_connection import engine
+from sqlmodel import Session, select
 from utilities.helpers import generate_readings_id
 
 
 class ReadingsProcessor:
     def __init__(self, all_metadata):
         self.all_metadata = all_metadata
-        self.db = SessionLocal()
+        self.db = Session(engine)
 
     def add_readings_to_db(self):
         try:
-            latest = self.db.query(ReadingsInfo).order_by(
-                ReadingsInfo.ReadingsID.desc()).first()
+            latest = self.db.exec(select(ReadingsInfo).order_by(ReadingsInfo.ReadingsID.desc())).first()
             if not latest or not latest.ReadingsID.startswith("R-"):
                 next_num = 1
             else:
@@ -22,10 +22,10 @@ class ReadingsProcessor:
                     next_num = 1
             added_count = 0
             for meta in self.all_metadata:
-                existing = self.db.query(ReadingsInfo).filter(
+                existing = self.db.exec(select(ReadingsInfo).where(
                     ReadingsInfo.Title == meta["Title"],
                     ReadingsInfo.Author == meta["Author"]
-                ).first()
+                )).first()
                 if existing:
                     print(
                         f" Skipping duplicate: {meta['Title']} by {meta['Author']}")
@@ -58,10 +58,9 @@ class ReadingsProcessor:
             self.db.close()
 
     def delete_reading_by_id(self, readings_id):
-        db = SessionLocal()
+        db = Session(engine)
         try:
-            reading = db.query(ReadingsInfo).filter(
-                ReadingsInfo.ReadingsID == readings_id).first()
+            reading = db.exec(select(ReadingsInfo).where(ReadingsInfo.ReadingsID == readings_id)).first()
             if reading:
                 db.delete(reading)
                 db.commit()

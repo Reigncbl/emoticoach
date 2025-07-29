@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:http/http.dart' as http;
 
 class ReadingContentScreen extends StatefulWidget {
   const ReadingContentScreen({super.key});
@@ -10,126 +10,143 @@ class ReadingContentScreen extends StatefulWidget {
 }
 
 class _ReadingContentScreenState extends State<ReadingContentScreen> {
-  late Future<Map<int, List<Map<String, dynamic>>>> _pagesFuture;
+  late Future<List<Map<String, dynamic>>> _pageDataFuture;
+
+  final String baseUrl =
+      'http://127.0.0.1:8000/book/R-00002/24'; // Replace with your actual API
 
   @override
   void initState() {
     super.initState();
-    _pagesFuture = loadAndGroupByPage();
+    _pageDataFuture = fetchReadingPage();
   }
 
-  Future<Map<int, List<Map<String, dynamic>>>> loadAndGroupByPage() async {
-    final data = await rootBundle.loadString('assets/sample.json');
-    final blocks = List<Map<String, dynamic>>.from(json.decode(data));
+  Future<List<Map<String, dynamic>>> fetchReadingPage() async {
+    final response = await http.get(Uri.parse(baseUrl));
 
-    final Map<int, List<Map<String, dynamic>>> pages = {};
-    for (var block in blocks) {
-      final content = block['Content']?.toString() ?? '';
-      final imageUrl = block['ImageURL']?.toString() ?? '';
-
-      if (content.trim().isNotEmpty || imageUrl.trim().isNotEmpty) {
-        final page = block['PageNumber'] ?? 0;
-        pages.putIfAbsent(page, () => []).add(block);
-      }
+    if (response.statusCode == 200) {
+      final List<dynamic> jsonList = json.decode(response.body);
+      return jsonList.cast<Map<String, dynamic>>();
+    } else {
+      throw Exception("Failed to load page");
     }
-
-    return pages;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Reading Module")),
-      body: FutureBuilder<Map<int, List<Map<String, dynamic>>>>(
-        future: _pagesFuture,
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _pageDataFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
           }
 
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text("No content found."));
           }
 
-          final pageKeys = snapshot.data!.keys.toList()..sort();
-          final pages = snapshot.data!;
+          final blocks = snapshot.data!;
 
-          return PageView.builder(
-            itemCount: pageKeys.length,
-            itemBuilder: (context, pageIndex) {
-              final pageNumber = pageKeys[pageIndex];
-              final blocks = pages[pageNumber]!;
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: blocks.length,
+            itemBuilder: (context, index) {
+              final block = blocks[index];
+              final type = block['blocktype']?.toString() ?? '';
+              final content = block['content']?.toString();
+              final imageUrl = block['imageurl']?.toString();
+              final styleJson = _parseStyleJson(block['stylejson']);
 
-              return Padding(
-                padding: const EdgeInsets.all(16),
-                child: ListView.builder(
-                  itemCount: blocks.length,
-                  itemBuilder: (context, index) {
-                    final block = blocks[index];
-                    final type = block['BlockType']?.toString() ?? '';
-                    final content = block['Content']?.toString();
-                    final imageUrl = block['ImageURL']?.toString();
-                    final styleJson = _parseStyleJson(block['StyleJSON']);
+              switch (type) {
+                case 'heading':
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 24.0, bottom: 8.0),
+                    child: Text(
+                      content ?? '',
+                      textAlign: _parseTextAlign(styleJson['align']),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: _parseFontWeight(styleJson['fontWeight']),
+                        fontSize: (styleJson['fontSize'] as num?)?.toDouble(),
+                      ),
+                    ),
+                  );
 
-                    switch (type) {
-                      case 'heading':
-                        return Padding(
-                          padding: const EdgeInsets.only(
-                            top: 24.0,
-                            bottom: 8.0,
-                          ),
-                          child: Text(
-                            content ?? '',
-                            textAlign: _parseTextAlign(styleJson['align']),
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  fontWeight: _parseFontWeight(
-                                    styleJson['fontWeight'],
+                case 'paragraph':
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 16.0),
+                    child: Text(
+                      content ?? '',
+                      textAlign: _parseTextAlign(styleJson['align']),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        height: 1.6,
+                        fontSize: (styleJson['fontSize'] as num?)?.toDouble(),
+                        fontWeight: _parseFontWeight(styleJson['fontWeight']),
+                      ),
+                    ),
+                  );
+
+                case 'image':
+                  if (imageUrl == null || imageUrl.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.network(
+                        imageUrl, // Use the full URL from the backend
+                        fit: BoxFit.fitWidth,
+                        filterQuality: FilterQuality.high,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 200,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[300],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.broken_image,
+                                    size: 50,
+                                    color: Colors.grey,
                                   ),
-                                  fontSize: (styleJson['fontSize'] as num?)
-                                      ?.toDouble(),
-                                ),
-                          ),
-                        );
-
-                      case 'paragraph':
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 16.0),
-                          child: Text(
-                            content ?? '',
-                            textAlign: _parseTextAlign(styleJson['align']),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  height: 1.6,
-                                  fontSize: (styleJson['fontSize'] as num?)
-                                      ?.toDouble(),
-                                  fontWeight: _parseFontWeight(
-                                    styleJson['fontWeight'],
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Failed to load image',
+                                    style: TextStyle(color: Colors.grey),
                                   ),
-                                ),
-                          ),
-                        );
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
 
-                      case 'image':
-                        if (imageUrl == null || imageUrl.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-                        final filename = imageUrl.split('/').last;
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.asset(
-                            'assets/output_images/$filename',
-                            fit: BoxFit.fitWidth,
-                            filterQuality: FilterQuality.high,
-                          ),
-                        );
-
-                      default:
-                        return const SizedBox.shrink();
-                    }
-                  },
-                ),
-              );
+                default:
+                  return const SizedBox.shrink();
+              }
             },
           );
         },

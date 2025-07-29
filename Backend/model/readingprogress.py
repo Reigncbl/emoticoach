@@ -1,16 +1,16 @@
-from sqlalchemy import Column, String, Integer, Date, ForeignKey
-from sqlalchemy.orm import relationship
-from core.db_connection import Base
+from sqlmodel import SQLModel, Field, Relationship
+from typing import Optional
+from datetime import date
 
-class ReadingProgress(Base):
+class ReadingProgress(SQLModel, table=True):
     __tablename__ = "readingprogress"
 
-    ProgressID = Column(String, primary_key=True)
-    UserID = Column(Integer)
-    ReadingsID = Column(String, ForeignKey("readingsinfo.ReadingsID"))
-    ScrollPosition = Column(String)
-    LastReadAt = Column(Date)
-    CompletedAt = Column(Date)
+    ProgressID: str = Field(primary_key=True)
+    UserID: Optional[int] = Field(default=None)
+    ReadingsID: Optional[str] = Field(default=None, foreign_key="readingsinfo.ReadingsID")
+    ScrollPosition: Optional[str] = Field(default=None)
+    LastReadAt: Optional[date] = Field(default=None)
+    CompletedAt: Optional[date] = Field(default=None)
 
     # Relationship
-    reading = relationship("ReadingsInfo", back_populates="progresses")
+    reading: Optional["ReadingsInfo"] = Relationship(back_populates="progresses")

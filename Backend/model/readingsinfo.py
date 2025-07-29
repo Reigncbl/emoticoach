@@ -1,20 +1,19 @@
-from sqlalchemy import Column, String, Integer, ForeignKey
-from sqlalchemy.orm import relationship
-from core.db_connection import Base
+from sqlmodel import SQLModel, Field, Relationship
+from typing import List, Optional
 
-class ReadingsInfo(Base):
+class ReadingsInfo(SQLModel, table=True):
     __tablename__ = "readingsinfo"
 
-    ReadingsID = Column(String(8), primary_key=True, nullable=False)
-    Title = Column(String(255), nullable=False)
-    Author = Column(String(255), nullable=False)
-    Description = Column(String(250), nullable=False)
-    EstimatedMinutes = Column(Integer, nullable=False)
-    XPValue = Column(Integer, nullable=False)
-    Rating = Column(Integer, nullable=False)
-    ModuleTypeID = Column(String(5), ForeignKey("moduletype.ModuleTypeID"), nullable=False)
+    ReadingsID: str = Field(primary_key=True, max_length=8)
+    Title: str = Field(max_length=255)
+    Author: str = Field(max_length=255)
+    Description: str = Field(max_length=250)
+    EstimatedMinutes: int
+    XPValue: int
+    Rating: int
+    ModuleTypeID: str = Field(foreign_key="moduletype.ModuleTypeID", max_length=5)
 
     # Relationships
-    module_type = relationship("ModuleType", back_populates="readings")
-    progresses = relationship("ReadingProgress", back_populates="reading")
-    blocks = relationship("ReadingBlock", back_populates="reading")
+    module_type: Optional["ModuleType"] = Relationship(back_populates="readings")
+    progresses: List["ReadingProgress"] = Relationship(back_populates="reading")
+    blocks: List["ReadingBlock"] = Relationship(back_populates="reading")
