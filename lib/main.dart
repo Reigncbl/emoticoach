@@ -1,25 +1,10 @@
 import 'package:flutter/material.dart';
+import 'screens/reading_content_screen.dart';
 import 'screens/login.dart';
-import 'screens/signup.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
-
-
-class LearnScreen extends StatelessWidget {
-  const LearnScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      Scaffold(body: Center(child: Text("Learn Screen")));
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-  @override
-  Widget build(BuildContext context) =>
-      Scaffold(body: Center(child: Text("Profile Screen")));
-}
 
 void main() {
   runApp(const MyApp());
@@ -34,10 +19,7 @@ class MyApp extends StatelessWidget {
       navigatorObservers: [routeObserver],
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        fontFamily: 'OpenSans',
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'OpenSans'),
       home: const LoginScreen(),
     );
   }
@@ -92,4 +74,21 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
+}
+
+class LearnScreen extends StatelessWidget {
+  const LearnScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ReadingContentScreen(); // Custom paginated reader here
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: Text("Profile Screen")));
 }
