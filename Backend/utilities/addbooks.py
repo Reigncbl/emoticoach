@@ -3,7 +3,6 @@ from utilities.extractor import PDFMetadataExtractor
 # Assumes this prints nicely from model
 from utilities.readinginfo import ReadingsProcessor
 from core.db_connection import engine
-from sqlalchemy import text
 
 
 # ADDS BOOKS

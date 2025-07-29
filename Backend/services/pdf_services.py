@@ -2,19 +2,14 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-
 from core.cloud_config import upload_image
 from model import ReadingsInfo, ReadingBlock
-from core.db_connection import SessionLocal, engine, Base
+from core.db_connection import engine
 from utilities.extractor import PDFUtility
-from sqlalchemy.orm import Session
 import fitz  # PyMuPDF
 import json
-import sqlalchemy as sa
-from sqlalchemy import text, inspect
-from sqlalchemy.exc import NoSuchTableError
-from sqlalchemy import func, and_
 from core.cloud_config import init_cloudinary
+from sqlmodel import select, Session, func, and_
 
 # ========== Helpers ==========
 
@@ -38,7 +33,7 @@ def get_reading_by_title_author(session: Session, title, author):
             filters.append(func.lower(
                 ReadingsInfo.Author).contains(func.lower(part)))
 
-    return session.query(ReadingsInfo).filter(and_(*filters)).first()
+    return session.exec(select(ReadingsInfo).where(and_(*filters))).first()
 
 
 def handle_pdf_image_upload(image_bytes, book_id, page, index):
@@ -58,14 +53,14 @@ def extract_blocks_from_pdf(session: Session, path):
     if not reading:
         print(f"❌ No reading found for: {title} by {author}")
         # Let's also check what's actually in the database
-        all_readings = session.query(ReadingsInfo).all()
+        all_readings = session.exec(select(ReadingsInfo)).all()
         print(f"📚 Available readings in database:")
         for r in all_readings[:5]:  # Show first 5
             print(f"   Title='{r.Title}', Author='{r.Author}'")
         return
 
     reading_id = reading.ReadingsID
-    existing_blocks = session.query(ReadingBlock).filter(ReadingBlock.ReadingsID == reading_id).count()
+    existing_blocks = session.exec(select(func.count(ReadingBlock.blockid)).where(ReadingBlock.ReadingsID == reading_id)).one()
     if existing_blocks > 0:
         print(f"✅ Blocks already exist for '{title}', skipping")
         return
@@ -92,27 +87,27 @@ def extract_blocks_from_pdf(session: Session, path):
                 if not text:
                     continue
 
-                style = json.dumps({
+                style = {
                     "fontSize": round(max_font_size),
                     "fontWeight": "bold" if bold else "normal",
                     "align": "left"
-                })
+                }
 
                 block = ReadingBlock(
                     ReadingsID=reading_id,
-                    OrderIndex=block_order,
-                    BlockType=classify_block(text, max_font_size),
-                    Content=text,
-                    ImageURL=None,
-                    PageNumber=page_number,
-                    StyleJSON=style
+                    orderindex=block_order,
+                    blocktype=classify_block(text, max_font_size),
+                    content=text,
+                    imageurl=None,
+                    pagenumber=page_number,
+                    stylejson=style
                 )
                 session.add(block)
                 block_order += 1
 
             elif b.get("image"):
                 # HD image extraction
-                zoom_matrix = fitz.Matrix(5.0, 5.0)
+                zoom_matrix = fitz.Matrix(4.0, 4.0)
                 pix = page.get_pixmap(matrix=zoom_matrix, clip=b["bbox"])
 
                 image_url = handle_pdf_image_upload(pix.tobytes(
@@ -120,12 +115,12 @@ def extract_blocks_from_pdf(session: Session, path):
 
                 block = ReadingBlock(
                     ReadingsID=reading_id,
-                    OrderIndex=block_order,
-                    BlockType="image",
-                    Content=None,
-                    ImageURL=image_url.get('secure_url'),
-                    PageNumber=page_number,
-                    StyleJSON=None
+                    orderindex=block_order,
+                    blocktype="image",
+                    content=None,
+                    imageurl=image_url.get('secure_url'),
+                    pagenumber=page_number,
+                    stylejson=None
                 )
                 session.add(block)
                 block_order += 1
@@ -139,21 +134,14 @@ def extract_blocks_from_pdf(session: Session, path):
 def main():
     init_cloudinary()
     rootdir = os.getcwd()
-    session = SessionLocal()
-  
-    try:
+    with Session(engine) as session:
         for subdir, dirs, files in os.walk(rootdir):
             for file in files:
                 # print os.path.join(subdir, file)
                 filepath = subdir + os.sep + file
-
                 if filepath.endswith(".pdf"):
                     print(filepath)
-                 
                     extract_blocks_from_pdf(session, filepath)
-    finally:
-        session.close()
-
 
 if __name__ == "__main__":
     main()
