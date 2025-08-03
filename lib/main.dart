@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/reading_content_screen.dart';
-import 'screens/login.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 
@@ -20,7 +20,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'OpenSans'),
-      home: const LoginScreen(),
+      home: OnboardingScreen(),
     );
   }
 }
