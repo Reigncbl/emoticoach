@@ -23,6 +23,8 @@ dependencies:
   simple_animations: ^5.1.0
   supercharged: ^2.1.1
   iconify_flutter: ^0.0.7
+  smooth_page_indicator: ^1.2.1
+  flutter_native_splash: ^2.4.6
 
 dev_dependencies:
   flutter_test:
