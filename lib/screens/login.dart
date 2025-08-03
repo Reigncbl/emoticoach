@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import '../utils/colors.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart'; // Google icon
 import 'package:iconify_flutter/icons/ic.dart'; // Email icon
-
 import 'signup.dart';
 import 'otp_verification.dart';
 
@@ -19,6 +19,28 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Controller for phone number input
   final TextEditingController _phoneController = TextEditingController();
+  
+  // FocusNode to track mobile input focus state
+  final _mobileFocusNode = FocusNode();
+  bool _isMobileFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to focus changes
+    _mobileFocusNode.addListener(() {
+      setState(() {
+        _isMobileFocused = _mobileFocusNode.hasFocus;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _mobileFocusNode.dispose();
+    super.dispose();
+  }
 
   // Called when user taps "Send SMS"
   void _handleSendSms() {
@@ -37,7 +59,6 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     }
   }
-
 
   // Called when Google login icon is tapped
   void _handleGoogleLogin() {
@@ -64,33 +85,40 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          // === Background Image ===
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/bg.png'),
-                fit: BoxFit.cover,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          FocusScope.of(context).unfocus();
+        },
+        child: Stack(
+          children: [
+            // === Background Image ===
+            Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/bg.png'),
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
-          ),
 
-          // === Foreground Login Form ===
-          SafeArea(
-            child: Center(
+            // === Foreground Login Form ===
+            SafeArea(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Form(
                   key: _formKey,
                   child: Column(
                     children: [
+                      const SizedBox(height: 120), // Add top spacing
+                      
                       // Login Title
                       const Text(
                         "Login",
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 32,
                           fontWeight: FontWeight.bold,
+                          color: kBlack,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -100,35 +128,68 @@ class _LoginScreenState extends State<LoginScreen> {
                         "Good to have you back!",
                         style: TextStyle(fontSize: 16),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 50),
 
                       // === Phone Number Input Field ===
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("Mobile Number",
-                              style: TextStyle(fontSize: 14)),
+                          const Text("Mobile Number", style: TextStyle(fontSize: 16)),
                           const SizedBox(height: 8),
-                          TextFormField(
-                            controller: _phoneController,
-                            keyboardType: TextInputType.phone,
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Enter your mobile number';
-                              }
-                              if (value.length < 10) {
-                                return 'Enter 10 digits after +63';
-                              }
-                              return null;
-                            },
-                            decoration: InputDecoration(
-                              prefixText: '+63 ',
-                              hintText: '9123456789',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8.0),
+                          Container(
+                            height: 48,
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: _isMobileFocused ? Colors.blue : Colors.grey,
+                                width: _isMobileFocused ? 2.0 : 1.0,
                               ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
+                              borderRadius: BorderRadius.circular(8.0),
+                              color: Colors.white,
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  child: const Center(
+                                    child: Text('+63'),
+                                  ),
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 24, // Centered divider - half the container height
+                                  color: Colors.grey, // Keep divider grey always
+                                  margin: const EdgeInsets.symmetric(vertical: 12), // Centers the divider vertically
+                                ),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _phoneController,
+                                    focusNode: _mobileFocusNode,
+                                    keyboardType: TextInputType.number,
+                                    maxLength: 10,
+                                    validator: (value) {
+                                      if (value == null || value.trim().isEmpty) {
+                                        return 'Enter your mobile number';
+                                      }
+                                      if (value.length != 10) {
+                                        return 'Enter exactly 10 digits';
+                                      }
+                                      return null;
+                                    },
+                                    decoration: const InputDecoration(
+                                      counterText: '',
+                                      hintText: '9123456789',
+                                      hintStyle: TextStyle(color: Colors.grey),
+                                      border: InputBorder.none,
+                                      enabledBorder: InputBorder.none,
+                                      focusedBorder: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -150,8 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: const Text(
                             "Send SMS",
-                            style:
-                                TextStyle(fontSize: 16, color: Colors.white),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                         ),
                       ),
@@ -160,7 +220,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Divider Text
                       const Text("or",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
                       const SizedBox(height: 16),
 
                       // === Social Login Buttons ===
@@ -204,13 +264,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 50),
 
                       // === Signup Redirect ===
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text("Don’t have an account yet? "),
+                          const Text("Don't have an account yet? "),
                           GestureDetector(
                             onTap: _goToSignup,
                             child: const Text(
@@ -228,8 +288,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
