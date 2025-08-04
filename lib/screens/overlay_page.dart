@@ -89,40 +89,83 @@ class _OverlayScreenState extends State<OverlayScreen> {
             // Overlay Status
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: kPrimaryBlue,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 14,
-                  horizontal: 16,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Overlay Status',
-                            style: TextStyle(color: Colors.white, fontSize: 16),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Enabled',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ],
-                      ),
+              child: FutureBuilder<bool>(
+                future: FlutterOverlayWindow.isActive(),
+                builder: (context, snapshot) {
+                  final isOverlayActive = snapshot.data ?? false;
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: kPrimaryBlue,
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    Icon(Icons.flash_on, color: Colors.white, size: 28),
-                  ],
-                ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Overlay Status',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                isOverlayActive
+                                    ? 'Enabled (Tap icon to disable)'
+                                    : 'Disabled (Tap icon to enable)',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Lightning Icon with Glow and Bounce
+                        _BounceGlowIcon(
+                          isActive: isOverlayActive,
+                          onTap: () async {
+                            final isActive =
+                                await FlutterOverlayWindow.isActive();
+                            if (isActive) {
+                              await FlutterOverlayWindow.closeOverlay();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Overlay Disabled')),
+                              );
+                            } else {
+                              await FlutterOverlayWindow.showOverlay(
+                                enableDrag: true,
+                                overlayTitle: "Emoticoach",
+                                overlayContent: 'Overlay Enabled',
+                                flag: OverlayFlag.defaultFlag,
+                                visibility:
+                                    NotificationVisibility.visibilityPublic,
+                                positionGravity: PositionGravity.auto,
+                                height: 100,
+                                width: 100,
+                                startPosition: const OverlayPosition(20, 0),
+                              );
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Overlay Enabled')),
+                              );
+                            }
+                            setState(() {});
+                          },
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
             // Supported App
@@ -331,6 +374,71 @@ class _OverlayScreenState extends State<OverlayScreen> {
           scale: 0.6,
           child: Switch(value: switchValue, onChanged: onChanged),
         ),
+      ),
+    );
+  }
+}
+
+class _BounceGlowIcon extends StatefulWidget {
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _BounceGlowIcon({Key? key, required this.isActive, required this.onTap})
+    : super(key: key);
+
+  @override
+  State<_BounceGlowIcon> createState() => _BounceGlowIconState();
+}
+
+class _BounceGlowIconState extends State<_BounceGlowIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.2,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.elasticOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _triggerAnimation() {
+    _controller.forward(from: 0).then((_) => _controller.reverse());
+    widget.onTap();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _triggerAnimation,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.scale(
+            scale: _scaleAnimation.value,
+            child: Container(
+              decoration: const BoxDecoration(shape: BoxShape.circle),
+              child: Icon(
+                widget.isActive ? Icons.flash_on : Icons.flash_off,
+                color: Colors.white,
+                size: 28,
+              ),
+            ),
+          );
+        },
       ),
     );
   }
