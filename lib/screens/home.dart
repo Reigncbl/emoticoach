@@ -260,7 +260,7 @@ class QuickAction extends StatelessWidget {
   final VoidCallback onTap;
 
   const QuickAction({
-    Key? key,
+    super.key,
     required this.icon,
     required this.label,
     required this.subtitle,
@@ -268,7 +268,7 @@ class QuickAction extends StatelessWidget {
     required this.iconColor,
     required this.labelColor,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

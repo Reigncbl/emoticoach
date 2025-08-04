@@ -3,6 +3,8 @@ import 'screens/learning/scenario_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
+import 'screens/profile.dart';
+import 'screens/settings.dart';
 import 'overlays/overlay_ui.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
@@ -14,6 +16,15 @@ void overlayMain() {
     const MaterialApp(debugShowCheckedModeBanner: false, home: OverlayUI()),
   );
 }
+
+
+class LearnScreen extends StatelessWidget {
+  const LearnScreen({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Scaffold(body: Center(child: Text("Learn Screen")));
+}
+
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,21 +95,4 @@ class _MainScreenState extends State<MainScreen> {
       ),
     );
   }
-}
-
-class LearnScreen extends StatelessWidget {
-  const LearnScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const LearningScreen();
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  const ProfileScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: Text("Profile Screen")));
 }

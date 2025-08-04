@@ -11,12 +11,12 @@ class OTPVerificationScreen extends StatefulWidget {
   final AuthPurpose purpose;
 
   const OTPVerificationScreen({
-    Key? key,
+    super.key,
     this.firstName,
     this.lastName,
     required this.mobileNumber,
     required this.purpose,
-  }) : super(key: key);
+  });
 
   @override
   State<OTPVerificationScreen> createState() => _OTPVerificationScreenState();
