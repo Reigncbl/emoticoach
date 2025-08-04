@@ -138,7 +138,7 @@ class _OverlayScreenState extends State<OverlayScreen> {
       return const Center(
         child: Text(
           'File path or analysis data not available.',
-          key: const ValueKey("dataNull"),
+          key: ValueKey("dataNull"),
         ),
       );
     }
