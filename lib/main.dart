@@ -1,12 +1,22 @@
 import 'package:flutter/material.dart';
-import 'screens/reading_content_screen.dart';
+import 'screens/learning/scenario_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
+import 'overlays/overlay_ui.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
+@pragma("vm:entry-point")
+void overlayMain() {
+  WidgetsFlutterBinding.ensureInitialized();
+  runApp(
+    const MaterialApp(debugShowCheckedModeBanner: false, home: OverlayUI()),
+  );
+}
+
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -81,7 +91,7 @@ class LearnScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ReadingContentScreen(); // Custom paginated reader here
+    return const LearningScreen();
   }
 }
 
