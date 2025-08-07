@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../utils/colors.dart';
 import 'login.dart';
 import 'otp_verification.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:iconify_flutter/icons/ri.dart'; // Remix Icons
-import 'package:iconify_flutter/icons/ic.dart'; // Material Icons
+import 'package:iconify_flutter/icons/ri.dart';
+import 'package:iconify_flutter/icons/ic.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -15,6 +17,9 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignupScreen> {
+  // Add your API base URL here
+  static const String baseUrl = 'http://localhost:8000';
+  
   // Form key - used to validate all form fields at once
   // GlobalKey helps Flutter identify and manage this specific form
   final _formKey = GlobalKey<FormState>();
@@ -26,6 +31,7 @@ class _SignUpPageState extends State<SignupScreen> {
   // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
+  bool _isLoading = false; // Add loading state
 
   @override
   void initState() {
@@ -49,45 +55,86 @@ class _SignUpPageState extends State<SignupScreen> {
     super.dispose(); // Always call super.dispose() last
   }
 
-  // Function for "Send SMS" button
-  void _sendSMS() {
+  // Updated _sendSMS function with HTTP call
+  Future<void> _sendSMS() async {
     if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true; // Show loading
+      });
+
       String firstName = _firstNameController.text;
       String lastName = _lastNameController.text;
-      String mobile = _mobileController.text;
+      String mobileNumber = '+63${_mobileController.text}';
 
       print('First Name: $firstName');
       print('Last Name: $lastName');
-      print('Mobile: +63$mobile');
+      print('Mobile: $mobileNumber');
 
-      // Navigate to OTP screen and pass signup data + purpose
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => OTPVerificationScreen(
-            firstName: firstName,
-            lastName: lastName,
-            mobileNumber: '+63$mobile',
-            purpose: AuthPurpose.signup,
-          ),
-        ),
-      );
+      try {
+        // Make HTTP call to send SMS
+        final response = await http.post(
+          Uri.parse('$baseUrl/users/send-sms'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'mobile_number': mobileNumber,
+          }),
+        );
+
+        if (response.statusCode == 200) {
+          // Success - navigate to OTP screen and pass signup data + purpose
+          if (mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => OTPVerificationScreen(
+                  firstName: firstName,
+                  lastName: lastName,
+                  mobileNumber: mobileNumber,
+                  purpose: AuthPurpose.signup,
+                ),
+              ),
+            );
+          }
+        } else {
+          // Handle error response
+          final errorData = jsonDecode(response.body);
+          _showErrorSnackBar(errorData['detail'] ?? 'Failed to send SMS');
+        }
+      } catch (e) {
+        // Handle network or other errors
+        _showErrorSnackBar('Network error. Please check your connection.');
+        print('Error sending SMS: $e');
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isLoading = false; // Hide loading
+          });
+        }
+      }
     }
   }
 
-  // Function for Google Sign In
+  // Helper method to show error messages
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   void _signInWithGoogle() {
-    // GOOGLE SIGN-IN LOGIC HERE
     print('Google sign-in');
   }
 
-  // Function for Email Sign In
   void _signInWithEmail() {
-    // EMAIL SIGN-IN LOGIC HERE
     print('Email sign-in');
   }
 
-  // Function to go back to login
   void _navigateToLogin() {
     Navigator.push(
       context,
@@ -98,14 +145,14 @@ class _SignUpPageState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GestureDetector (
+      body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: (){
+        onTap: () {
           FocusScope.of(context).unfocus();
         },
         child: Stack(
           children: [
-            // === Background Image ===
+            // Background Image
             Container(
               decoration: const BoxDecoration(
                 image: DecorationImage(
@@ -114,25 +161,18 @@ class _SignUpPageState extends State<SignupScreen> {
                 ),
               ),
             ),
-            // Main COntent
+            // Main Content
             SafeArea(
-              // Padding adds space around our content so it doesn't touch the screen edges
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24.0,
-                ), // 24 pixels left and right
-                // Form widget wraps all our input fields for validation
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Form(
-                  key: _formKey, // Connect our form key to this form
-                  // Column arranges widgets vertically (top to bottom)
+                  key: _formKey,
                   child: Column(
-                    // crossAxisAlignment makes all children stretch to fill the width
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // SizedBox creates empty space (like a spacer)
                       const SizedBox(height: 60),
 
-                      // === TITLE SECTION ===
+                      // TITLE SECTION
                       const Text(
                         'Register',
                         style: TextStyle(
@@ -140,62 +180,51 @@ class _SignUpPageState extends State<SignupScreen> {
                           fontWeight: FontWeight.bold,
                           color: kBlack,
                         ),
-                        textAlign:
-                            TextAlign.center, // Center the text horizontally
+                        textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 50), // Space below title
-                      // === FIRST NAME SECTION ===
+                      const SizedBox(height: 50),
+
+                      // FIRST NAME SECTION
                       const Text(
                         'First Name',
                         style: TextStyle(
                           fontSize: 16,
-                          color:
-                              Colors.black87
+                          color: Colors.black87,
                         ),
                       ),
-                      const SizedBox(
-                        height: 8,
-                      ), // Small space between label and input
-                      // First name input field
+                      const SizedBox(height: 8),
                       TextFormField(
-                        controller:
-                            _firstNameController, // Connect to our controller
+                        controller: _firstNameController,
+                        enabled: !_isLoading, // Disable when loading
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              8,
-                            ),
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(color: Colors.grey),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            // When field is not focused
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(color: Colors.grey),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            // When field is focused (user tapped it)
                             borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(color: kBrightBlue),
                           ),
-                          // Padding inside the input field
                           contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, // 16 pixels left and right
-                            vertical: 16, // 16 pixels top and bottom
+                            horizontal: 16,
+                            vertical: 16,
                           ),
                         ),
-                        // validator checks if the input is valid
                         validator: (value) {
-                          // If the field is empty, return an error message
                           if (value == null || value.isEmpty) {
                             return 'Please enter your first name';
                           }
-                          // If validation passes, return null (no error)
                           return null;
                         },
                       ),
 
-                      const SizedBox(height: 20), // Space between fields
+                      const SizedBox(height: 20),
+
                       // LAST NAME SECTION
                       const Text(
                         'Last Name',
@@ -204,6 +233,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _lastNameController,
+                        enabled: !_isLoading, // Disable when loading
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -243,7 +273,7 @@ class _SignUpPageState extends State<SignupScreen> {
                         decoration: BoxDecoration(
                           border: Border.all(
                             color: _isMobileFocused ? Colors.blue : Colors.grey,
-                            width: _isMobileFocused ? 1.0 : 1.0,
+                            width: 1.0,
                           ),
                           borderRadius: BorderRadius.circular(8.0),
                           color: Colors.white,
@@ -258,21 +288,21 @@ class _SignUpPageState extends State<SignupScreen> {
                             ),
                             Container(
                               width: 1,
-                              height: 28, // Centered divider - half the container height
-                              color: Colors.grey, // Keep divider grey always
-                              margin: const EdgeInsets.symmetric(vertical: 14), // Centers the divider vertically
+                              height: 28,
+                              color: Colors.grey,
+                              margin: const EdgeInsets.symmetric(vertical: 14),
                             ),
                             Expanded(
                               child: TextFormField(
                                 controller: _mobileController,
                                 focusNode: _mobileFocusNode,
+                                enabled: !_isLoading, // Disable when loading
                                 keyboardType: TextInputType.phone,
                                 maxLength: 10,
                                 validator: (value) {
                                   if (value == null || value.isEmpty) {
                                     return 'Please enter your mobile number';
                                   }
-                                  // Check if the phone number is exactly 10 digits long
                                   if (value.length != 10) {
                                     return 'Please enter exactly 10 digits';
                                   }
@@ -296,11 +326,11 @@ class _SignUpPageState extends State<SignupScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 40), // Space before the button
-                      // SEND SMS BUTTON
+                      const SizedBox(height: 40),
+
+                      // SEND SMS BUTTON - Updated with loading state
                       ElevatedButton(
-                        onPressed: _sendSMS,
-                        // Btn style
+                        onPressed: _isLoading ? null : _sendSMS, // Disable when loading
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kBrightBlue,
                           foregroundColor: Colors.white,
@@ -310,15 +340,22 @@ class _SignUpPageState extends State<SignupScreen> {
                           ),
                           elevation: 0,
                         ),
-
-                        // Button text
-                        child: const Text(
-                          'Send SMS',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700, // Semi-bold text
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Send SMS',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
 
                       const SizedBox(height: 30),
@@ -326,7 +363,11 @@ class _SignUpPageState extends State<SignupScreen> {
                       // "OR" DIVIDER
                       const Text(
                         'or',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
                         textAlign: TextAlign.center,
                       ),
 
@@ -338,7 +379,7 @@ class _SignUpPageState extends State<SignupScreen> {
                         children: [
                           // GOOGLE SIGN-IN BUTTON
                           GestureDetector(
-                            onTap: _signInWithGoogle,
+                            onTap: _isLoading ? null : _signInWithGoogle,
                             child: Container(
                               width: 60,
                               height: 60,
@@ -358,7 +399,7 @@ class _SignUpPageState extends State<SignupScreen> {
                           const SizedBox(width: 20),
                           // EMAIL SIGN-IN BUTTON
                           GestureDetector(
-                            onTap: _signInWithEmail,
+                            onTap: _isLoading ? null : _signInWithEmail,
                             child: Container(
                               width: 60,
                               height: 60,
@@ -378,22 +419,18 @@ class _SignUpPageState extends State<SignupScreen> {
                         ],
                       ),
 
-                      // Spacer pushes everything above it to the top and everything below to the bottom
                       const Spacer(),
 
                       // LOGIN LINK AT THE BOTTOM
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          // Regular text
                           const Text(
                             'Already have an account? ',
                             style: TextStyle(fontSize: 16, color: kBlack),
                           ),
-
-                          // Tappable login link
                           GestureDetector(
-                            onTap: _navigateToLogin,
+                            onTap: _isLoading ? null : _navigateToLogin,
                             child: const Text(
                               'Login',
                               style: TextStyle(
@@ -406,7 +443,7 @@ class _SignUpPageState extends State<SignupScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 30), // Space at the bottom
+                      const SizedBox(height: 30),
                     ],
                   ),
                 ),

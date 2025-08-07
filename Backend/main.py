@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import book_routes, message_routes
+from routes import book_routes, message_routes, userinfo_routes
 
 
 # Create FastAPI app
@@ -22,7 +22,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(book_routes)
-app.include_router(message_routes)
+#app.include_router(message_routes)
+app.include_router(userinfo_routes)
 
 # Health check endpoint
 @app.get("/")

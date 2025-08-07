@@ -383,8 +383,7 @@ class _BounceGlowIcon extends StatefulWidget {
   final bool isActive;
   final VoidCallback onTap;
 
-  const _BounceGlowIcon({Key? key, required this.isActive, required this.onTap})
-    : super(key: key);
+  const _BounceGlowIcon({required this.isActive, required this.onTap});
 
   @override
   State<_BounceGlowIcon> createState() => _BounceGlowIconState();

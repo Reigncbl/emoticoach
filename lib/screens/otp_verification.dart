@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../main.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 enum AuthPurpose { login, signup }
 
@@ -29,6 +31,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   int _resendTimer = 60;
   bool _canResend = false;
+  final bool _isLoading = false;
+  
+  // Backend URL - should match your login screen
+  final String _baseUrl = 'http://localhost:8000';
 
   @override
   void initState() {

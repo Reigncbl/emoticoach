@@ -6,14 +6,14 @@ import re
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, FastAPI,Query
 from pydantic import BaseModel
-from telethon import TelegramClient
+"""from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest
-from telethon.tl.types import InputPhoneContact
+from telethon.tl.types import InputPhoneContact"""
 
 api_id = '21398172'
 api_hash = '4bb0f51ffa700b91f87f07742d6f1d33'
 session = 'name'
-client = TelegramClient(session, api_id, api_hash)
+"""client = TelegramClient(session, api_id, api_hash)"""
 
 message_router = APIRouter()
 class ContactRequest(BaseModel):
@@ -21,7 +21,7 @@ class ContactRequest(BaseModel):
     first_name: str = ""
     last_name: str = ""
     
-@message_router.get("/")
+"""@message_router.get("/")
 async def get_messages():
     return {"message": "hello"}
     
@@ -69,9 +69,9 @@ async def get_messages(data: ContactRequest):
             "message": "Messages retrieved and saved as JSON.",
             "file_path": file_path,
             **response_data
-        }
+        }"""
         
-        """
+"""
              
 @.get("/analyze_messages")
 async def analyze_messages(file_path: str = Query(..., description="Path to the JSON file to be analyzed")):
