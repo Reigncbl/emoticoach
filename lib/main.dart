@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/learning/scenario_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
-import 'screens/settings.dart';
 import 'overlays/overlay_ui.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
