@@ -88,12 +88,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
 
   // Navigate to the next screen
   void _navigateToNextScreen() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const EvaluationScreen(),
-      ),
-    );
+    showEvaluationOverlay(context);
   }
 
   // Navigate to previous screen
