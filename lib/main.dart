@@ -15,14 +15,12 @@ void overlayMain() {
   );
 }
 
-
 class LearnScreen extends StatelessWidget {
   const LearnScreen({super.key});
   @override
   Widget build(BuildContext context) =>
       Scaffold(body: Center(child: Text("Learn Screen")));
 }
-
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
