@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:emoticoach/screens/learning/models/reading_model.dart';
 
 class APIService {
   final http.Client _client;
@@ -81,6 +82,32 @@ class APIService {
     } catch (e) {
       print('Error during analyzeMessages request: $e');
       throw Exception('Failed to analyze messages: $e');
+    }
+  }
+
+  Future<List<Reading>> fetchAllReadings() async {
+    try {
+      final response = await _client.get(Uri.parse('$baseUrl/resources/all'));
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded
+              .map<Reading>((e) => Reading.fromJson(e as Map<String, dynamic>))
+              .toList();
+        } else if (decoded is Map && decoded['data'] is List) {
+          final list = decoded['data'] as List;
+          return list
+              .map<Reading>((e) => Reading.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      } else {
+        throw Exception(
+          'Failed to fetch readings: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      throw Exception('Failed to fetch readings: $e');
     }
   }
 }
