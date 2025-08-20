@@ -9,6 +9,7 @@ import 'screens/profile.dart';
 import 'screens/settings.dart';
 import 'screens/overlays/overlay_ui.dart';
 import 'controllers/app_monitor_controller.dart';
+import 'overlays/overlay_ui.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
