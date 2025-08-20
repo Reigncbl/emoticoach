@@ -147,5 +147,5 @@ async def main():
         print(f"Error saving results: {e}")
 
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     asyncio.run(main())

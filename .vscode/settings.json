@@ -1,0 +1,5 @@
+{
+  "dart.flutterHotReloadOnSave": "all",
+  "dart.hotReloadOnSave": "all",
+  "codium.codeCompletion.enable": false
+}
