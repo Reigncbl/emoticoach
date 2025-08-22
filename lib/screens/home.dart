@@ -1,7 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
-import 'chat_scenario/scenario_selection.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -120,14 +119,7 @@ class HomePage extends StatelessWidget {
                       iconBgColor: const Color(0xFFC7D3E2), // pastel blue
                       iconColor: const Color(0xFF1666C4), // bright blue
                       labelColor: const Color(0xFF1666C4), // bright blue
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ScenarioSelectionScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () {},
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -180,14 +172,7 @@ class HomePage extends StatelessWidget {
                       type: 'Scenario',
                       icon: Icons.psychology_alt,
                       buttonText: 'Replay Scenario',
-                      onButtonPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ScenarioSelectionScreen(),
-                          ),
-                        );
-                      },
+                      onButtonPressed: () {},
                       height: 200,
                     ),
                   ),

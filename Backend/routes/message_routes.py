@@ -1,3 +1,4 @@
+
 # backend/routers/telegram_router.py
 import json
 from typing import Optional
@@ -9,7 +10,7 @@ from services import messages_services as telegram_svc
 
 message_router = APIRouter()
 
-# Models
+
 class ContactRequest(BaseModel):
     phone: str
     first_name: str = ""
@@ -81,3 +82,4 @@ async def get_messages(phone_number: str, data: ContactRequest):
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+

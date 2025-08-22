@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../../utils/api_service.dart';
-import '../../models/scenario_models.dart';
 import 'evaluation.dart';
+
+// NOTE: To call ScenarioScreen include 3 parameters ScenarioScreen(scenarioTitle, aiPersona, initialMessage)
 
 class ScenarioScreen extends StatefulWidget {
   final String scenarioTitle;
@@ -24,17 +24,15 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
-  final APIService _apiService = APIService();
-  
-  bool _isLoading = false;
-  bool _isInitialized = false;
-  String? _characterName;
-  List<ConversationMessage> _conversationHistory = [];
 
   @override
   void initState() {
     super.initState();
-    _initializeConversation();
+    _messages.add(ChatMessage(
+      text: widget.initialMessage,
+      isUser: false,
+      timestamp: DateTime.now(),
+    ));
   }
 
   @override
@@ -44,159 +42,36 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     super.dispose();
   }
 
-  Future<void> _initializeConversation() async {
+  void _sendMessage() {
+    if (_messageController.text.trim().isEmpty) return;
+
     setState(() {
-      _isLoading = true;
+      _messages.add(ChatMessage(
+        text: _messageController.text.trim(),
+        isUser: true,
+        timestamp: DateTime.now(),
+      ));
     });
 
-    try {
-      final response = await _apiService.startConversation();
-      
-      if (response.success && response.firstMessage != null) {
-        setState(() {
-          _characterName = response.characterName ?? widget.aiPersona;
-          _messages.add(
-            ChatMessage(
-              text: response.firstMessage!,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(
-              role: 'assistant',
-              content: response.firstMessage!,
-            ),
-          );
-          _isInitialized = true;
-        });
-      } else {
-        // Fallback to provided initial message
-        setState(() {
-          _characterName = widget.aiPersona;
-          _messages.add(
-            ChatMessage(
-              text: widget.initialMessage,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(
-              role: 'assistant',
-              content: widget.initialMessage,
-            ),
-          );
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      print('Error initializing conversation: $e');
-      // Fallback to provided initial message
-      setState(() {
-        _characterName = widget.aiPersona;
-        _messages.add(
-          ChatMessage(
-            text: widget.initialMessage,
-            isUser: false,
-            timestamp: DateTime.now(),
-          ),
-        );
-        _conversationHistory.add(
-          ConversationMessage(
-            role: 'assistant',
-            content: widget.initialMessage,
-          ),
-        );
-        _isInitialized = true;
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || _isLoading) return;
-
-    final userMessage = _messageController.text.trim();
-    
-    setState(() {
-      _messages.add(
-        ChatMessage(
-          text: userMessage,
-          isUser: true,
-          timestamp: DateTime.now(),
-        ),
-      );
-      _conversationHistory.add(
-        ConversationMessage(
-          role: 'user',
-          content: userMessage,
-        ),
-      );
-      _isLoading = true;
-    });
-
+    _simulateBackendResponse();
     _messageController.clear();
     _scrollToBottom();
+  }
 
-    try {
-      final request = ChatRequest(
-        message: userMessage,
-        conversationHistory: _conversationHistory,
-      );
-
-      final response = await _apiService.sendMessage(request);
-
-      if (response.success && response.response != null) {
+  void _simulateBackendResponse() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
         setState(() {
-          _messages.add(
-            ChatMessage(
-              text: response.response!,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(
-              role: 'assistant',
-              content: response.response!,
-            ),
-          );
-          if (response.characterName != null) {
-            _characterName = response.characterName;
-          }
-        });
-      } else {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              text: "Sorry, I encountered an error. Please try again.",
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-        });
-      }
-    } catch (e) {
-      print('Error sending message: $e');
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            text: "Sorry, I'm having trouble connecting. Please try again.",
+          _messages.add(ChatMessage(
+            text:
+                "This is a simulated response from the backend based on your message.",
             isUser: false,
             timestamp: DateTime.now(),
-          ),
-        );
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-      _scrollToBottom();
-    }
+          ));
+        });
+        _scrollToBottom();
+      }
+    });
   }
 
   void _scrollToBottom() {
@@ -211,18 +86,12 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     });
   }
 
-  void _navigateToEvaluation() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EvaluationScreen(
-          conversationHistory: _conversationHistory,
-          characterName: _characterName ?? widget.aiPersona,
-        ),
-      ),
-    );
+  // Navigate to the next screen
+  void _navigateToNextScreen() {
+    showEvaluationOverlay(context);
   }
 
+  // Navigate to previous screen
   void _navigateToPreviousScreen() {
     Navigator.pop(context);
   }
@@ -232,24 +101,27 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.chevron_left),
-          onPressed: _navigateToPreviousScreen,
-        ),
+        icon: const Icon(Icons.chevron_left),
+        onPressed: _navigateToPreviousScreen,
+      ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            Text (
               widget.scenarioTitle,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
-              'AI Persona: ${_characterName ?? widget.aiPersona}',
+              'AI Persona: ${widget.aiPersona}',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
                 color: kBlack,
-              ),
-            ),
+              )
+            )
           ],
         ),
         elevation: 1,
@@ -257,34 +129,23 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: CustomContinueButtonSmall(
-              onPressed: _conversationHistory.length > 1 ? _navigateToEvaluation : null,
+              onPressed: _navigateToNextScreen,
             ),
           ),
         ],
       ),
       body: Column(
         children: [
-          if (_isLoading && !_isInitialized)
-            const LinearProgressIndicator(),
           Expanded(
-            child: _isInitialized
-                ? ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      return ChatBubble(message: _messages[index]);
-                    },
-                  )
-                : const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-          ),
-          if (_isLoading && _isInitialized)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: LinearProgressIndicator(),
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                return ChatBubble(message: _messages[index]);
+              },
             ),
+          ),
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
@@ -301,7 +162,6 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    enabled: _isInitialized && !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Type your message...',
                       border: OutlineInputBorder(
@@ -318,7 +178,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                 ),
                 const SizedBox(width: 8.0),
                 CustomSendButton(
-                  onPressed: _isInitialized && !_isLoading ? _sendMessage : null,
+                  onPressed: _sendMessage,
                 ),
               ],
             ),
@@ -331,21 +191,25 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
 
 // Send Button Widget
 class CustomSendButton extends StatelessWidget {
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
 
-  const CustomSendButton({super.key, required this.onPressed});
+  const CustomSendButton({
+    super.key,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: onPressed != null 
-            ? Theme.of(context).primaryColor 
-            : Colors.grey,
+        color: Theme.of(context).primaryColor,
         shape: BoxShape.circle,
       ),
       child: IconButton(
-        icon: const Icon(Icons.send, color: Colors.white),
+        icon: const Icon(
+          Icons.send,
+          color: Colors.white,
+        ),
         onPressed: onPressed,
         tooltip: 'Send message',
       ),
@@ -355,7 +219,7 @@ class CustomSendButton extends StatelessWidget {
 
 // Evaluate Button for AppBar
 class CustomContinueButtonSmall extends StatelessWidget {
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
 
   const CustomContinueButtonSmall({super.key, required this.onPressed});
 
@@ -365,14 +229,18 @@ class CustomContinueButtonSmall extends StatelessWidget {
       onPressed: onPressed,
       label: const Text(
         'Evaluate',
-        style: TextStyle(fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: onPressed != null ? kDarkOrange : Colors.grey,
+        backgroundColor: kDarkOrange,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 9),
-        minimumSize: Size.zero,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        minimumSize: Size.zero, // shrink to fit AppBar
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -382,7 +250,10 @@ class CustomContinueButtonSmall extends StatelessWidget {
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
 
-  const ChatBubble({super.key, required this.message});
+  const ChatBubble({
+    super.key,
+    required this.message,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -391,16 +262,19 @@ class ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
-        mainAxisAlignment: isUser
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.grey[400],
-              child: const Icon(Icons.smart_toy, size: 18, color: Colors.white),
+              child: const Icon(
+                Icons.smart_toy,
+                size: 18,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 8.0),
           ],
@@ -417,7 +291,8 @@ class ChatBubble extends StatelessWidget {
               child: Text(
                 message.text,
                 style: TextStyle(
-                  color: isUser ? Colors.blueGrey[800] : Colors.grey[800],
+                  color:
+                      isUser ? Colors.blueGrey[800] : Colors.grey[800],
                   fontSize: 16.0,
                 ),
               ),
@@ -428,7 +303,11 @@ class ChatBubble extends StatelessWidget {
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blueGrey[300],
-              child: const Icon(Icons.person, size: 18, color: Colors.white),
+              child: const Icon(
+                Icons.person,
+                size: 18,
+                color: Colors.white,
+              ),
             ),
           ],
         ],
@@ -437,7 +316,7 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
-// Chat message model
+// Temporary inline model
 class ChatMessage {
   final String text;
   final bool isUser;
