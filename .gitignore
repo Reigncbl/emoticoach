@@ -49,3 +49,5 @@ app.*.map.json
 .venv/
 AIModel/
 PDFs/
+name.session
+saved_messages/
