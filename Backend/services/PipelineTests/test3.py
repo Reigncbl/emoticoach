@@ -246,7 +246,7 @@ if __name__ == "__main__":
     client = Groq(api_key=api_key)
     
     # -------------------------------
-    # Load EMOTERA-All dataset
+    # Load EMOTERA-All dataset and sample
     # -------------------------------
     dataset_path = r"C:\Users\John Carlo\Downloads\EMOTERA-All.tsv"
     try:
@@ -259,13 +259,18 @@ if __name__ == "__main__":
     core_classes = ["Anger", "Disgust", "Fear", "Joy", "Sadness", "Surprise"]
     df = df[df['emotion'].isin(core_classes)].reset_index(drop=True)
 
-    # Random sample of 50
-    sample_size = 50
-    if len(df) < sample_size:
-        print(f"Warning: Dataset size ({len(df)}) is less than sample size ({sample_size}). Using entire dataset.")
-        sample_df = df
-    else:
-        sample_df = df.sample(n=sample_size, random_state=42).reset_index(drop=True)
+    # Balanced sampling of 10 samples per class
+    sample_size_per_class = 10
+    dfs = []
+    for emotion_class in core_classes:
+        class_df = df[df['emotion'] == emotion_class]
+        if len(class_df) >= sample_size_per_class:
+            dfs.append(class_df.sample(n=sample_size_per_class, random_state=42))
+        else:
+            print(f"Warning: Not enough samples for class '{emotion_class}'. Using all {len(class_df)} available samples.")
+            dfs.append(class_df)
+    
+    sample_df = pd.concat(dfs).reset_index(drop=True)
     
     tagalog_texts = sample_df['tweet'].tolist()
     dataset_emotions = [

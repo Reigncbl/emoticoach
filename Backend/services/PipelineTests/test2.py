@@ -68,12 +68,14 @@ def get_translation_prompt(tagalog_text: str, dataset_emotion: str) -> str:
 
     guidance = emotion_guidance.get(dataset_emotion.lower())
     if not guidance:
+        # Fallback for emotions not in the guidance dict
         guidance = {'words': 'appropriate', 'tone': 'appropriate', 'emoji': ''}
 
     words_list = guidance['words']
     tone = guidance['tone']
     emoji = guidance['emoji']
 
+    # New prompt incorporating CoT and persona
     prompt = f"""You are a professional human translator specializing in the cultural and emotional nuances of the Tagalog language. Your job is not to provide a literal translation, but to translate the given text while maintaining the exact emotional tone of {dataset_emotion.upper()} {emoji}.
 
 Follow these steps for a perfect translation:
@@ -82,6 +84,7 @@ Follow these steps for a perfect translation:
 3.  **Finalize**: Ensure the translation is a single sentence or short phrase, without any extra commentary.
 
 """
+    # Append examples if they exist for the current emotion
     if dataset_emotion.lower() in examples:
         prompt += "Here are a few examples of how to handle this emotion:\n"
         for ex in examples[dataset_emotion.lower()]:
@@ -106,6 +109,7 @@ def clean_llm_output(text: str) -> str:
     if not text:
         return ""
     text = text.strip().strip('"\'')
+    # Remove any step-by-step thinking or commentary the LLM might have included
     if "**Final English Translation:**" in text:
         text = text.split("**Final English Translation:**")[-1].strip()
     for prefix in ['english translation:', 'translation:', 'english:', 'translated:']:
@@ -199,13 +203,9 @@ def evaluate_translation_preservation(
         for emotion, confidences in confidence_per_emotion.items()
     }
 
-    # Add emotion emojis for clearer output
-    emoji_map = {'anger': '🤬', 'disgust': '🤢', 'fear': '😨', 'joy': '😀', 'neutral': '😐', 'sadness': '😭', 'surprise': '😲'}
-    
     print("\n⭐ MEAN CONFIDENCE PER EMOTION:")
     for emotion, conf in mean_confidence.items():
-        emoji = emoji_map.get(emotion, '')
-        print(f"{emotion.capitalize():<12} {emoji}: {conf:.2f}")
+        print(f"{emotion:<12}: {conf:.2f}")
 
     # Final summary and return
     print(f"\n💾 Overall Preservation Rate (Accuracy): {preservation_rate*100:.1f}%")
@@ -269,6 +269,7 @@ if __name__ == "__main__":
     
     tagalog_texts = sample_df['tweet'].tolist()
     dataset_emotions = [
+        # Map EMOTERA emotions to classifier labels (lowercase)
         {"Anger": "anger", "Disgust": "disgust", "Fear": "fear",
          "Joy": "joy", "Sadness": "sadness", "Surprise": "surprise"}[e]
         for e in sample_df['emotion']

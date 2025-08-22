@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from dotenv import load_dotenv
 from groq import Groq
 import pandas as pd
-from sklearn.metrics import f1_score, confusion_matrix, classification_report
+from sklearn.metrics import f1_score, confusion_matrix
 import numpy as np
 
 # -------------------------------
@@ -45,13 +45,12 @@ def get_translation_prompt(tagalog_text: str, dataset_emotion: str) -> str:
     Creates an advanced emotion-aware prompt with Chain-of-Thought, persona, and few-shot examples.
     """
     emotion_guidance = {
-        'anger': {'words': 'furious, enraged, infuriated, hostile', 'tone': 'hostile and aggressive', 'emoji': '🤬'},
-        'disgust': {'words': 'revolted, appalled, sickened, gross', 'tone': 'contemptuous and repulsed', 'emoji': '🤢'},
-        'fear': {'words': 'terrified, anxious, frightened, alarmed', 'tone': 'anxious and unsettling', 'emoji': '😨'},
-        'joy': {'words': 'thrilled, delighted, ecstatic, jubilant', 'tone': 'exuberant and cheerful', 'emoji': '😀'},
-        'neutral': {'words': 'simple, straightforward, matter-of-fact', 'tone': 'neutral and informative', 'emoji': '😐'},
-        'sadness': {'words': 'heartbroken, melancholy, sorrowful, dejected', 'tone': 'mournful and sorrowful', 'emoji': '😭'},
-        'surprise': {'words': 'astonished, amazed, shocked, startled', 'tone': 'shocked and sudden', 'emoji': '😲'}
+        'anger': {'words': 'furious, enraged, infuriated, hostile', 'tone': 'hostile and aggressive'},
+        'disgust': {'words': 'revolted, appalled, sickened, gross', 'tone': 'contemptuous and repulsed'},
+        'fear': {'words': 'terrified, anxious, frightened, alarmed', 'tone': 'anxious and unsettling'},
+        'joy': {'words': 'thrilled, delighted, ecstatic, jubilant', 'tone': 'exuberant and cheerful'},
+        'sadness': {'words': 'heartbroken, melancholy, sorrowful, dejected', 'tone': 'mournful and sorrowful'},
+        'surprise': {'words': 'astonished, amazed, shocked, startled', 'tone': 'shocked and sudden'}
     }
 
     # Add few-shot examples for underperforming emotions
@@ -67,14 +66,11 @@ def get_translation_prompt(tagalog_text: str, dataset_emotion: str) -> str:
     }
 
     guidance = emotion_guidance.get(dataset_emotion.lower())
-    if not guidance:
-        guidance = {'words': 'appropriate', 'tone': 'appropriate', 'emoji': ''}
-
     words_list = guidance['words']
     tone = guidance['tone']
-    emoji = guidance['emoji']
 
-    prompt = f"""You are a professional human translator specializing in the cultural and emotional nuances of the Tagalog language. Your job is not to provide a literal translation, but to translate the given text while maintaining the exact emotional tone of {dataset_emotion.upper()} {emoji}.
+    # New prompt incorporating CoT and persona
+    prompt = f"""You are a professional human translator specializing in the cultural and emotional nuances of the Tagalog language. Your job is not to provide a literal translation, but to translate the given text while maintaining the exact emotional tone of {dataset_emotion.upper()}.
 
 Follow these steps for a perfect translation:
 1.  **Analyze**: Carefully read the Tagalog text and identify the specific words, idioms, or sentence structures that convey the emotion.
@@ -82,6 +78,7 @@ Follow these steps for a perfect translation:
 3.  **Finalize**: Ensure the translation is a single sentence or short phrase, without any extra commentary.
 
 """
+    # Append examples if they exist for the current emotion
     if dataset_emotion.lower() in examples:
         prompt += "Here are a few examples of how to handle this emotion:\n"
         for ex in examples[dataset_emotion.lower()]:
@@ -90,7 +87,7 @@ Follow these steps for a perfect translation:
     prompt += f"""---
 **Source Language:** Tagalog
 **Target Language:** English
-**Required Emotion:** {dataset_emotion.upper()} {emoji}
+**Required Emotion:** {dataset_emotion.upper()}
 **Key Words to Use:** {words_list}
 **Target Tone:** {tone}
 
@@ -106,6 +103,7 @@ def clean_llm_output(text: str) -> str:
     if not text:
         return ""
     text = text.strip().strip('"\'')
+    # Remove any step-by-step thinking or commentary the LLM might have included
     if "**Final English Translation:**" in text:
         text = text.split("**Final English Translation:**")[-1].strip()
     for prefix in ['english translation:', 'translation:', 'english:', 'translated:']:
@@ -144,7 +142,7 @@ def translate_texts(
 
 
 # -------------------------------
-# 3. Evaluation pipeline with in-depth metrics
+# 3. Evaluation pipeline with metrics
 # -------------------------------
 def evaluate_translation_preservation(
     tagalog_texts: List[str],
@@ -154,79 +152,78 @@ def evaluate_translation_preservation(
 ) -> Dict[str, Any]:
     """
     Translate Tagalog texts to English and evaluate if classifier predicts same emotion as dataset label,
-    with comprehensive metrics including a classification report and confidence analysis.
+    adding a confusion matrix and F1-scores for a more detailed analysis.
     """
     print("🎭 EVALUATING TRANSLATION EMOTION PRESERVATION")
     translated_texts, failures = translate_texts(tagalog_texts, dataset_emotions, groq_client, groq_model)
 
     english_results = classify_emotions(translated_texts)
     english_emotions = [r['emotion'] for r in english_results]
-    english_confidences = [r['confidence'] for r in english_results]
 
     # Compare predicted English emotions with dataset labels
     preserved_flags = [pred == true for pred, true in zip(english_emotions, dataset_emotions)]
     preservation_rate = sum(preserved_flags) / len(tagalog_texts)
 
     # Per-emotion performance
+    emotion_performance = {}
+    for emotion in set(dataset_emotions):
+        indices = [i for i, e in enumerate(dataset_emotions) if e == emotion]
+        preserved = sum(1 for i in indices if english_emotions[i] == emotion)
+        emotion_performance[emotion] = {
+            "count": len(indices),
+            "preserved": preserved,
+            "rate": preserved / len(indices) if len(indices) > 0 else 0
+        }
+
+    # Add F1-scores and Confusion Matrix
     unique_emotions = sorted(list(set(dataset_emotions)))
     
-    # 1. Classification Report
-    print("\n📋 CLASSIFICATION REPORT:")
-    report = classification_report(
-        y_true=dataset_emotions,
-        y_pred=english_emotions,
-        labels=unique_emotions,
-        zero_division=0,
-        output_dict=True
-    )
-    report_df = pd.DataFrame(report).T
-    print(report_df)
-
-    # 2. Confusion Matrix
-    print("\n📈 CONFUSION MATRIX:")
-    print("Rows = True Emotion, Columns = Predicted Emotion")
+    # Calculate macro F1-score for overall performance
+    macro_f1 = f1_score(dataset_emotions, english_emotions, average='macro', labels=unique_emotions, zero_division=0)
+    
+    # Calculate per-emotion F1-scores
+    per_emotion_f1 = f1_score(dataset_emotions, english_emotions, average=None, labels=unique_emotions, zero_division=0)
+    
+    # Generate confusion matrix
     cm = confusion_matrix(dataset_emotions, english_emotions, labels=unique_emotions)
-    df_cm = pd.DataFrame(cm, index=unique_emotions, columns=unique_emotions)
-    print(df_cm)
 
-    # 3. Confidence Analysis
-    confidence_per_emotion = {emotion: [] for emotion in unique_emotions}
-    for i, emotion in enumerate(dataset_emotions):
-        confidence_per_emotion[emotion].append(english_confidences[i])
-    
-    mean_confidence = {
-        emotion: np.mean(confidences) if confidences else 0
-        for emotion, confidences in confidence_per_emotion.items()
-    }
+    # Add F1-scores to emotion performance dict
+    for i, emotion in enumerate(unique_emotions):
+        emotion_performance[emotion]['f1_score'] = per_emotion_f1[i]
 
-    # Add emotion emojis for clearer output
-    emoji_map = {'anger': '🤬', 'disgust': '🤢', 'fear': '😨', 'joy': '😀', 'neutral': '😐', 'sadness': '😭', 'surprise': '😲'}
-    
-    print("\n⭐ MEAN CONFIDENCE PER EMOTION:")
-    for emotion, conf in mean_confidence.items():
-        emoji = emoji_map.get(emotion, '')
-        print(f"{emotion.capitalize():<12} {emoji}: {conf:.2f}")
+    # Detailed results
+    analysis_data = []
+    for i in range(len(tagalog_texts)):
+        analysis_data.append({
+            'tagalog': tagalog_texts[i],
+            'english': translated_texts[i],
+            'dataset_emotion': dataset_emotions[i],
+            'english_classified': english_emotions[i],
+            'confidence': english_results[i]['confidence'],
+            'preserved': preserved_flags[i]
+        })
 
-    # Final summary and return
+    # Print summary
     print(f"\n💾 Overall Preservation Rate (Accuracy): {preservation_rate*100:.1f}%")
     print(f"Failed Translations: {failures}")
+    print(f"\n📊 Macro F1-Score: {macro_f1*100:.1f}%")
+    
+    print("\n🎭 PER-EMOTION PERFORMANCE:")
+    for emotion, perf in emotion_performance.items():
+        print(f"{emotion:<12}: Rate={perf['rate']*100:.1f}% ({perf['preserved']}/{perf['count']}) | F1-Score={perf['f1_score']*100:.1f}%")
+
+    print("\n📈 CONFUSION MATRIX:")
+    print("Rows = True Emotion, Columns = Predicted Emotion")
+    df_cm = pd.DataFrame(cm, index=unique_emotions, columns=unique_emotions)
+    print(df_cm)
     
     return {
         "preservation_rate": preservation_rate,
         "failed_translations": failures,
-        "classification_report": report,
-        "confusion_matrix": df_cm.to_dict(),
-        "mean_confidence": mean_confidence,
-        "analysis_data": [
-            {
-                'tagalog': tagalog_texts[i],
-                'english': translated_texts[i],
-                'dataset_emotion': dataset_emotions[i],
-                'english_classified': english_emotions[i],
-                'confidence': english_confidences[i],
-                'preserved': preserved_flags[i]
-            } for i in range(len(tagalog_texts))
-        ]
+        "per_emotion": emotion_performance,
+        "macro_f1_score": macro_f1,
+        "confusion_matrix": df_cm,
+        "analysis_data": analysis_data
     }
 
 
@@ -269,6 +266,7 @@ if __name__ == "__main__":
     
     tagalog_texts = sample_df['tweet'].tolist()
     dataset_emotions = [
+        # Map EMOTERA emotions to classifier labels (lowercase)
         {"Anger": "anger", "Disgust": "disgust", "Fear": "fear",
          "Joy": "joy", "Sadness": "sadness", "Surprise": "surprise"}[e]
         for e in sample_df['emotion']
@@ -288,6 +286,8 @@ if __name__ == "__main__":
         )
         print("\n🎉 Evaluation completed successfully!")
         print(f"Processed {len(tagalog_texts)} samples")
+        print(f"💾 Preservation Rate: {results['preservation_rate']*100:.1f}%")
+        print(f"📊 Macro F1-Score: {results['macro_f1_score']*100:.1f}%")
     except Exception as e:
         print(f"❌ Evaluation failed: {e}")
         sys.exit(1)
