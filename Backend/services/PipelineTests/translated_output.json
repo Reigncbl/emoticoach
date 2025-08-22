@@ -1,0 +1,242 @@
+[
+    {
+        "tagalog": "L0di ka frfr, petm4lu m0v3s mo HAHA 🔥",
+        "english": "You're absolutely legendary, your moves are fire—I'm thrilled beyond words, HAHA!",
+        "dataset_emotion": "joy",
+        "english_classified": "joy",
+        "confidence": 0.7962377071380615,
+        "preserved": true
+    },
+    {
+        "tagalog": "Bw1s3t ka grb3, in1s lvl 999 rn 😤",
+        "english": "I'm absolutely furious—I'm at level 999 enraged right now, you goddamn piece of shit!",
+        "dataset_emotion": "anger",
+        "english_classified": "anger",
+        "confidence": 0.9851786494255066,
+        "preserved": true
+    },
+    {
+        "tagalog": "Sheeesh kin4bahan aq b4 d exm 😰",
+        "english": "Sheesh, I was absolutely terrified and anxious before that exam 😰",
+        "dataset_emotion": "fear",
+        "english_classified": "fear",
+        "confidence": 0.9931713342666626,
+        "preserved": true
+    },
+    {
+        "tagalog": "H4y nk0 wla na ak0ng pk3, pls st0p n4",
+        "english": "Oh no, I'm utterly heartbroken and dejected—please, just stop, the sorrow is too much.",
+        "dataset_emotion": "sadness",
+        "english_classified": "sadness",
+        "confidence": 0.9868576526641846,
+        "preserved": true
+    },
+    {
+        "tagalog": "OMGGG gr8 v1b3z lng t4yo rn ✨",
+        "english": "OMG, we're just vibing with pure, ecstatic joy right now!",
+        "dataset_emotion": "joy",
+        "english_classified": "joy",
+        "confidence": 0.6138181686401367,
+        "preserved": true
+    },
+    {
+        "tagalog": "Sss wla lng, ch1ll lng ak0 rn",
+        "english": "Just chilling—nothing much, keeping it simple and straightforward.",
+        "dataset_emotion": "neutral",
+        "english_classified": "neutral",
+        "confidence": 0.8705863356590271,
+        "preserved": true
+    },
+    {
+        "tagalog": "Hala! Na-surpR1s3 aq s4 blt4",
+        "english": "Whoa—I'm startled, shocked, and utterly astonished by that sudden bolt!",
+        "dataset_emotion": "surprise",
+        "english_classified": "surprise",
+        "confidence": 0.9497841000556946,
+        "preserved": true
+    },
+    {
+        "tagalog": "Char0t lng, wag k mg4lit ha HAHA 🤣",
+        "english": "Just kidding—please don’t be mad, I’m thrilled you’re laughing with me!",
+        "dataset_emotion": "joy",
+        "english_classified": "joy",
+        "confidence": 0.7627661228179932,
+        "preserved": true
+    },
+    {
+        "tagalog": "Bw1s3t! ay0k0 n4, badtr1p xobr4",
+        "english": "I'm fucking furious—I'm done, this shit's beyond infuriating!",
+        "dataset_emotion": "anger",
+        "english_classified": "anger",
+        "confidence": 0.9875985980033875,
+        "preserved": true
+    },
+    {
+        "tagalog": "Kin4k4bahan aq s4 r3sult tmrw 😨",
+        "english": "I'm absolutely terrified and sick with anxiety about tomorrow's results.",
+        "dataset_emotion": "fear",
+        "english_classified": "fear",
+        "confidence": 0.9938487410545349,
+        "preserved": true
+    },
+    {
+        "tagalog": "Hays ang lungk0t ng gbi na 'to 😔",
+        "english": "Tonight’s sorrow has left me utterly heartbroken and dejected.",
+        "dataset_emotion": "sadness",
+        "english_classified": "sadness",
+        "confidence": 0.9874984622001648,
+        "preserved": true
+    },
+    {
+        "tagalog": "OMG di aq mkpaniw4la legit b4 'to?! 😱",
+        "english": "OMG I'm legit shocked—this can't be real?!",
+        "dataset_emotion": "surprise",
+        "english_classified": "surprise",
+        "confidence": 0.9815525412559509,
+        "preserved": true
+    },
+    {
+        "tagalog": "Ast1g pr3, s0lid ka fr 🫡",
+        "english": "Dude, you're absolutely killing it—I'm thrilled for you!",
+        "dataset_emotion": "joy",
+        "english_classified": "joy",
+        "confidence": 0.9088354110717773,
+        "preserved": true
+    },
+    {
+        "tagalog": "Pucha sobrang nkak4in1s grb3 😡",
+        "english": "I'm absolutely fucking furious—this is beyond infuriating!",
+        "dataset_emotion": "anger",
+        "english_classified": "anger",
+        "confidence": 0.9878143072128296,
+        "preserved": true
+    },
+    {
+        "tagalog": "Di ko alm ggw1n q, pr4ng nk4kat4kot 🥶",
+        "english": "I'm terrified—I don't know what to do, everything feels so alarmingly frightening.",
+        "dataset_emotion": "fear",
+        "english_classified": "fear",
+        "confidence": 0.9927829504013062,
+        "preserved": true
+    },
+    {
+        "tagalog": "Wla ak0ng gna, nkakap4god lht 😩",
+        "english": "Heartbroken and dejected, I’m drowning in sorrowful melancholy—everything just feels so weary.",
+        "dataset_emotion": "sadness",
+        "english_classified": "sadness",
+        "confidence": 0.9875699877738953,
+        "preserved": true
+    },
+    {
+        "tagalog": "Wala lng chill chill lng nmn t4yo",
+        "english": "Just keeping it simple and straightforward, we're just chilling.",
+        "dataset_emotion": "neutral",
+        "english_classified": "neutral",
+        "confidence": 0.9204725623130798,
+        "preserved": true
+    },
+    {
+        "tagalog": "Shocks! unxpctd s0br4, gul4t aq 😲",
+        "english": "Shocked—I'm utterly startled and amazed, that was so sudden!",
+        "dataset_emotion": "surprise",
+        "english_classified": "surprise",
+        "confidence": 0.9682754874229431,
+        "preserved": true
+    },
+    {
+        "tagalog": "Ang saya2 ko rn swear! 😍",
+        "english": "I'm absolutely thrilled—swear to God, I'm over the moon!",
+        "dataset_emotion": "joy",
+        "english_classified": "joy",
+        "confidence": 0.9570509195327759,
+        "preserved": true
+    },
+    {
+        "tagalog": "Nkakabw1s3t mg4 gnt0ng b4gy 🤬",
+        "english": "I'm absolutely FURIOUS—this kind of thing is INFURIATING!",
+        "dataset_emotion": "anger",
+        "english_classified": "anger",
+        "confidence": 0.977536141872406,
+        "preserved": true
+    },
+    {
+        "tagalog": "K1n4k4bahan tlg4 aq pr0mise",
+        "english": "I'm absolutely terrified, promise—this anxious dread has me completely alarmed.",
+        "dataset_emotion": "fear",
+        "english_classified": "fear",
+        "confidence": 0.9924604296684265,
+        "preserved": true
+    },
+    {
+        "tagalog": "Ang big4t s4 dbd1b huhu 🥺",
+        "english": "My heartbroken soul is crushed under this sorrowful weight—I'm utterly dejected, huhu.",
+        "dataset_emotion": "sadness",
+        "english_classified": "sadness",
+        "confidence": 0.9873048663139343,
+        "preserved": true
+    },
+    {
+        "tagalog": "Ok lng nmn aq, st3ady lng rn",
+        "english": "I'm fine, just steady and straightforward.",
+        "dataset_emotion": "neutral",
+        "english_classified": "neutral",
+        "confidence": 0.7960309982299805,
+        "preserved": true
+    },
+    {
+        "tagalog": "Di ko inxpct yun, grb3 surpr1s3",
+        "english": "I’m absolutely shocked—never saw that coming, what a startled, amazed surprise!",
+        "dataset_emotion": "surprise",
+        "english_classified": "surprise",
+        "confidence": 0.9789853096008301,
+        "preserved": true
+    },
+    {
+        "tagalog": "HAHA petm4lu, 1dol m0v3s pr3",
+        "english": "HAHA, I'm absolutely ECSTATIC—petmalu idol moves for the win!",
+        "dataset_emotion": "joy",
+        "english_classified": "surprise",
+        "confidence": 0.5577608942985535,
+        "preserved": false
+    },
+    {
+        "tagalog": "H4y nk0 wla ak0ng gn kum1l0s",
+        "english": "Oh God, I’m so heartbroken and dejected I can’t even move.",
+        "dataset_emotion": "sadness",
+        "english_classified": "sadness",
+        "confidence": 0.9848034381866455,
+        "preserved": true
+    },
+    {
+        "tagalog": "OMG legit p4la 2, sh0ckd aq",
+        "english": "OMG it's legit—I'm completely shocked!",
+        "dataset_emotion": "surprise",
+        "english_classified": "surprise",
+        "confidence": 0.9783511757850647,
+        "preserved": true
+    },
+    {
+        "tagalog": "Tang1n4 badtr1p n4 s0br4 🤬",
+        "english": "I'm absolutely fucking furious—this shit's beyond infuriating!",
+        "dataset_emotion": "anger",
+        "english_classified": "anger",
+        "confidence": 0.9871672987937927,
+        "preserved": true
+    },
+    {
+        "tagalog": "Kab4d0 aq s0br4 pr0mise 😬",
+        "english": "I’m terrified—honestly, I’m so anxious right now, promise.",
+        "dataset_emotion": "fear",
+        "english_classified": "fear",
+        "confidence": 0.9893621802330017,
+        "preserved": true
+    },
+    {
+        "tagalog": "Ch1ll lng wlang pr0blm4 rn",
+        "english": "Just chill—no problem, everything’s straightforward.",
+        "dataset_emotion": "neutral",
+        "english_classified": "neutral",
+        "confidence": 0.7670062184333801,
+        "preserved": true
+    }
+]

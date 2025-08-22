@@ -1,91 +1,85 @@
-# uvicorn backend.main:app --reload
-import os
+
+# backend/routers/telegram_router.py
 import json
-import re
-
-from fastapi.responses import JSONResponse
-from fastapi import APIRouter, FastAPI,Query
+from typing import Optional
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from telethon import TelegramClient
-from telethon.tl.functions.contacts import ImportContactsRequest
-from telethon.tl.types import InputPhoneContact
 
-api_id = '21398172'
-api_hash = '4bb0f51ffa700b91f87f07742d6f1d33'
-session = 'name'
-client = TelegramClient(session, api_id, api_hash)
+# Import the service functions
+from services import messages_services as telegram_svc
 
 message_router = APIRouter()
+
+
 class ContactRequest(BaseModel):
     phone: str
     first_name: str = ""
     last_name: str = ""
+
+class AuthRequest(BaseModel):
+    phone_number: str
     
-@message_router.get("/")
-async def get_messages():
-    return {"message": "hello"}
-    
+class CodeRequest(BaseModel):
+    phone_number: str
+    code: str
+    password: Optional[str] = None
+
+
+@message_router.post("/auth/start")
+async def start_auth(data: AuthRequest):
+    """Sends a verification code to the user's Telegram."""
+    try:
+        await telegram_svc.start_auth_session(data.phone_number)
+        return {"message": "Code sent"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
+@message_router.post("/auth/verify")
+async def verify_code(data: CodeRequest):
+    """Verifies the code and logs the user in."""
+    try:
+        result = await telegram_svc.verify_auth_code(
+            data.phone_number, data.code, data.password
+        )
+        if "password_required" in result:
+            return {"password_required": True}
+        return {"message": f"Authenticated as {result['first_name']}", "user_id": result['user_id']}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
+@message_router.get("/status")
+async def get_status(phone_number: str):
+    """Checks the user's authentication status."""
+    try:
+        return await telegram_svc.is_user_authenticated(phone_number)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
+@message_router.get("/contacts")
+async def get_contacts(phone_number: str):
+    """Gets the list of user contacts."""
+    try:
+        contacts = await telegram_svc.get_user_contacts(phone_number)
+        return {"contacts": contacts, "total": len(contacts)}
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+
 @message_router.post("/messages")
-async def get_messages(data: ContactRequest):
-    async with client:
-        me = await client.get_me()
-        sender = f"{me.first_name} {me.last_name or ''}".strip()
+async def get_messages(phone_number: str, data: ContactRequest):
+    """Gets the last 10 messages from a contact."""
+    try:
+        messages = await telegram_svc.get_contact_messages(
+            phone_number, data.dict()
+        )
+        return messages
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
-        contact = InputPhoneContact(0, f'+63{data.phone}', data.first_name, data.last_name)
-        res = await client(ImportContactsRequest([contact]))
-        if not res.users:
-            return {"error": "User not found."}
-
-        receiver = res.users[0]
-        rec_name = f"{receiver.first_name} {receiver.last_name or ''}".strip()
-
-        messages = []
-        async for msg in client.iter_messages(receiver.id, limit=10):
-            name = sender if msg.out else rec_name
-            messages.append({
-                "from": name,
-                "date": str(msg.date),
-                "text": msg.text
-            })
-
-        response_data = {
-            "sender": sender,
-            "receiver": rec_name,
-            "messages": messages
-        }
-
-        # Ensure the directory exists
-        save_dir = "saved_messages"
-        os.makedirs(save_dir, exist_ok=True)
-
-        # Sanitize receiver name for filename
-        safe_rec_name = re.sub(r'[^a-zA-Z0-9_-]', '_', rec_name)
-        filename = f"{safe_rec_name}.json"
-        file_path = os.path.join(save_dir, filename)
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(response_data, f, ensure_ascii=False, indent=2)
-
-        return {
-            "message": "Messages retrieved and saved as JSON.",
-            "file_path": file_path,
-            **response_data
-        }
-        
-        """
-             
-@.get("/analyze_messages")
-async def analyze_messages(file_path: str = Query(..., description="Path to the JSON file to be analyzed")):
-    result = await textExtraction(file_path=file_path)
-   
-    return JSONResponse(result)
-
-@.get("/suggestion")
-async def suggestion(file_path: str = Query(..., description="Path to the JSON file containing messages")):
-    result = await suggestionGeneration(file_path=file_path)
-    if isinstance(result, list):
-        return JSONResponse({"suggestions": result})
-    else:
-        return JSONResponse(result)
-
-        
-        """
