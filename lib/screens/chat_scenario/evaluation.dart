@@ -1,0 +1,498 @@
+import 'package:flutter/material.dart';
+import '../../utils/colors.dart';
+
+import '../../utils/api_service.dart';
+import '../../models/scenario_models.dart';
+
+class EvaluationScreen extends StatefulWidget {
+  final List<ConversationMessage> conversationHistory;
+  final String characterName;
+
+  const EvaluationScreen({
+    Key? key,
+    required this.conversationHistory,
+    required this.characterName,
+  }) : super(key: key);
+
+  @override
+  State<EvaluationScreen> createState() => _EvaluationScreenState();
+}
+
+class _EvaluationScreenState extends State<EvaluationScreen> {
+  final APIService _apiService = APIService();
+  EvaluationResponse? _evaluationResponse;
+  bool _isLoading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _evaluateConversation();
+  }
+
+  Future<void> _evaluateConversation() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final request = EvaluationRequest(
+        conversationHistory: widget.conversationHistory,
+      );
+
+      final response = await _apiService.evaluateConversation(request);
+
+      setState(() {
+        _evaluationResponse = response;
+        if (!response.success) {
+          _error = response.error ?? 'Failed to evaluate conversation';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Error evaluating conversation: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Conversation Evaluation'),
+        leading: IconButton(
+          icon: const Icon(Icons.chevron_left),
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? _buildErrorView()
+              : _evaluationResponse != null
+                  ? _buildEvaluationView()
+                  : const Center(child: Text('No evaluation data available')),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 64,
+              color: Colors.red[400],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Evaluation Failed',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _evaluateConversation,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEvaluationView() {
+    final evaluation = _evaluationResponse!.evaluation;
+    final userReplies = _evaluationResponse!.userReplies ?? [];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Card
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.assessment, color: kDarkOrange),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Communication Skills Assessment',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Conversation with ${widget.characterName}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total messages analyzed: ${_evaluationResponse!.totalUserMessages ?? userReplies.length}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Evaluation Scores
+          if (evaluation != null) ...[
+            Text(
+              'Your Scores',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            _buildScoreCard('Clarity', evaluation.clarity, 
+                'How clear and understandable your responses were'),
+            const SizedBox(height: 8),
+            
+            _buildScoreCard('Empathy', evaluation.empathy, 
+                'How well you showed emotional awareness'),
+            const SizedBox(height: 8),
+            
+            _buildScoreCard('Assertiveness', evaluation.assertiveness, 
+                'How confidently you expressed your thoughts'),
+            const SizedBox(height: 8),
+            
+            _buildScoreCard('Appropriateness', evaluation.appropriateness, 
+                'How suitable your responses were for the context'),
+
+            const SizedBox(height: 20),
+
+            // Improvement Tip
+            Card(
+              color: Colors.blue[50],
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.lightbulb, color: Colors.blue[700]),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Improvement Tip',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      evaluation.tip,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Your Messages Section
+          if (userReplies.isNotEmpty) ...[
+            Text(
+              'Your Messages',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Messages that were evaluated:',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    ...userReplies.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final message = entry.value;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: kDarkOrange,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12.0),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  borderRadius: BorderRadius.circular(8.0),
+                                ),
+                                child: Text(
+                                  message,
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Action Buttons
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.chat),
+                  label: const Text('Continue Chatting'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey[600],
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.popUntil(context, (route) => route.isFirst);
+                  },
+                  icon: const Icon(Icons.home),
+                  label: const Text('Home'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kDarkOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreCard(String title, int score, String description) {
+    Color scoreColor;
+    if (score >= 8) {
+      scoreColor = Colors.green;
+    } else if (score >= 6) {
+      scoreColor = Colors.orange;
+    } else {
+      scoreColor = Colors.red;
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: scoreColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(color: scoreColor, width: 3),
+              ),
+              child: Center(
+                child: Text(
+                  '$score/10',
+                  style: TextStyle(
+                    color: scoreColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+=======
+
+// NOTE: Wala pa yung score, overall feedback, button functions
+
+void showEvaluationOverlay(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true, // makes it full-screen height if needed
+    backgroundColor: Colors.transparent, // transparent corners
+    builder: (context) {
+      return DraggableScrollableSheet(
+        initialChildSize: 0.6, // starting height (60% of screen)
+        minChildSize: 0.4,     // minimum height
+        maxChildSize: 0.95,    // maximum height
+        expand: false,
+        builder: (context, scrollController) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(16),
+                    children: const [
+                      Text(
+                        'Evaluation',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        'Ratings',
+                        style: TextStyle(fontSize: 18),
+                      ),
+                    ],
+                  ),
+                ),
+                // Buttons section at bottom
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Return to scenarios - no function yet
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Return to Scenarios'),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Replay the scenario - no function yet
+                            Navigator.of(context).pop(); // Close overlay
+                            // NOTE: Wala pa yung reset convo
+                          },
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text('Replay'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+
+}

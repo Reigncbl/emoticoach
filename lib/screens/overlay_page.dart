@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import '../controllers/app_monitor_controller.dart';
 import 'dart:developer';
 
 class OverlayScreen extends StatefulWidget {
@@ -16,6 +17,9 @@ class _OverlayScreenState extends State<OverlayScreen> {
   bool messageAnalysisEnabled = true;
   bool smartSuggestionsEnabled = false;
   bool toneAdjusterEnabled = true;
+  bool autoLaunchEnabled = true;
+
+  final AppMonitorController _appMonitor = AppMonitorController();
 
   @override
   Widget build(BuildContext context) {
@@ -131,7 +135,6 @@ class _OverlayScreenState extends State<OverlayScreen> {
                           ),
                         ),
 
-                        // Lightning Icon with Glow and Bounce
                         _BounceGlowIcon(
                           isActive: isOverlayActive,
                           onTap: () async {
@@ -148,12 +151,11 @@ class _OverlayScreenState extends State<OverlayScreen> {
                                 overlayTitle: "Emoticoach",
                                 overlayContent: 'Overlay Enabled',
                                 flag: OverlayFlag.defaultFlag,
-                                visibility:
-                                    NotificationVisibility.visibilityPublic,
-                                positionGravity: PositionGravity.auto,
-                                height: 100,
-                                width: 100,
-                                startPosition: const OverlayPosition(20, 0),
+                                alignment: OverlayAlignment.topLeft,
+                                positionGravity: PositionGravity.left,
+                                height: 200,
+                                width: 200,
+                                startPosition: const OverlayPosition(0, 300),
                               );
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('Overlay Enabled')),
@@ -182,7 +184,7 @@ class _OverlayScreenState extends State<OverlayScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Card(
                     elevation: 0,
@@ -277,6 +279,51 @@ class _OverlayScreenState extends State<OverlayScreen> {
                     subtitle: "Fine-tune message tone with sliders",
                     switchValue: toneAdjusterEnabled,
                     onChanged: (v) => setState(() => toneAdjusterEnabled = v),
+                  ),
+                  _settingsTile(
+                    icon: Icons.auto_awesome,
+                    title: "Auto-Launch on Telegram",
+                    subtitle: "Automatically show overlay when Telegram opens",
+                    switchValue: autoLaunchEnabled,
+                    onChanged: (v) async {
+                      if (v) {
+                        // Request usage stats permission
+                        final bool hasPermission = await _appMonitor
+                            .requestUsageStatsPermission();
+                        if (hasPermission) {
+                          await _appMonitor.startMonitoring();
+                          _appMonitor.setOverlayEnabled(true);
+                          setState(() => autoLaunchEnabled = true);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Auto-launch enabled! Monitoring service started.',
+                              ),
+                            ),
+                          );
+                        } else {
+                          setState(() => autoLaunchEnabled = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Usage access permission required. Please enable in Settings.',
+                              ),
+                            ),
+                          );
+                        }
+                      } else {
+                        await _appMonitor.stopMonitoring();
+                        _appMonitor.setOverlayEnabled(false);
+                        setState(() => autoLaunchEnabled = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Auto-launch disabled. Monitoring service stopped.',
+                            ),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   const SizedBox(height: 12),
                 ],

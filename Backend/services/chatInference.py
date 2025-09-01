@@ -146,6 +146,6 @@ async def main():
     except Exception as e:
         print(f"Error saving results: {e}")
 
+if __name__ == "_main_":
 
-if _name_ == "_main_":
     asyncio.run(main())
