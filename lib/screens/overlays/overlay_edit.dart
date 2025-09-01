@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class EditOverlayScreen extends StatefulWidget {
   final String initialText;
@@ -17,9 +16,9 @@ class EditOverlayScreen extends StatefulWidget {
 
 class _EditOverlayScreenState extends State<EditOverlayScreen> {
   late TextEditingController _textController;
-  double _formality = 0.42; // 42% as shown in image
-  double _assertiveness = 0.22; // 22% as shown in image
-  double _warmth = 0.70; // 70% as shown in image
+  double _formality = 0.42;
+  double _assertiveness = 0.22;
+  double _warmth = 0.70;
 
   @override
   void initState() {

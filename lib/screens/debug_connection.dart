@@ -44,9 +44,10 @@ class _DebugConnectionScreenState extends State<DebugConnectionScreen> {
     try {
       final response = await _apiService.startConversation();
       setState(() {
-        _status = 'Start endpoint: ${response.success ? 'Success' : 'Failed'}\n'
-                 'Character: ${response.characterName}\n'
-                 'Message: ${response.firstMessage}';
+        _status =
+            'Start endpoint: ${response.success ? 'Success' : 'Failed'}\n'
+            'Character: ${response.characterName}\n'
+            'Message: ${response.firstMessage}';
       });
     } catch (e) {
       setState(() {
@@ -62,9 +63,7 @@ class _DebugConnectionScreenState extends State<DebugConnectionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Debug Connection'),
-      ),
+      appBar: AppBar(title: const Text('Debug Connection')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -75,21 +74,21 @@ class _DebugConnectionScreenState extends State<DebugConnectionScreen> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 20),
-            
+
             ElevatedButton(
               onPressed: _isLoading ? null : _testConnection,
               child: const Text('Test Basic Connection'),
             ),
-            
+
             const SizedBox(height: 10),
-            
+
             ElevatedButton(
               onPressed: _isLoading ? null : _testStartEndpoint,
               child: const Text('Test /start Endpoint'),
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else
@@ -104,9 +103,9 @@ class _DebugConnectionScreenState extends State<DebugConnectionScreen> {
                   style: const TextStyle(fontFamily: 'monospace'),
                 ),
               ),
-              
+
             const SizedBox(height: 20),
-            
+
             const Text(
               'Troubleshooting Tips:',
               style: TextStyle(fontWeight: FontWeight.bold),

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../utils/colors.dart';
 import 'login.dart';
+import '../utils/colors.dart';
 import 'otp_verification.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
@@ -27,6 +27,7 @@ class _SignUpPageState extends State<SignupScreen> {
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
   
+  // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
   bool _isLoading = false;
@@ -390,10 +391,10 @@ class _SignUpPageState extends State<SignupScreen> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: const Center(
-                                child: Text('+63'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
                               ),
+                              child: const Center(child: Text('+63')),
                             ),
                             Container(
                               width: 1,

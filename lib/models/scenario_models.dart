@@ -4,16 +4,10 @@ class ConversationMessage {
   final String role;
   final String content;
 
-  ConversationMessage({
-    required this.role,
-    required this.content,
-  });
+  ConversationMessage({required this.role, required this.content});
 
   Map<String, dynamic> toJson() {
-    return {
-      'role': role,
-      'content': content,
-    };
+    return {'role': role, 'content': content};
   }
 
   factory ConversationMessage.fromJson(Map<String, dynamic> json) {
@@ -28,15 +22,14 @@ class ChatRequest {
   final String message;
   final List<ConversationMessage>? conversationHistory;
 
-  ChatRequest({
-    required this.message,
-    this.conversationHistory,
-  });
+  ChatRequest({required this.message, this.conversationHistory});
 
   Map<String, dynamic> toJson() {
     return {
       'message': message,
-      'conversation_history': conversationHistory?.map((e) => e.toJson()).toList(),
+      'conversation_history': conversationHistory
+          ?.map((e) => e.toJson())
+          .toList(),
     };
   }
 }
@@ -67,13 +60,13 @@ class ChatResponse {
 class EvaluationRequest {
   final List<ConversationMessage> conversationHistory;
 
-  EvaluationRequest({
-    required this.conversationHistory,
-  });
+  EvaluationRequest({required this.conversationHistory});
 
   Map<String, dynamic> toJson() {
     return {
-      'conversation_history': conversationHistory.map((e) => e.toJson()).toList(),
+      'conversation_history': conversationHistory
+          .map((e) => e.toJson())
+          .toList(),
     };
   }
 }
@@ -99,7 +92,9 @@ class EvaluationData {
       empathy: _parseIntSafely(json['empathy']),
       assertiveness: _parseIntSafely(json['assertiveness']),
       appropriateness: _parseIntSafely(json['appropriateness']),
-      tip: json['tip']?.toString() ?? 'Continue practicing your communication skills.',
+      tip:
+          json['tip']?.toString() ??
+          'Continue practicing your communication skills.',
     );
   }
 
@@ -133,11 +128,11 @@ class EvaluationResponse {
 
   factory EvaluationResponse.fromJson(Map<String, dynamic> json) {
     EvaluationData? evaluationData;
-    
+
     try {
       if (json['evaluation'] != null) {
         final evalJson = json['evaluation'];
-        
+
         if (evalJson is Map<String, dynamic>) {
           // Handle nested evaluation structure
           if (evalJson.containsKey('evaluation')) {
@@ -161,7 +156,7 @@ class EvaluationResponse {
     } catch (e) {
       print('Error parsing evaluation data: $e');
     }
-    
+
     // Fallback to default values if parsing failed
     evaluationData ??= EvaluationData(
       clarity: 5,
@@ -184,13 +179,18 @@ class EvaluationResponse {
   static EvaluationData? _parseRawOutput(String rawOutput) {
     try {
       // Try to extract JSON from raw output
-      final jsonMatch = RegExp(r'\{[^{}]*"evaluation"[^{}]*\{[^{}]*\}[^{}]*\}').firstMatch(rawOutput);
+      final jsonMatch = RegExp(
+        r'\{[^{}]*"evaluation"[^{}]*\{[^{}]*\}[^{}]*\}',
+      ).firstMatch(rawOutput);
       if (jsonMatch != null) {
         final extractedJson = jsonMatch.group(0);
         if (extractedJson != null) {
-          final cleanedJson = extractedJson.replaceAll(r'\"', '"').replaceAll(r'\\n', '\n');
+          final cleanedJson = extractedJson
+              .replaceAll(r'\"', '"')
+              .replaceAll(r'\\n', '\n');
           final parsed = jsonDecode(cleanedJson);
-          if (parsed is Map<String, dynamic> && parsed.containsKey('evaluation')) {
+          if (parsed is Map<String, dynamic> &&
+              parsed.containsKey('evaluation')) {
             return EvaluationData.fromJson(parsed['evaluation']);
           }
         }
@@ -199,12 +199,18 @@ class EvaluationResponse {
       // Try to extract individual values using regex
       final clarityMatch = RegExp(r'"clarity":\s*(\d+)').firstMatch(rawOutput);
       final empathyMatch = RegExp(r'"empathy":\s*(\d+)').firstMatch(rawOutput);
-      final assertivenessMatch = RegExp(r'"assertiveness":\s*(\d+)').firstMatch(rawOutput);
-      final appropriatenessMatch = RegExp(r'"appropriateness":\s*(\d+)').firstMatch(rawOutput);
+      final assertivenessMatch = RegExp(
+        r'"assertiveness":\s*(\d+)',
+      ).firstMatch(rawOutput);
+      final appropriatenessMatch = RegExp(
+        r'"appropriateness":\s*(\d+)',
+      ).firstMatch(rawOutput);
       final tipMatch = RegExp(r'"tip":\s*"([^"]*)"').firstMatch(rawOutput);
 
-      if (clarityMatch != null && empathyMatch != null && 
-          assertivenessMatch != null && appropriatenessMatch != null && 
+      if (clarityMatch != null &&
+          empathyMatch != null &&
+          assertivenessMatch != null &&
+          appropriatenessMatch != null &&
           tipMatch != null) {
         return EvaluationData(
           clarity: int.parse(clarityMatch.group(1)!),
@@ -217,7 +223,7 @@ class EvaluationResponse {
     } catch (e) {
       print('Failed to parse raw_output: $e');
     }
-    
+
     return null;
   }
 }

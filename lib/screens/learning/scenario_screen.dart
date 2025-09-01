@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import './reading_screen.dart';
+import './scenario.dart';
+import '../debug_connection.dart';
 import '../../utils/colors.dart';
 
 class LearningScreen extends StatefulWidget {
@@ -50,7 +52,22 @@ class _LearningScreenState extends State<LearningScreen>
                     ),
                   ),
                 ),
-                const Icon(Icons.info_outline, color: Colors.black54),
+                IconButton(
+                  icon: const Icon(Icons.bug_report, color: Colors.black54),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DebugConnectionScreen(),
+                      ),
+                    );
+                  },
+                  tooltip: 'Debug Connection',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.black54),
+                  onPressed: _showInfoDialog,
+                ),
               ],
             ),
           ),
@@ -87,9 +104,10 @@ class _LearningScreenState extends State<LearningScreen>
   }
 
   Widget _buildScenariosTab() {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
-      child: ListView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Search + Filter Row
           Row(
@@ -113,7 +131,45 @@ class _LearningScreenState extends State<LearningScreen>
                 ),
               ),
               const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.filter_list),
+                onPressed: _showScenarioFilterDialog,
+              ),
             ],
+          ),
+          const SizedBox(height: 24),
+
+          // Debug Connection Card
+          Card(
+            color: Colors.orange[50],
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange[700]),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Having connection issues?',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[700],
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Tap the debug icon above to test your backend connection.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 24),
 
@@ -130,45 +186,169 @@ class _LearningScreenState extends State<LearningScreen>
             scenarioRuns: 2,
             rating: 4.2,
             totalRatings: 300,
+            duration: '12-15 min',
+            icon: Icons.school,
+            color: kScenarioBlue,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Ask for Extension',
+                    aiPersona: 'Professor John Doe',
+                    initialMessage:
+                        'I see you wanted to discuss your final project. What can I help you with?',
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 24),
 
           // Explore Section
           _buildSectionHeader('Explore', Icons.explore),
           const SizedBox(height: 12),
+
+          ScenarioCard(
+            title: 'Difficult Academic Feedback',
+            description:
+                'Practice receiving and responding to challenging feedback from a professor about your academic performance.',
+            persona: 'Prof. Cedric',
+            difficulty: 'Medium',
+            isReplay: false,
+            scenarioRuns: 0,
+            rating: 4.3,
+            totalRatings: 180,
+            duration: '10-15 min',
+            icon: Icons.school,
+            color: kScenarioBlue,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Difficult Academic Feedback',
+                    aiPersona: 'Prof. Cedric',
+                    initialMessage: 'Loading conversation...',
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
           ScenarioCard(
             title: 'Console a Friend',
             description: 'Be there for a friend who failed their exam.',
             persona: 'A student who failed their exam',
-            difficulty: 'Medium',
+            difficulty: 'Easy',
             isReplay: false,
             scenarioRuns: 0,
             rating: 4.5,
             totalRatings: 150,
+            duration: '8-12 min',
+            icon: Icons.people,
+            color: Colors.pink[600]!,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Console a Friend',
+                    aiPersona: 'A student who failed their exam',
+                    initialMessage:
+                        'Hey... I just got my exam results back and I failed. I don\'t know what to do.',
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 12),
+
           ScenarioCard(
-            title: 'Talk to a New Classmate',
+            title: 'Workplace Conflict Resolution',
             description:
-                'They just transferred, talk to the new student and introduce yourself.',
-            persona: 'The new transfer student',
+                'Navigate a challenging conversation with a colleague about a work disagreement.',
+            persona: 'Manager Sarah',
+            difficulty: 'Hard',
+            isReplay: false,
+            scenarioRuns: 0,
+            rating: 4.1,
+            totalRatings: 220,
+            duration: '15-20 min',
+            icon: Icons.business,
+            color: kArticleOrange,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Workplace Conflict Resolution',
+                    aiPersona: 'Manager Sarah',
+                    initialMessage:
+                        'Hi there, I think we need to talk about what happened in yesterday\'s meeting. I noticed some tension and I\'d like to work through it together.',
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          ScenarioCard(
+            title: 'Giving Constructive Feedback',
+            description:
+                'Practice delivering feedback to a team member in a supportive and effective way.',
+            persona: 'Team Member Alex',
+            difficulty: 'Medium',
+            isReplay: false,
+            scenarioRuns: 0,
+            rating: 4.4,
+            totalRatings: 195,
+            duration: '10-15 min',
+            icon: Icons.feedback,
+            color: Colors.green[600]!,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Giving Constructive Feedback',
+                    aiPersona: 'Team Member Alex',
+                    initialMessage:
+                        'Hey! Thanks for setting up this meeting. I\'m ready to hear your thoughts on my recent project work.',
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+
+          ScenarioCard(
+            title: 'Difficult Customer Service',
+            description:
+                'Handle a frustrated customer complaint with empathy and professionalism.',
+            persona: 'Customer Jamie',
             difficulty: 'Easy',
             isReplay: false,
             scenarioRuns: 0,
             rating: 4.0,
             totalRatings: 200,
-          ),
-          const SizedBox(height: 12),
-          ScenarioCard(
-            title: 'Job Interview Practice',
-            description:
-                'Practice your interview skills with a potential employer.',
-            persona: 'HR Manager',
-            difficulty: 'Hard',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.7,
-            totalRatings: 450,
+            duration: '8-12 min',
+            icon: Icons.support_agent,
+            color: Colors.purple[600]!,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScenarioScreen(
+                    scenarioTitle: 'Difficult Customer Service',
+                    aiPersona: 'Customer Jamie',
+                    initialMessage:
+                        'I am extremely frustrated! I\'ve been trying to resolve this issue for weeks and no one seems to be able to help me. This is completely unacceptable!',
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -230,9 +410,8 @@ class _LearningScreenState extends State<LearningScreen>
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Filter by:'),
+              const Text('Filter by difficulty:'),
               const SizedBox(height: 16),
-              // TODO: Add filter options
               CheckboxListTile(
                 title: const Text('Easy'),
                 value: false,
@@ -275,6 +454,10 @@ class ScenarioCard extends StatelessWidget {
   final int scenarioRuns;
   final double rating;
   final int totalRatings;
+  final String duration;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
 
   const ScenarioCard({
     super.key,
@@ -286,6 +469,10 @@ class ScenarioCard extends StatelessWidget {
     required this.scenarioRuns,
     required this.rating,
     required this.totalRatings,
+    required this.duration,
+    required this.icon,
+    required this.color,
+    required this.onTap,
   });
 
   Color _getDifficultyColor(String level) {
@@ -298,6 +485,19 @@ class ScenarioCard extends StatelessWidget {
         return const Color(0xFFC4DCC6);
       default:
         return Colors.grey.shade200;
+    }
+  }
+
+  Color _getDifficultyTextColor(String level) {
+    switch (level.toLowerCase()) {
+      case 'hard':
+        return Colors.red;
+      case 'medium':
+        return Colors.orange;
+      case 'easy':
+        return Colors.green;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -317,116 +517,178 @@ class ScenarioCard extends StatelessWidget {
       ),
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title + Difficulty tag
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon + Title + Difficulty tag
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
+                      child: Icon(icon, color: color, size: 20),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _getDifficultyColor(difficulty),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      difficulty,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-
-              // Description
-              Text(
-                description,
-                style: const TextStyle(fontSize: 14, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-
-              // Persona line
-              Row(
-                children: [
-                  const Icon(Icons.person_outline, size: 18),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Persona: $persona',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Stats row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Runs: $scenarioRuns',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  Row(
-                    children: [
-                      Icon(Icons.star, size: 14, color: Colors.amber.shade600),
-                      const SizedBox(width: 2),
-                      Text(
-                        '${rating.toStringAsFixed(1)} ($totalRatings)',
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getDifficultyColor(difficulty),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        difficulty,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _getDifficultyTextColor(difficulty),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
 
-              // Action Button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kBrightBlue,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(40),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                // Description
+                Text(
+                  description,
+                  style: const TextStyle(fontSize: 14, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+
+                // Persona line
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'AI Persona: $persona',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Stats row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Runs: $scenarioRuns',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                size: 10,
+                                color: Colors.grey[600],
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                duration,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.star,
+                          size: 14,
+                          color: Colors.amber.shade600,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${rating.toStringAsFixed(1)} ($totalRatings)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Action Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kBrightBlue,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(40),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    onPressed: onTap,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          isReplay ? 'Replay Scenario' : 'Start Scenario',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.chevron_right, size: 18),
+                      ],
                     ),
                   ),
-                  onPressed: () => _startScenario(context),
-                  child: Text(
-                    isReplay ? 'Replay Scenario' : 'Start Scenario',
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
