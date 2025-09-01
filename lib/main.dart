@@ -9,7 +9,6 @@ import 'screens/profile.dart';
 import 'screens/settings.dart';
 import 'screens/overlays/overlay_ui.dart';
 import 'controllers/app_monitor_controller.dart';
-import 'overlays/overlay_ui.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -46,17 +45,22 @@ void _setupGlobalMethodChannel() {
     if (call.method == 'showOverlay') {
       log('Triggering overlay from global method channel');
       try {
-        // Add a small delay to ensure everything is ready
-        await Future.delayed(const Duration(milliseconds: 100));
+        // Add a delay to ensure everything is ready
+        await Future.delayed(const Duration(milliseconds: 200));
 
         final appMonitor = AppMonitorController();
-        await appMonitor.triggerOverlay();
-        log('Overlay triggered successfully!');
 
-        // Return success to native
-        return {'success': true, 'message': 'Overlay triggered'};
+        // Ensure the overlay is enabled before triggering
+        if (appMonitor.overlayEnabled) {
+          await appMonitor.triggerOverlay();
+          log('✅ Overlay triggered successfully!');
+          return {'success': true, 'message': 'Overlay triggered'};
+        } else {
+          log('⚠️ Overlay is disabled, not showing');
+          return {'success': false, 'error': 'Overlay is disabled'};
+        }
       } catch (e) {
-        log('Error triggering overlay: $e');
+        log('❌ Error triggering overlay: $e');
         log('Error stack trace: ${StackTrace.current}');
         return {'success': false, 'error': e.toString()};
       }
@@ -65,7 +69,7 @@ void _setupGlobalMethodChannel() {
     return {'success': false, 'error': 'Unknown method: ${call.method}'};
   });
 
-  log('Global method channel set up successfully');
+  log('✅ Global method channel set up successfully');
 }
 
 class MyApp extends StatelessWidget {
@@ -108,8 +112,19 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   Future<void> _initializeAppMonitoring() async {
-    // Start monitoring for Telegram app launches
-    await _appMonitor.startMonitoring();
+    try {
+      log('🚀 Initializing app monitoring...');
+
+      // Check if auto-launch is enabled before starting monitoring
+      if (_appMonitor.overlayEnabled) {
+        await _appMonitor.startMonitoring();
+        log('✅ App monitoring started successfully');
+      } else {
+        log('⚠️ Overlay disabled, skipping monitoring initialization');
+      }
+    } catch (e) {
+      log('❌ Error initializing app monitoring: $e');
+    }
   }
 
   @override

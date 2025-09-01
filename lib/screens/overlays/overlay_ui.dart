@@ -15,6 +15,9 @@ class _OverlayUIState extends State<OverlayUI> {
   bool _showEditScreen = false; // Add this state variable
   SendPort? homePort;
 
+  // Add offset for dragging
+  Offset _offset = Offset.zero;
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -32,7 +35,7 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going back to main screen
   void _goBackToMainScreen() async {
-    await FlutterOverlayWindow.resizeOverlay(400, 500, false);
+    await FlutterOverlayWindow.resizeOverlay(450, 550, false);
     setState(() {
       _showEditScreen = false;
     });
@@ -40,7 +43,7 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going to edit screen
   void _goToEditScreen() async {
-    await FlutterOverlayWindow.resizeOverlay(400, 500, false);
+    await FlutterOverlayWindow.resizeOverlay(450, 550, false);
     setState(() {
       _showEditScreen = true;
     });
@@ -49,7 +52,7 @@ class _OverlayUIState extends State<OverlayUI> {
   Widget _buildCircleView() {
     return GestureDetector(
       onTap: () async {
-        await FlutterOverlayWindow.resizeOverlay(400, 500, false);
+        await FlutterOverlayWindow.resizeOverlay(450, 550, false);
         setState(() {
           _currentShape = BoxShape.rectangle;
         });
@@ -74,183 +77,223 @@ class _OverlayUIState extends State<OverlayUI> {
   }
 
   Widget _buildRectangleView() {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16.0),
-      child: Container(
-        width: MediaQuery.of(context).size.width - 32.0,
-        height: 500,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black26,
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // HEADER
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  topRight: Radius.circular(18),
+    return Stack(
+      children: [
+        Positioned(
+          left: _offset.dx,
+          top: _offset.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _offset = Offset(
+                  _offset.dx + details.delta.dx,
+                  _offset.dy + details.delta.dy,
+                );
+              });
+            },
+            child: Container(
+              margin: EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container(
+                width: 350, // Fixed width for better dragging experience
+                height: 500,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
-              ),
-              child: Row(
-                children: [
-                  const CircleAvatar(
-                    radius: 16,
-                    backgroundColor: Colors.white,
-                    child: Icon(Icons.face, color: Colors.blue, size: 20),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Message from Carlo Lorieta:',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () async {
-                      await FlutterOverlayWindow.resizeOverlay(100, 100, true);
-                      setState(() {
-                        _currentShape = BoxShape.circle;
-                      });
-                    },
-                    child: Container(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.close, color: Colors.white, size: 20),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // CONTENT AREA
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // MESSAGE BUBBLE
+                    // HEADER
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.blue.shade200),
-                      ),
-                      child: const Text(
-                        '"Let\'s just skip the technical details and move on, hahahahaha!"',
-                        style: TextStyle(
-                          color: Colors.black87,
-                          fontSize: 13,
-                          fontStyle: FontStyle.italic,
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(18),
+                          topRight: Radius.circular(18),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-
-                    // TONE SECTION
-                    _buildSection(
-                      icon: '🔍',
-                      title: 'Detected Tone',
-                      content: 'Casual & Playful',
-                    ),
-                    const SizedBox(height: 10),
-
-                    // INTERPRETATION SECTION
-                    _buildSection(
-                      icon: '📝',
-                      title: 'Interpretation',
-                      content:
-                          'Carlo seems to be keeping the mood light and understanding. '
-                          'He\'s probably saying it\'s okay to drop the topic.',
-                    ),
-                    const SizedBox(height: 10),
-
-                    // SUGGESTED RESPONSE SECTION
-                    const Text(
-                      '💡 Suggested Response',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.green.shade300),
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.all(10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          const Text(
-                            'Thank you po for understanding! Wishing you and the team all the best din 🫶',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.black87,
+                          // Drag handle indicator
+                          Icon(
+                            Icons.drag_handle,
+                            color: Colors.white.withOpacity(0.7),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          const CircleAvatar(
+                            radius: 16,
+                            backgroundColor: Colors.white,
+                            child: Icon(
+                              Icons.face,
+                              color: Colors.blue,
+                              size: 20,
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildActionButton(
-                                icon: Icons.check_circle_outline,
-                                label: 'Use',
-                                color: Colors.green,
-                                onTap: () {
-                                  // Handle use action
-                                },
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Message from Carlo Lorieta:',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
                               ),
-                              _buildActionButton(
-                                icon: Icons.edit,
-                                label: 'Edit',
-                                color: Colors.blue,
-                                onTap: _goToEditScreen,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () async {
+                              await FlutterOverlayWindow.resizeOverlay(
+                                80,
+                                80,
+                                true,
+                              );
+                              setState(() {
+                                _currentShape = BoxShape.circle;
+                              });
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(4),
+                              child: Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 20,
                               ),
-                            ],
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 10),
 
-                    // CHECKLIST
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
-                      ),
-                      child: const Text(
-                        '✓ Keeps things friendly\n'
-                        '✓ Acknowledges his tone\n'
-                        '✓ Closes the convo on a good note',
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontSize: 11,
-                          height: 1.3,
+                    // CONTENT AREA
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // MESSAGE BUBBLE
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: const Text(
+                                '"Let\'s just skip the technical details and move on, hahahahaha!"',
+                                style: TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 13,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+
+                            // TONE SECTION
+                            _buildSection(
+                              icon: '🔍',
+                              title: 'Detected Tone',
+                              content: 'Casual & Playful',
+                            ),
+                            const SizedBox(height: 10),
+
+                            // INTERPRETATION SECTION
+                            _buildSection(
+                              icon: '📝',
+                              title: 'Interpretation',
+                              content:
+                                  'Carlo seems to be keeping the mood light and understanding. '
+                                  'He\'s probably saying it\'s okay to drop the topic.',
+                            ),
+                            const SizedBox(height: 10),
+
+                            // SUGGESTED RESPONSE SECTION
+                            const Text(
+                              '💡 Suggested Response',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.black87,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: Colors.green.shade300,
+                                ),
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.all(10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Thank you po for understanding! Wishing you and the team all the best din 🫶',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      _buildActionButton(
+                                        icon: Icons.check_circle_outline,
+                                        label: 'Use',
+                                        color: Colors.green,
+                                        onTap: () {
+                                          // Handle use action
+                                        },
+                                      ),
+                                      _buildActionButton(
+                                        icon: Icons.edit,
+                                        label: 'Edit',
+                                        color: Colors.blue,
+                                        onTap: _goToEditScreen,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+
+                            // CHECKLIST
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.blue.shade200),
+                              ),
+                              child: const Text(
+                                '✓ Keeps things friendly\n'
+                                '✓ Acknowledges his tone\n'
+                                '✓ Closes the convo on a good note',
+                                style: TextStyle(
+                                  color: Colors.blue,
+                                  fontSize: 11,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
@@ -258,9 +301,9 @@ class _OverlayUIState extends State<OverlayUI> {
                 ),
               ),
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../utils/colors.dart';
 import 'login.dart';
+import '../utils/colors.dart';
 import 'otp_verification.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart'; // Remix Icons
@@ -22,7 +22,7 @@ class _SignUpPageState extends State<SignupScreen> {
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
-  
+
   // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
@@ -98,9 +98,9 @@ class _SignUpPageState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GestureDetector (
+      body: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: (){
+        onTap: () {
           FocusScope.of(context).unfocus();
         },
         child: Stack(
@@ -148,11 +148,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       // === FIRST NAME SECTION ===
                       const Text(
                         'First Name',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color:
-                              Colors.black87
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.black87),
                       ),
                       const SizedBox(
                         height: 8,
@@ -163,9 +159,7 @@ class _SignUpPageState extends State<SignupScreen> {
                             _firstNameController, // Connect to our controller
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                              8,
-                            ),
+                            borderRadius: BorderRadius.circular(8),
                             borderSide: const BorderSide(color: Colors.grey),
                           ),
                           enabledBorder: OutlineInputBorder(
@@ -251,16 +245,19 @@ class _SignUpPageState extends State<SignupScreen> {
                         child: Row(
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: const Center(
-                                child: Text('+63'),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
                               ),
+                              child: const Center(child: Text('+63')),
                             ),
                             Container(
                               width: 1,
-                              height: 28, // Centered divider - half the container height
+                              height:
+                                  28, // Centered divider - half the container height
                               color: Colors.grey, // Keep divider grey always
-                              margin: const EdgeInsets.symmetric(vertical: 14), // Centers the divider vertically
+                              margin: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ), // Centers the divider vertically
                             ),
                             Expanded(
                               child: TextFormField(
@@ -326,7 +323,11 @@ class _SignUpPageState extends State<SignupScreen> {
                       // "OR" DIVIDER
                       const Text(
                         'or',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
                         textAlign: TextAlign.center,
                       ),
 

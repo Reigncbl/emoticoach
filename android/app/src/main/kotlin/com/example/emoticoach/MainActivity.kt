@@ -113,12 +113,43 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         Log.d("MainActivity", "onNewIntent called with action: ${intent.action}")
         
-        if (intent.action == "SHOW_OVERLAY") {
-            Log.d("MainActivity", "Triggering overlay from intent")
+        when (intent.action) {
+            "SHOW_OVERLAY" -> {
+                Log.d("MainActivity", "Triggering overlay from intent (bringing app to foreground)")
+                showOverlayWithDelay(intent)
+            }
+            "SHOW_OVERLAY_ONLY" -> {
+                Log.d("MainActivity", "Triggering overlay only (staying in background)")
+                showOverlayWithDelay(intent)
+                // Immediately move the activity to background
+                moveTaskToBack(true)
+            }
+            "SILENT_OVERLAY_TRIGGER" -> {
+                Log.d("MainActivity", "Silent overlay trigger - showing overlay without UI interaction")
+                showOverlayWithDelay(intent)
+                // Immediately finish the activity to avoid bringing app to foreground
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    finish()
+                }, 100)
+            }
+            "BACKGROUND_OVERLAY_TRIGGER" -> {
+                Log.d("MainActivity", "Background overlay trigger - showing overlay and minimizing")
+                showOverlayWithDelay(intent)
+                // Immediately minimize the app
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    moveTaskToBack(true)
+                    Log.d("MainActivity", "App moved to background after overlay trigger")
+                }, 50)
+            }
+        }
+    }
+    
+    private fun showOverlayWithDelay(intent: Intent) {
+        // Delay the overlay trigger to ensure the app is ready
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             try {
-                // Try to invoke the method channel with callback
                 overlayMethodChannel.invokeMethod("showOverlay", mapOf(
-                    "trigger" to intent.getStringExtra("trigger"),
+                    "trigger" to (intent.getStringExtra("trigger") ?: "manual"),
                     "timestamp" to System.currentTimeMillis()
                 ), object : MethodChannel.Result {
                     override fun success(result: Any?) {
@@ -133,11 +164,10 @@ class MainActivity : FlutterActivity() {
                         Log.e("MainActivity", "❌ Overlay method not implemented")
                     }
                 })
-                Log.d("MainActivity", "Overlay method invoked successfully")
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error invoking overlay method", e)
             }
-        }
+        }, 200) // Reduced delay to 200ms for faster response
     }
     
     override fun onResume() {
@@ -145,16 +175,35 @@ class MainActivity : FlutterActivity() {
         Log.d("MainActivity", "MainActivity resumed")
         
         // Check if we have a pending overlay intent
-        if (intent?.action == "SHOW_OVERLAY") {
-            Log.d("MainActivity", "Processing pending overlay intent on resume")
-            try {
-                overlayMethodChannel.invokeMethod("showOverlay", mapOf(
-                    "trigger" to intent.getStringExtra("trigger"),
-                    "timestamp" to System.currentTimeMillis()
-                ))
-                Log.d("MainActivity", "Pending overlay method invoked successfully")
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Error invoking pending overlay method", e)
+        when (intent?.action) {
+            "SHOW_OVERLAY" -> {
+                Log.d("MainActivity", "Processing pending SHOW_OVERLAY intent on resume")
+                showOverlayWithDelay(intent)
+            }
+            "SHOW_OVERLAY_ONLY" -> {
+                Log.d("MainActivity", "Processing pending SHOW_OVERLAY_ONLY intent on resume")
+                showOverlayWithDelay(intent)
+                // Move to background after showing overlay
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    moveTaskToBack(true)
+                }, 1000)
+            }
+            "SILENT_OVERLAY_TRIGGER" -> {
+                Log.d("MainActivity", "Processing silent overlay trigger on resume")
+                showOverlayWithDelay(intent)
+                // Finish activity immediately for silent trigger
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    finish()
+                }, 500)
+            }
+            "BACKGROUND_OVERLAY_TRIGGER" -> {
+                Log.d("MainActivity", "Processing background overlay trigger on resume")
+                showOverlayWithDelay(intent)
+                // Move to background immediately
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    moveTaskToBack(true)
+                    Log.d("MainActivity", "App moved to background after processing overlay")
+                }, 100)
             }
         }
     }

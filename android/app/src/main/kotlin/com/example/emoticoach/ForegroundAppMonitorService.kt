@@ -6,11 +6,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.FlutterEngineCache
-import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.embedding.engine.plugins.util.GeneratedPluginRegister
-import io.flutter.plugin.common.MethodChannel
 import android.app.usage.UsageStatsManager
 import android.app.usage.UsageEvents
 import android.os.Handler
@@ -30,39 +25,17 @@ class ForegroundAppMonitorService : Service() {
         "org.telegram.messenger.web"
     )
 
-    private lateinit var flutterEngine: FlutterEngine
     private var handler: Handler? = null
     private var monitoringRunnable: Runnable? = null
     private var lastDetectedApp: String? = null
+    private var lastDetectionTime: Long = 0
 
     override fun onCreate() {
         super.onCreate()
         Log.d("EmoticoachService", "Service created")
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
-        initFlutterEngine()
         startMonitoring()
-    }
-
-    private fun initFlutterEngine() {
-        Log.d("EmoticoachService", "Initializing Flutter Engine for overlay")
-        try {
-            // Create a dedicated Flutter engine for overlay
-            flutterEngine = FlutterEngine(this)
-            
-            // Register all plugins (including flutter_overlay_window)
-            GeneratedPluginRegister.registerGeneratedPlugins(flutterEngine)
-            Log.d("EmoticoachService", "Plugins registered successfully")
-            
-            // Use the overlay entry point
-            flutterEngine.dartExecutor.executeDartEntrypoint(
-                DartExecutor.DartEntrypoint.createDefault()
-            )
-            
-            Log.d("EmoticoachService", "Flutter Engine initialized successfully")
-        } catch (e: Exception) {
-            Log.e("EmoticoachService", "Error initializing Flutter Engine", e)
-        }
     }
 
     private fun startMonitoring() {
@@ -95,27 +68,36 @@ class ForegroundAppMonitorService : Service() {
             while (usageEvents.hasNextEvent()) {
                 usageEvents.getNextEvent(event)
                 
-                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND &&
-                    TELEGRAM_PACKAGES.contains(event.packageName) &&
-                    event.packageName != lastDetectedApp
+                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED &&
+                    TELEGRAM_PACKAGES.contains(event.packageName)
                 ) {
-                    Log.d("EmoticoachService", "Telegram detected: ${event.packageName}")
-                    lastDetectedApp = event.packageName
-                    showOverlay()
-                    break
+                    // Only trigger if this is a different app than last detected
+                    // or if enough time has passed since last detection
+                    val shouldTrigger = lastDetectedApp != event.packageName || 
+                                      (endTime - lastDetectionTime > 30000) // 30 seconds cooldown
+                    
+                    if (shouldTrigger) {
+                        Log.d("EmoticoachService", "✅ Telegram detected: ${event.packageName} at ${event.timeStamp}")
+                        lastDetectedApp = event.packageName
+                        lastDetectionTime = endTime
+                        showOverlay()
+                        break
+                    } else {
+                        Log.d("EmoticoachService", "⏭️ Telegram already detected recently, skipping")
+                    }
                 }
             }
         } catch (e: SecurityException) {
-            Log.e("EmoticoachService", "Usage stats permission not granted", e)
+            Log.e("EmoticoachService", "❌ Usage stats permission not granted", e)
         } catch (e: Exception) {
-            Log.e("EmoticoachService", "Error checking usage events", e)
+            Log.e("EmoticoachService", "❌ Error checking usage events", e)
         }
     }
 
     private fun showOverlay() {
-        Log.d("EmoticoachService", "Triggering overlay display")
+        Log.d("EmoticoachService", "Triggering overlay display via broadcast")
         try {
-            // Send broadcast to trigger overlay without opening main app
+            // Send broadcast to trigger overlay without affecting current app
             val intent = Intent("com.example.emoticoach.SHOW_OVERLAY_BROADCAST")
             intent.setPackage(packageName) // Ensure it only goes to our app
             intent.putExtra("trigger", "telegram_detected")
@@ -179,15 +161,6 @@ class ForegroundAppMonitorService : Service() {
         Log.d("EmoticoachService", "Service being destroyed")
         handler?.removeCallbacks(monitoringRunnable!!)
         handler = null
-        
-        try {
-            if (::flutterEngine.isInitialized) {
-                flutterEngine.destroy()
-            }
-        } catch (e: Exception) {
-            Log.e("EmoticoachService", "Error destroying Flutter Engine", e)
-        }
-        
         super.onDestroy()
     }
 }

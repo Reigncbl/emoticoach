@@ -4,15 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 
 class AppMonitorController {
-  static final AppMonitorController _instance = AppMonitorController._internal();
+  static final AppMonitorController _instance =
+      AppMonitorController._internal();
   factory AppMonitorController() => _instance;
   AppMonitorController._internal() {
     _setupMethodChannel();
   }
 
   static const MethodChannel _platform = MethodChannel('emoticoach_service');
-  static const MethodChannel _overlayChannel = MethodChannel('emoticoach_overlay_channel');
-  
+  static const MethodChannel _overlayChannel = MethodChannel(
+    'emoticoach_overlay_channel',
+  );
+
   bool _isMonitoring = false;
   bool _overlayEnabled = true;
 
@@ -45,7 +48,9 @@ class AppMonitorController {
 
   Future<bool> requestUsageStatsPermission() async {
     try {
-      final bool hasPermission = await _platform.invokeMethod('hasUsageStatsPermission');
+      final bool hasPermission = await _platform.invokeMethod(
+        'hasUsageStatsPermission',
+      );
       if (!hasPermission) {
         await _platform.invokeMethod('requestUsageStatsPermission');
         return await _platform.invokeMethod('hasUsageStatsPermission');
@@ -81,7 +86,7 @@ class AppMonitorController {
 
   Future<void> _onTelegramOpened() async {
     log('_onTelegramOpened called - overlayEnabled: $_overlayEnabled');
-    
+
     if (!_overlayEnabled) {
       log('Overlay is disabled, not showing');
       return;
@@ -91,24 +96,25 @@ class AppMonitorController {
       // Check if overlay is already active
       final bool isActive = await FlutterOverlayWindow.isActive();
       log('Checking if overlay is active: $isActive');
-      
+
       if (isActive) {
         log('Overlay already active, not showing again');
         return;
       }
 
       log('Attempting to show overlay...');
-      
-      // Show the overlay
+
+      // Show the overlay with the proper entry point
       await FlutterOverlayWindow.showOverlay(
-        enableDrag: false, // Disable dragging to keep bubble on side
+        enableDrag: true,
         overlayTitle: "Emoticoach",
-        overlayContent: 'Telegram detected - Overlay activated',
+        overlayContent: 'Overlay Enabled',
         flag: OverlayFlag.defaultFlag,
         visibility: NotificationVisibility.visibilityPublic,
-        positionGravity: PositionGravity.right,
-        height: 100,
-        width: 100,
+        alignment: OverlayAlignment.topLeft,
+        positionGravity: PositionGravity.left,
+        height: 200,
+        width: 200,
         startPosition: const OverlayPosition(0, 300),
       );
 

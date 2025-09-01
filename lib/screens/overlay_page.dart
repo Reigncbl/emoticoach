@@ -325,6 +325,41 @@ class _OverlayScreenState extends State<OverlayScreen> {
                       }
                     },
                   ),
+                  // Add Test Button for debugging
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          log('🧪 Testing Telegram detection manually...');
+                          await _appMonitor.simulateTelegramLaunch();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Test overlay triggered!'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        } catch (e) {
+                          log('❌ Test failed: $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Test failed: $e'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: Icon(Icons.bug_report),
+                      label: Text('Test Auto-Launch'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 12),
                 ],
               ),
