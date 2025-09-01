@@ -4,6 +4,8 @@ import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
 import 'overlays/overlay_ui.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -15,7 +17,6 @@ void overlayMain() {
   );
 }
 
-
 class LearnScreen extends StatelessWidget {
   const LearnScreen({super.key});
   @override
@@ -23,10 +24,13 @@ class LearnScreen extends StatelessWidget {
       Scaffold(body: Center(child: Text("Learn Screen")));
 }
 
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   runApp(const MyApp());
+
 }
 
 class MyApp extends StatelessWidget {

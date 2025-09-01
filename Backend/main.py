@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+# Load .env variables before anything else
+load_dotenv()
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

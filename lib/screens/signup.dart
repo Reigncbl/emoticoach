@@ -7,36 +7,37 @@ import 'otp_verification.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
 import 'package:iconify_flutter/icons/ic.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_ui_auth/firebase_ui_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
-  // createState() creates the mutable state for this widget
   @override
   State<SignupScreen> createState() => _SignUpPageState();
 }
 
 class _SignUpPageState extends State<SignupScreen> {
   // Add your API base URL here
-  static const String baseUrl = 'http://localhost:8000';
+  static const String baseUrl = 'http://192.168.100.144:8000';
   
-  // Form key - used to validate all form fields at once
-  // GlobalKey helps Flutter identify and manage this specific form
   final _formKey = GlobalKey<FormState>();
-  // TextEditingControllers - these control the text input fields
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
   
-  // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
-  bool _isLoading = false; // Add loading state
+  bool _isLoading = false;
+
+  // Firebase Auth instance
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  ConfirmationResult? _confirmationResult;
 
   @override
   void initState() {
     super.initState();
-    // Listen to focus changes
     _mobileFocusNode.addListener(() {
       setState(() {
         _isMobileFocused = _mobileFocusNode.hasFocus;
@@ -44,79 +45,139 @@ class _SignUpPageState extends State<SignupScreen> {
     });
   }
 
-  // dispose() is called when this page is removed from memory
-  // We need to clean up our controllers to prevent memory leaks
   @override
   void dispose() {
     _firstNameController.dispose();
     _lastNameController.dispose();
     _mobileController.dispose();
     _mobileFocusNode.dispose();
-    super.dispose(); // Always call super.dispose() last
+    super.dispose();
   }
 
-  // Updated _sendSMS function with HTTP call
+  // Updated method to use Firebase Auth for SMS sending
   Future<void> _sendSMS() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        _isLoading = true; // Show loading
+        _isLoading = true;
       });
 
       String firstName = _firstNameController.text;
       String lastName = _lastNameController.text;
       String mobileNumber = '+63${_mobileController.text}';
 
-      print('First Name: $firstName');
-      print('Last Name: $lastName');
-      print('Mobile: $mobileNumber');
-
       try {
-        // Make HTTP call to send SMS
-        final response = await http.post(
-          Uri.parse('$baseUrl/users/send-sms'),
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'mobile_number': mobileNumber,
-          }),
+        // First check if user already exists in your backend
+        final checkResponse = await http.get(
+          Uri.parse('$baseUrl/users/check-mobile?mobile_number=${_mobileController.text}'),
+          headers: {'Content-Type': 'application/json'},
         );
 
-        if (response.statusCode == 200) {
-          // Success - navigate to OTP screen and pass signup data + purpose
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => OTPVerificationScreen(
-                  firstName: firstName,
-                  lastName: lastName,
-                  mobileNumber: mobileNumber,
-                  purpose: AuthPurpose.signup,
-                ),
-              ),
-            );
-          }
-        } else {
-          // Handle error response
-          final errorData = jsonDecode(response.body);
-          _showErrorSnackBar(errorData['detail'] ?? 'Failed to send SMS');
+        if (checkResponse.statusCode == 409) {
+          _showErrorSnackBar('Mobile number already registered');
+          return;
         }
+
+        // Use Firebase Auth to send SMS
+        await _auth.verifyPhoneNumber(
+          phoneNumber: mobileNumber,
+          verificationCompleted: (PhoneAuthCredential credential) async {
+            // Auto-verification completed (Android only)
+            await _handleAutoVerification(credential, firstName, lastName);
+          },
+          verificationFailed: (FirebaseAuthException e) {
+            _showErrorSnackBar('Failed to send SMS: ${e.message}');
+          },
+          codeSent: (String verificationId, int? resendToken) {
+            // SMS sent successfully, navigate to OTP screen
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => OTPVerificationScreen(
+                    firstName: firstName,
+                    lastName: lastName,
+                    mobileNumber: mobileNumber,
+                    purpose: AuthPurpose.signup,
+                    verificationId: verificationId, // Pass verification ID
+                  ),
+                ),
+              );
+            }
+          },
+          codeAutoRetrievalTimeout: (String verificationId) {
+            // Handle timeout
+            print('Auto retrieval timeout for verification ID: $verificationId');
+          },
+          timeout: const Duration(seconds: 60),
+        );
+
       } catch (e) {
-        // Handle network or other errors
-        _showErrorSnackBar('Network error. Please check your connection.');
+        _showErrorSnackBar('Error: ${e.toString()}');
         print('Error sending SMS: $e');
       } finally {
         if (mounted) {
           setState(() {
-            _isLoading = false; // Hide loading
+            _isLoading = false;
           });
         }
       }
     }
   }
 
-  // Helper method to show error messages
+  // Handle auto-verification (Android only)
+  Future<void> _handleAutoVerification(
+    PhoneAuthCredential credential, 
+    String firstName, 
+    String lastName
+  ) async {
+    try {
+      // Sign in with the credential
+      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      
+      if (userCredential.user != null) {
+        // Get Firebase ID token
+        String? idToken = await userCredential.user!.getIdToken();
+        
+        if (idToken != null) {
+          // Create user in your backend
+          await _createUserInBackend(firstName, lastName, idToken);
+        }
+      }
+    } catch (e) {
+      _showErrorSnackBar('Auto verification failed: ${e.toString()}');
+    }
+  }
+
+  // Create user in your backend using Firebase ID token
+  Future<void> _createUserInBackend(String firstName, String lastName, String idToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/create-firebase-user'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'firebase_id_token': idToken,
+          'additional_info': {
+            'first_name': firstName,
+            'last_name': lastName,
+          }
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Success - navigate to home or success screen
+        if (mounted) {
+          // Navigate to your app's main screen
+          _showSuccessMessage('Account created successfully!');
+        }
+      } else {
+        final errorData = jsonDecode(response.body);
+        _showErrorSnackBar(errorData['detail'] ?? 'Failed to create account');
+      }
+    } catch (e) {
+      _showErrorSnackBar('Failed to create account: ${e.toString()}');
+    }
+  }
+
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -127,12 +188,60 @@ class _SignUpPageState extends State<SignupScreen> {
     );
   }
 
-  void _signInWithGoogle() {
-    print('Google sign-in');
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
-  void _signInWithEmail() {
-    print('Email sign-in');
+  // Updated Google Sign-In implementation
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Trigger the authentication flow
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in with Firebase
+      UserCredential userCredential = await _auth.signInWithCredential(credential);
+      
+      if (userCredential.user != null) {
+        // Get Firebase ID token
+        String? idToken = await userCredential.user!.getIdToken();
+        
+        if (idToken != null) {
+          // Create user in your backend
+          await _createUserInBackend('', '', idToken); // Names will be extracted from Google profile
+        }
+      }
+
+    } catch (e) {
+      _showErrorSnackBar('Google sign-in failed: ${e.toString()}');
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _navigateToLogin() {
@@ -196,7 +305,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _firstNameController,
-                        enabled: !_isLoading, // Disable when loading
+                        enabled: !_isLoading,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -233,7 +342,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _lastNameController,
-                        enabled: !_isLoading, // Disable when loading
+                        enabled: !_isLoading,
                         decoration: InputDecoration(
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -296,7 +405,7 @@ class _SignUpPageState extends State<SignupScreen> {
                               child: TextFormField(
                                 controller: _mobileController,
                                 focusNode: _mobileFocusNode,
-                                enabled: !_isLoading, // Disable when loading
+                                enabled: !_isLoading,
                                 keyboardType: TextInputType.phone,
                                 maxLength: 10,
                                 validator: (value) {
@@ -328,9 +437,9 @@ class _SignUpPageState extends State<SignupScreen> {
 
                       const SizedBox(height: 40),
 
-                      // SEND SMS BUTTON - Updated with loading state
+                      // SEND SMS BUTTON
                       ElevatedButton(
-                        onPressed: _isLoading ? null : _sendSMS, // Disable when loading
+                        onPressed: _isLoading ? null : _sendSMS,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kBrightBlue,
                           foregroundColor: Colors.white,
@@ -397,25 +506,6 @@ class _SignUpPageState extends State<SignupScreen> {
                             ),
                           ),
                           const SizedBox(width: 20),
-                          // EMAIL SIGN-IN BUTTON
-                          GestureDetector(
-                            onTap: _isLoading ? null : _signInWithEmail,
-                            child: Container(
-                              width: 60,
-                              height: 60,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: kBrightBlue),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Center(
-                                child: Iconify(
-                                  Ic.baseline_email,
-                                  size: 28,
-                                  color: kBrightBlue,
-                                ),
-                              ),
-                            ),
-                          ),
                         ],
                       ),
 

@@ -8,6 +8,11 @@ import logging
 
 from model.userinfo import UserInfo
 from core.db_connection import get_db as get_session
+from services.auth_signup import create_firebase_user_service
+from firebase_admin.exceptions import FirebaseError
+import traceback
+# Import services
+from firebase_admin import auth
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -17,6 +22,11 @@ userinfo_router = APIRouter(prefix="/users", tags=["users"])
 
 # Password hashing (you might not need this for mobile-only registration)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+class FirebaseUserCreateRequest(BaseModel):
+    """For creating users via Firebase ID token"""
+    firebase_id_token: str
+    additional_info: Optional[dict] = None
 
 # Pydantic models for request/response - MATCHING YOUR FLUTTER APP
 class UserCreateRequest(BaseModel):
@@ -62,6 +72,47 @@ class GoogleLoginRequest(BaseModel):
     google_token: str
 
 # === REGISTRATION ENDPOINTS ===
+@userinfo_router.post("/create-firebase-user", response_model=UserResponse, status_code=201)
+async def create_firebase_user(
+    request: FirebaseUserCreateRequest,
+    session: Session = Depends(get_session)
+):
+    """Create user from Firebase ID token - matches your Flutter Firebase auth flow"""
+    
+    try:
+
+        # Call your existing service function
+        new_user = await create_firebase_user_service(
+            firebase_id_token=request.firebase_id_token,
+            session=session,
+            additional_info=request.additional_info
+        )
+        return UserResponse(
+            UserId=new_user.UserId,
+            FirstName=new_user.FirstName,
+            LastName=new_user.LastName,
+            MobileNumber=new_user.MobileNumber,
+            CreatedAt=new_user.CreatedAt
+        )
+    except FirebaseError as e:
+        logger.error(f"Firebase token verification failed: {str(e)}")
+        raise ValueError(f"Invalid Firebase ID token: {str(e)}")
+
+    except ValueError as e:
+        session.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error in create_firebase_user: {str(e)}")
+        logger.error(f"Unexpected error in create_firebase_user: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create Firebase user"
+        )
 
 @userinfo_router.post("/send-sms", status_code=200)
 async def send_sms_otp(

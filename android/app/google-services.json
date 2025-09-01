@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "511145151012",
+    "project_id": "emoticoach-b15ad",
+    "storage_bucket": "emoticoach-b15ad.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:511145151012:android:3e1be673738704ce91e6b1",
+        "android_client_info": {
+          "package_name": "com.example.emoticoach"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "511145151012-442b1k9gta31hrgg031n1nukfkvjigpe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.emoticoach",
+            "certificate_hash": "e63da13b81fcbd17c186d2de567221bce7c98d9c"
+          }
+        },
+        {
+          "client_id": "511145151012-r8rhnk58ttk37db1fninst6taen21gfk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq1A6hvqbBPU23ncdjuXotYidSVEEo-LU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "511145151012-nhh53jku75774vcs2joajkep1r5phpgl.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

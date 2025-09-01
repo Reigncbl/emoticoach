@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../main.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:io';
+import '../main.dart';
+
+// Firebase Auth imports
+import 'package:firebase_auth/firebase_auth.dart';
 
 enum AuthPurpose { login, signup }
 
@@ -11,6 +15,7 @@ class OTPVerificationScreen extends StatefulWidget {
   final String? lastName;
   final String mobileNumber;
   final AuthPurpose purpose;
+  final String? verificationId; // Firebase verification ID
 
   const OTPVerificationScreen({
     super.key,
@@ -18,6 +23,7 @@ class OTPVerificationScreen extends StatefulWidget {
     this.lastName,
     required this.mobileNumber,
     required this.purpose,
+    this.verificationId, // Required for Firebase Auth
   });
 
   @override
@@ -31,15 +37,29 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   int _resendTimer = 60;
   bool _canResend = false;
-  final bool _isLoading = false;
+  bool _isLoading = false;
   
-  // Backend URL - should match your login screen
-  final String _baseUrl = 'http://localhost:8000';
+  // Firebase Auth instance
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  
+  // Backend URL
+  String get _baseUrl {
+    if (Platform.isAndroid) {
+      return 'http://192.168.100.144:8000';
+    } else {
+      return 'http://10.0.2.2:8000';
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     _startResendTimer();
+    
+    // Validate that we have the required verificationId for Firebase auth
+    if (widget.verificationId == null) {
+      print('Warning: No verification ID provided for OTP verification');
+    }
   }
 
   @override
@@ -79,17 +99,144 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     }
   }
 
-  void _verifyOTP() {
-    if (_formKey.currentState!.validate()) {
-      final otp = _otpControllers.map((c) => c.text).join();
+  // MAIN VERIFICATION METHOD - Firebase Auth first
+  Future<void> _verifyOTP() async {
+    if (!_formKey.currentState!.validate()) return;
 
-      // TODO: Hook up backend OTP verification here
-      print('OTP: $otp');
-      print('Mobile: ${widget.mobileNumber}');
-      print('Purpose: ${widget.purpose}');
-      print('First Name: ${widget.firstName}');
-      print('Last Name: ${widget.lastName}');
+    final otp = _otpControllers.map((c) => c.text).join();
+    
+    if (otp.length != 6) {
+      _showSnackBar('Please enter all 6 digits', Colors.red);
+      return;
+    }
 
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await _verifyWithFirebase(otp);
+    } catch (e) {
+      print('Error during OTP verification: $e');
+      _showSnackBar('Network error. Please check your connection.', Colors.red);
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Firebase Auth Verification
+  Future<void> _verifyWithFirebase(String otp) async {
+    if (widget.verificationId == null) {
+      _showSnackBar('Verification session expired. Please go back and try again.', Colors.red);
+      return;
+    }
+
+    try {
+      // Create phone auth credential
+      final credential = PhoneAuthProvider.credential(
+        verificationId: widget.verificationId!,
+        smsCode: otp,
+      );
+      
+      // Sign in with credential
+      UserCredential result = await _auth.signInWithCredential(credential);
+      
+      if (result.user != null) {
+        // Get Firebase ID token
+        String? idToken = await result.user!.getIdToken();
+        
+        if (idToken != null) {
+          if (widget.purpose == AuthPurpose.signup) {
+            // For signup, create user in backend
+            await _createUserInBackend(idToken);
+          } else {
+            // For login, user is already authenticated with Firebase
+            await _handleSuccessfulLogin();
+          }
+        } else {
+          _showSnackBar('Authentication failed. Please try again.', Colors.red);
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      print('Firebase verification error: ${e.code} - ${e.message}');
+      
+      String errorMessage;
+      switch (e.code) {
+        case 'invalid-verification-code':
+          errorMessage = 'Invalid OTP. Please check and try again.';
+          break;
+        case 'session-expired':
+        case 'credential-already-in-use':
+          errorMessage = 'OTP has expired. Please request a new code.';
+          break;
+        case 'too-many-requests':
+          errorMessage = 'Too many attempts. Please try again later.';
+          break;
+        default:
+          errorMessage = 'Verification failed. Please try again.';
+      }
+      
+      _showSnackBar(errorMessage, Colors.red);
+      
+      // Clear OTP fields for retry
+      _clearOTPFields();
+    } catch (e) {
+      print('Unexpected error during verification: $e');
+      _showSnackBar('An unexpected error occurred. Please try again.', Colors.red);
+      _clearOTPFields();
+    }
+  }
+
+  // Create user in backend after Firebase verification (for signup)
+  Future<void> _createUserInBackend(String idToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/users/create-firebase-user'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'firebase_id_token': idToken,
+          'additional_info': {
+            'first_name': widget.firstName ?? '',
+            'last_name': widget.lastName ?? '',
+            'mobile_number': widget.mobileNumber.replaceAll('+63', ''),
+          }
+        }),
+      );
+
+      print('Backend user creation response: ${response.statusCode}');
+      print('Backend response body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        await _handleSuccessfulSignup();
+      } else {
+        final errorData = jsonDecode(response.body);
+        String errorMessage = errorData['detail'] ?? 'Failed to create account';
+        
+        // If user already exists, treat as success
+        if (errorMessage.contains('already registered') || 
+            errorMessage.contains('already exists')) {
+          await _handleSuccessfulSignup();
+        } else {
+          _showSnackBar(errorMessage, Colors.red);
+          _clearOTPFields();
+        }
+      }
+    } catch (e) {
+      print('Backend user creation error: $e');
+      _showSnackBar('Failed to create account. Please try again.', Colors.red);
+      _clearOTPFields();
+    }
+  }
+
+  // Handle successful login
+  Future<void> _handleSuccessfulLogin() async {
+    _showSnackBar('Login successful!', Colors.green);
+    
+    // Navigate to main screen
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainScreen()),
@@ -98,19 +245,60 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     }
   }
 
-  void _resendOTP() {
-    if (_canResend) {
-      // TODO: Hook up resend OTP backend logic
-      print('Resending OTP to ${widget.mobileNumber}');
-      for (final controller in _otpControllers) {
-        controller.clear();
-      }
+  // Handle successful signup
+  Future<void> _handleSuccessfulSignup() async {
+    _showSnackBar('Account created successfully!', Colors.green);
+    
+    // Navigate to main screen
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (mounted) {
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const MainScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  // Resend OTP - trigger new Firebase verification
+  Future<void> _resendOTP() async {
+    if (!_canResend) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // For resend, we need to trigger new Firebase phone verification
+      // This should be done from the parent screen
+      _showSnackBar(
+        'Please go back and request a new verification code', 
+        Colors.orange
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _clearOTPFields() {
+    for (final controller in _otpControllers) {
+      controller.clear();
+    }
+    if (mounted) {
       _otpFocusNodes[0].requestFocus();
+    }
+  }
 
-      _startResendTimer();
-
+  void _showSnackBar(String message, Color color) {
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP resent successfully!')),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: color,
+          duration: const Duration(seconds: 3),
+        ),
       );
     }
   }
@@ -120,6 +308,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     final isLogin = widget.purpose == AuthPurpose.login;
+    final hasValidVerificationId = widget.verificationId != null;
 
     return Stack(
       children: [
@@ -133,7 +322,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           ),
         ),
 
-        // Main content with transparent scaffold
+        // Main content
         Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
@@ -145,7 +334,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
               onPressed: _goBack,
             ),
             title: Text(
-              isLogin ? 'Login Verification' : 'Signup Verification',
+              isLogin ? 'Login Verification' : 'Complete Registration',
               style: const TextStyle(
                 color: Colors.black,
                 fontSize: 18,
@@ -162,6 +351,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 40),
+                    
+                    // Title
                     Text(
                       isLogin ? 'Verify to Login' : 'Enter Verification Code',
                       style: const TextStyle(
@@ -171,14 +362,60 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
+                    
+                    // Subtitle
                     Text(
                       'We sent a 6-digit code to\n${widget.mobileNumber}',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),
-                    const SizedBox(height: 40),
+                    const SizedBox(height: 8),
+                    
+                    // Firebase Auth indicator
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: hasValidVerificationId 
+                          ? Colors.green.shade50 
+                          : Colors.red.shade50,
+                        border: Border.all(
+                          color: hasValidVerificationId 
+                            ? Colors.green.shade200 
+                            : Colors.red.shade200
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            hasValidVerificationId 
+                              ? Icons.security 
+                              : Icons.warning,
+                            size: 16,
+                            color: hasValidVerificationId 
+                              ? Colors.green.shade600 
+                              : Colors.red.shade600,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            hasValidVerificationId 
+                              ? 'Secured by Firebase Auth' 
+                              : 'Session expired - go back',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: hasValidVerificationId 
+                                ? Colors.green.shade700 
+                                : Colors.red.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 32),
 
-                    // OTP Fields
+                    // OTP Input Fields
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: List.generate(
@@ -196,9 +433,11 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _verifyOTP,
+                        onPressed: (_isLoading || !hasValidVerificationId) ? null : _verifyOTP,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
+                          backgroundColor: _isLoading || !hasValidVerificationId 
+                            ? Colors.grey 
+                            : Colors.blue,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -206,66 +445,55 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                           ),
                           elevation: 0,
                         ),
-                        child: const Text(
-                          'Verify OTP',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : Text(
+                                hasValidVerificationId 
+                                  ? 'Verify OTP' 
+                                  : 'Session Expired',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 30),
 
-                    // Resend Text
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text("Didn't receive the code? "),
-                        _canResend
-                            ? GestureDetector(
-                                onTap: _resendOTP,
-                                child: const Text(
-                                  'Resend',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.blue,
+                    // Resend section
+                    if (hasValidVerificationId)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text("Didn't receive the code? "),
+                          _canResend
+                              ? GestureDetector(
+                                  onTap: _isLoading ? null : _resendOTP,
+                                  child: Text(
+                                    'Get new code',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: _isLoading ? Colors.grey : Colors.blue,
+                                    ),
                                   ),
+                                )
+                              : Text(
+                                  'Resend in ${_resendTimer}s',
+                                  style: const TextStyle(color: Colors.grey),
                                 ),
-                              )
-                            : Text(
-                                'Resend in ${_resendTimer}s',
-                                style: const TextStyle(color: Colors.grey),
-                              ),
-                      ],
-                    ),
+                        ],
+                      ),
+
                     const Spacer(),
 
-                    // Optional user name display
-                    if (widget.firstName != null && widget.lastName != null)
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100.withOpacity(0.8),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Verifying for:',
-                              style: TextStyle(fontSize: 14, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${widget.firstName} ${widget.lastName}',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -296,10 +524,23 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           LengthLimitingTextInputFormatter(1),
         ],
         decoration: InputDecoration(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          filled: true,
+          fillColor: Colors.white.withOpacity(0.9),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.grey, width: 1),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.grey, width: 1),
+          ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.blue, width: 2),
+          ),
+          errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
           ),
           contentPadding: const EdgeInsets.all(0),
         ),
