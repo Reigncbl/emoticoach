@@ -1,8 +1,14 @@
+import os
+from dotenv import load_dotenv
+
+# Load .env variables before anything else
+load_dotenv()
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import book_routes, message_routes,scenario_routes
+from routes import book_routes, message_routes, userinfo_routes,scenario_routes
 
 
 
@@ -24,7 +30,8 @@ app.add_middleware(
 
 # Include routers
 app.include_router(book_routes)
-app.include_router(message_routes)
+#app.include_router(message_routes)
+app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
 
 

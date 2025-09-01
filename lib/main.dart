@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:developer';
-import 'screens/learning/scenario_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
-import 'screens/settings.dart';
 import 'screens/overlays/overlay_ui.dart';
 import 'controllers/app_monitor_controller.dart';
+import 'overlays/overlay_ui.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -26,11 +27,14 @@ class LearnScreen extends StatelessWidget {
   Widget build(BuildContext context) =>
       Scaffold(body: Center(child: Text("Learn Screen")));
 }
-
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   _setupGlobalMethodChannel();
   runApp(const MyApp());
+
 }
 
 void _setupGlobalMethodChannel() {

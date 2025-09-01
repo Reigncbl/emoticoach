@@ -4,6 +4,9 @@ plugins {
     id("com.android.application")
     id("kotlin-android")
     id("dev.flutter.flutter-gradle-plugin")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
 }
 
 val localProperties = Properties().apply {
@@ -34,10 +37,18 @@ android {
 
     defaultConfig {
         applicationId = "com.example.emoticoach"
-        minSdk = flutter.minSdkVersion
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode
         versionName = flutterVersionName
+        
+        // WebView optimization
+        multiDexEnabled = true
+        
+        // Prevent WebView crashes
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -49,4 +60,8 @@ android {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 }

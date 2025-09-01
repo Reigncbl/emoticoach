@@ -910,7 +910,7 @@ class SettingsDangerZone extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 // Illustration
-                Container(
+                SizedBox(
                   width: 120,
                   height: 120,
                   child: Image.asset(
