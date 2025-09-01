@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String get _baseUrl {
     if (Platform.isAndroid) {
       // For Android emulator, use special localhost mapping
-      return 'http://192.168.100.144:8000';
+      return 'http://10.96.80.29:8000';
     } else {
       // For iOS simulator or physical devices, use your computer's IP
       return 'http://10.0.2.2:8000'; // Replace with YOUR actual IP

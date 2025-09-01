@@ -20,7 +20,7 @@ class SignupScreen extends StatefulWidget {
 
 class _SignUpPageState extends State<SignupScreen> {
   // Add your API base URL here
-  static const String baseUrl = 'http://192.168.100.144:8000';
+  static const String baseUrl = 'http://10.96.80.29:8000';
   
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();

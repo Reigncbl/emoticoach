@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDq1A6hvqbBPU23ncdjuXotYidSVEEo-LU',
+    apiKey: 'AIzaSyBZH0skOCxmoWQmxT4dAqXWXkNVpOIHp7U',
     appId: '1:511145151012:android:3e1be673738704ce91e6b1',
     messagingSenderId: '511145151012',
     projectId: 'emoticoach-b15ad',
