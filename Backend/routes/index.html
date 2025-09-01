@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Telegram Frontend</title>
+</head>
+<body>
+  <h1>Telegram Frontend</h1>
+
+  <!-- Auth -->
+  <div>
+    <h2>Login</h2>
+    <input type="text" id="phone" placeholder="Phone Number">
+    <button onclick="startAuth()">Send Code</button>
+    <br><br>
+    <input type="text" id="code" placeholder="Code">
+    <button onclick="verifyCode()">Verify</button>
+  </div>
+
+  <!-- Contacts -->
+  <div>
+    <h2>Contacts</h2>
+    <button onclick="getContacts()">Load Contacts</button>
+    <ul id="contactsList"></ul>
+  </div>
+
+  <!-- Messages -->
+  <div>
+    <h2>Messages</h2>
+    <input type="text" id="contactPhone" placeholder="Contact Phone">
+    <button onclick="getMessages()">Load Messages</button>
+    <ul id="messagesList"></ul>
+  </div>
+
+  <script>
+    const baseUrl = "http://localhost:8000"; // Adjust to your backend URL
+    let loggedInPhone = ""; // Will store the authenticated user's phone number
+
+    async function startAuth() {
+      const phone = document.getElementById('phone').value;
+      if (!phone) {
+        alert("Please enter a phone number");
+        return;
+      }
+      const res = await fetch(`${baseUrl}/auth/start`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({phone_number: phone})
+      });
+      const data = await res.json();
+      alert(data.message || JSON.stringify(data));
+      loggedInPhone = phone; // Save the phone number for later use
+    }
+
+    async function verifyCode() {
+      if (!loggedInPhone) {
+        alert("Start authentication first!");
+        return;
+      }
+      const code = document.getElementById('code').value;
+      if (!code) {
+        alert("Please enter the code");
+        return;
+      }
+      const res = await fetch(`${baseUrl}/auth/verify`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({phone_number: loggedInPhone, code: code})
+      });
+      const data = await res.json();
+      alert(data.message || JSON.stringify(data));
+    }
+
+    async function getContacts() {
+      if (!loggedInPhone) {
+        alert("You must log in first!");
+        return;
+      }
+      const res = await fetch(`${baseUrl}/contacts?phone_number=${loggedInPhone}`);
+      const data = await res.json();
+      const list = document.getElementById('contactsList');
+      list.innerHTML = "";
+      if (data.contacts) {
+        data.contacts.forEach(contact => {
+          const li = document.createElement('li');
+          li.textContent = `${contact.name} (${contact.phone})`;
+          list.appendChild(li);
+        });
+      } else {
+        alert("Failed to load contacts: " + JSON.stringify(data));
+      }
+    }
+
+    async function getMessages() {
+      if (!loggedInPhone) {
+        alert("You must log in first!");
+        return;
+      }
+      const contactPhone = document.getElementById('contactPhone').value;
+      if (!contactPhone) {
+        alert("Enter contact phone number");
+        return;
+      }
+      const res = await fetch(`${baseUrl}/messages?phone_number=${loggedInPhone}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({phone: contactPhone})
+      });
+      const data = await res.json();
+      const list = document.getElementById('messagesList');
+      list.innerHTML = "";
+      if (Array.isArray(data)) {
+        data.forEach(msg => {
+          const li = document.createElement('li');
+          li.textContent = `${msg.from}: ${msg.text}`;
+          list.appendChild(li);
+        });
+      } else {
+        alert("Failed to load messages: " + JSON.stringify(data));
+      }
+    }
+  </script>
+</body>
+</html>

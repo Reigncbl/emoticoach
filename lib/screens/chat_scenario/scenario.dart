@@ -28,11 +28,13 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
   @override
   void initState() {
     super.initState();
-    _messages.add(ChatMessage(
-      text: widget.initialMessage,
-      isUser: false,
-      timestamp: DateTime.now(),
-    ));
+    _messages.add(
+      ChatMessage(
+        text: widget.initialMessage,
+        isUser: false,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   @override
@@ -46,11 +48,13 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     if (_messageController.text.trim().isEmpty) return;
 
     setState(() {
-      _messages.add(ChatMessage(
-        text: _messageController.text.trim(),
-        isUser: true,
-        timestamp: DateTime.now(),
-      ));
+      _messages.add(
+        ChatMessage(
+          text: _messageController.text.trim(),
+          isUser: true,
+          timestamp: DateTime.now(),
+        ),
+      );
     });
 
     _simulateBackendResponse();
@@ -62,12 +66,14 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
         setState(() {
-          _messages.add(ChatMessage(
-            text:
-                "This is a simulated response from the backend based on your message.",
-            isUser: false,
-            timestamp: DateTime.now(),
-          ));
+          _messages.add(
+            ChatMessage(
+              text:
+                  "This is a simulated response from the backend based on your message.",
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
         });
         _scrollToBottom();
       }
@@ -101,18 +107,15 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-        icon: const Icon(Icons.chevron_left),
-        onPressed: _navigateToPreviousScreen,
-      ),
+          icon: const Icon(Icons.chevron_left),
+          onPressed: _navigateToPreviousScreen,
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text (
+            Text(
               widget.scenarioTitle,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
               'AI Persona: ${widget.aiPersona}',
@@ -120,17 +123,15 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
                 color: kBlack,
-              )
-            )
+              ),
+            ),
           ],
         ),
         elevation: 1,
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CustomContinueButtonSmall(
-              onPressed: _navigateToNextScreen,
-            ),
+            child: CustomContinueButtonSmall(onPressed: _navigateToNextScreen),
           ),
         ],
       ),
@@ -177,9 +178,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                   ),
                 ),
                 const SizedBox(width: 8.0),
-                CustomSendButton(
-                  onPressed: _sendMessage,
-                ),
+                CustomSendButton(onPressed: _sendMessage),
               ],
             ),
           ),
@@ -193,10 +192,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
 class CustomSendButton extends StatelessWidget {
   final VoidCallback onPressed;
 
-  const CustomSendButton({
-    super.key,
-    required this.onPressed,
-  });
+  const CustomSendButton({super.key, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
@@ -206,10 +202,7 @@ class CustomSendButton extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: IconButton(
-        icon: const Icon(
-          Icons.send,
-          color: Colors.white,
-        ),
+        icon: const Icon(Icons.send, color: Colors.white),
         onPressed: onPressed,
         tooltip: 'Send message',
       ),
@@ -229,18 +222,14 @@ class CustomContinueButtonSmall extends StatelessWidget {
       onPressed: onPressed,
       label: const Text(
         'Evaluate',
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
         backgroundColor: kDarkOrange,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 9),
         minimumSize: Size.zero, // shrink to fit AppBar
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -250,10 +239,7 @@ class CustomContinueButtonSmall extends StatelessWidget {
 class ChatBubble extends StatelessWidget {
   final ChatMessage message;
 
-  const ChatBubble({
-    super.key,
-    required this.message,
-  });
+  const ChatBubble({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -262,19 +248,16 @@ class ChatBubble extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.grey[400],
-              child: const Icon(
-                Icons.smart_toy,
-                size: 18,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.smart_toy, size: 18, color: Colors.white),
             ),
             const SizedBox(width: 8.0),
           ],
@@ -291,8 +274,7 @@ class ChatBubble extends StatelessWidget {
               child: Text(
                 message.text,
                 style: TextStyle(
-                  color:
-                      isUser ? Colors.blueGrey[800] : Colors.grey[800],
+                  color: isUser ? Colors.blueGrey[800] : Colors.grey[800],
                   fontSize: 16.0,
                 ),
               ),
@@ -303,11 +285,7 @@ class ChatBubble extends StatelessWidget {
             CircleAvatar(
               radius: 16,
               backgroundColor: Colors.blueGrey[300],
-              child: const Icon(
-                Icons.person,
-                size: 18,
-                color: Colors.white,
-              ),
+              child: const Icon(Icons.person, size: 18, color: Colors.white),
             ),
           ],
         ],

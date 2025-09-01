@@ -73,10 +73,10 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? _buildErrorView()
-              : _evaluationResponse != null
-                  ? _buildEvaluationView()
-                  : const Center(child: Text('No evaluation data available')),
+          ? _buildErrorView()
+          : _evaluationResponse != null
+          ? _buildEvaluationView()
+          : const Center(child: Text('No evaluation data available')),
     );
   }
 
@@ -87,11 +87,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red[400],
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
             const SizedBox(height: 16),
             Text(
               'Evaluation Failed',
@@ -136,25 +132,24 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'Communication Skills Assessment',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Conversation with ${widget.characterName}',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Total messages analyzed: ${_evaluationResponse!.totalUserMessages ?? userReplies.length}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -167,26 +162,38 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           if (evaluation != null) ...[
             Text(
               'Your Scores',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
-            _buildScoreCard('Clarity', evaluation.clarity, 
-                'How clear and understandable your responses were'),
+            _buildScoreCard(
+              'Clarity',
+              evaluation.clarity,
+              'How clear and understandable your responses were',
+            ),
             const SizedBox(height: 8),
-            
-            _buildScoreCard('Empathy', evaluation.empathy, 
-                'How well you showed emotional awareness'),
+
+            _buildScoreCard(
+              'Empathy',
+              evaluation.empathy,
+              'How well you showed emotional awareness',
+            ),
             const SizedBox(height: 8),
-            
-            _buildScoreCard('Assertiveness', evaluation.assertiveness, 
-                'How confidently you expressed your thoughts'),
+
+            _buildScoreCard(
+              'Assertiveness',
+              evaluation.assertiveness,
+              'How confidently you expressed your thoughts',
+            ),
             const SizedBox(height: 8),
-            
-            _buildScoreCard('Appropriateness', evaluation.appropriateness, 
-                'How suitable your responses were for the context'),
+
+            _buildScoreCard(
+              'Appropriateness',
+              evaluation.appropriateness,
+              'How suitable your responses were for the context',
+            ),
 
             const SizedBox(height: 20),
 
@@ -204,10 +211,11 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'Improvement Tip',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blue[700],
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue[700],
+                              ),
                         ),
                       ],
                     ),
@@ -228,9 +236,9 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           if (userReplies.isNotEmpty) ...[
             Text(
               'Your Messages',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
 
@@ -364,9 +372,9 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                   const SizedBox(height: 4),
                   Text(
                     description,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                   ),
                 ],
               ),
@@ -396,7 +404,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
       ),
     );
   }
-=======
+}
 
 // NOTE: Wala pa yung score, overall feedback, button functions
 
@@ -408,8 +416,8 @@ void showEvaluationOverlay(BuildContext context) {
     builder: (context) {
       return DraggableScrollableSheet(
         initialChildSize: 0.6, // starting height (60% of screen)
-        minChildSize: 0.4,     // minimum height
-        maxChildSize: 0.95,    // maximum height
+        minChildSize: 0.4, // minimum height
+        maxChildSize: 0.95, // maximum height
         expand: false,
         builder: (context, scrollController) {
           return Container(
@@ -441,10 +449,7 @@ void showEvaluationOverlay(BuildContext context) {
                         ),
                       ),
                       SizedBox(height: 20),
-                      Text(
-                        'Ratings',
-                        style: TextStyle(fontSize: 18),
-                      ),
+                      Text('Ratings', style: TextStyle(fontSize: 18)),
                     ],
                   ),
                 ),
@@ -494,5 +499,4 @@ void showEvaluationOverlay(BuildContext context) {
       );
     },
   );
-
 }

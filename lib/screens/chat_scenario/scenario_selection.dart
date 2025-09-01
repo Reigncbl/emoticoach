@@ -38,16 +38,16 @@ class ScenarioSelectionScreen extends StatelessWidget {
             // Header
             Text(
               'Choose a Scenario',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               'Practice your communication skills in realistic situations',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
 
@@ -90,7 +90,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
             _buildScenarioCard(
               context,
               title: 'Difficult Academic Feedback',
-              description: 'Practice receiving and responding to challenging feedback from a professor about your academic performance.',
+              description:
+                  'Practice receiving and responding to challenging feedback from a professor about your academic performance.',
               difficulty: 'Intermediate',
               duration: '10-15 min',
               icon: Icons.school,
@@ -115,7 +116,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
             _buildScenarioCard(
               context,
               title: 'Workplace Conflict Resolution',
-              description: 'Navigate a challenging conversation with a colleague about a work disagreement.',
+              description:
+                  'Navigate a challenging conversation with a colleague about a work disagreement.',
               difficulty: 'Advanced',
               duration: '15-20 min',
               icon: Icons.business,
@@ -128,7 +130,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
                     builder: (context) => const ScenarioScreen(
                       scenarioTitle: 'Workplace Conflict Resolution',
                       aiPersona: 'Manager Sarah',
-                      initialMessage: 'Hi there, I think we need to talk about what happened in yesterday\'s meeting. I noticed some tension and I\'d like to work through it together.',
+                      initialMessage:
+                          'Hi there, I think we need to talk about what happened in yesterday\'s meeting. I noticed some tension and I\'d like to work through it together.',
                     ),
                   ),
                 );
@@ -140,7 +143,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
             _buildScenarioCard(
               context,
               title: 'Giving Constructive Feedback',
-              description: 'Practice delivering feedback to a team member in a supportive and effective way.',
+              description:
+                  'Practice delivering feedback to a team member in a supportive and effective way.',
               difficulty: 'Intermediate',
               duration: '10-15 min',
               icon: Icons.feedback,
@@ -153,7 +157,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
                     builder: (context) => const ScenarioScreen(
                       scenarioTitle: 'Giving Constructive Feedback',
                       aiPersona: 'Team Member Alex',
-                      initialMessage: 'Hey! Thanks for setting up this meeting. I\'m ready to hear your thoughts on my recent project work.',
+                      initialMessage:
+                          'Hey! Thanks for setting up this meeting. I\'m ready to hear your thoughts on my recent project work.',
                     ),
                   ),
                 );
@@ -165,7 +170,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
             _buildScenarioCard(
               context,
               title: 'Difficult Customer Service',
-              description: 'Handle a frustrated customer complaint with empathy and professionalism.',
+              description:
+                  'Handle a frustrated customer complaint with empathy and professionalism.',
               difficulty: 'Beginner',
               duration: '8-12 min',
               icon: Icons.support_agent,
@@ -178,7 +184,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
                     builder: (context) => const ScenarioScreen(
                       scenarioTitle: 'Difficult Customer Service',
                       aiPersona: 'Customer Jamie',
-                      initialMessage: 'I am extremely frustrated! I\'ve been trying to resolve this issue for weeks and no one seems to be able to help me. This is completely unacceptable!',
+                      initialMessage:
+                          'I am extremely frustrated! I\'ve been trying to resolve this issue for weeks and no one seems to be able to help me. This is completely unacceptable!',
                     ),
                   ),
                 );
@@ -190,7 +197,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
             _buildScenarioCard(
               context,
               title: 'Personal Relationship Discussion',
-              description: 'Navigate a sensitive conversation with a friend about a personal issue.',
+              description:
+                  'Navigate a sensitive conversation with a friend about a personal issue.',
               difficulty: 'Advanced',
               duration: '12-18 min',
               icon: Icons.people,
@@ -203,7 +211,8 @@ class ScenarioSelectionScreen extends StatelessWidget {
                     builder: (context) => const ScenarioScreen(
                       scenarioTitle: 'Personal Relationship Discussion',
                       aiPersona: 'Friend Taylor',
-                      initialMessage: 'Hey, I\'m glad we could finally sit down and talk. I\'ve been feeling like there\'s been some distance between us lately, and I wanted to understand what\'s going on.',
+                      initialMessage:
+                          'Hey, I\'m glad we could finally sit down and talk. I\'ve been feeling like there\'s been some distance between us lately, and I wanted to understand what\'s going on.',
                     ),
                   ),
                 );
@@ -243,9 +252,7 @@ class ScenarioSelectionScreen extends StatelessWidget {
 
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
@@ -262,11 +269,7 @@ class ScenarioSelectionScreen extends StatelessWidget {
                       color: color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
-                      icon,
-                      color: color,
-                      size: 24,
-                    ),
+                    child: Icon(icon, color: color, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -275,43 +278,45 @@ class ScenarioSelectionScreen extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'AI Persona: $aiPersona',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: color,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: color,
+                                fontWeight: FontWeight.w500,
+                              ),
                         ),
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(Icons.chevron_right, color: Colors.grey[400]),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
                 description,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.grey[700],
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
               ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: difficultyColor.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: difficultyColor.withOpacity(0.3)),
+                      border: Border.all(
+                        color: difficultyColor.withOpacity(0.3),
+                      ),
                     ),
                     child: Text(
                       difficulty,
@@ -324,7 +329,10 @@ class ScenarioSelectionScreen extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.grey[100],
                       borderRadius: BorderRadius.circular(12),

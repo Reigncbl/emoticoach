@@ -40,11 +40,7 @@ class _OverlayScreenState extends State<OverlayScreen> {
 
   Future<void> _fetchInitialData() async {
     try {
-      final response = await _apiService.fetchMessagesAndPath(
-        phone,
-        firstName,
-        lastName,
-      );
+      final response = await _apiService.fetchMessagesAndPath(phone);
       if (mounted) {
         setState(() {
           _filePath = response['file_path'];
@@ -54,7 +50,11 @@ class _OverlayScreenState extends State<OverlayScreen> {
 
       if (_filePath != null) {
         try {
-          final analysisData = await _apiService.analyzeMessages(_filePath!);
+          final analysisData = await _apiService.analyzeMessages(
+            phone,
+            '$firstName $lastName',
+            100,
+          );
           if (mounted) {
             setState(() {
               _analysisData = analysisData;
