@@ -7,9 +7,9 @@ import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
 import 'screens/overlays/overlay_ui.dart';
 import 'controllers/app_monitor_controller.dart';
-import 'overlays/overlay_ui.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
+import 'screens/learning/scenario_screen.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -27,14 +27,22 @@ class LearnScreen extends StatelessWidget {
   Widget build(BuildContext context) =>
       Scaffold(body: Center(child: Text("Learn Screen")));
 }
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  
+  // Fixed: Only initialize Firebase if it hasn't been initialized yet
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    log('✅ Firebase initialized successfully');
+  } else {
+    log('⚠️ Firebase already initialized, skipping...');
+  }
+  
   _setupGlobalMethodChannel();
   runApp(const MyApp());
-
 }
 
 void _setupGlobalMethodChannel() {
