@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/session_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,7 +16,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 0,),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 0),
         child: Column(
           children: [
             const SizedBox(height: 40), // Status bar space
@@ -31,6 +32,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 32),
             SettingsActions(),
+            const SizedBox(height: 24),
+            // Logout Button
+            InkWell(
+              onTap: () async {
+                await SimpleSessionService.clearSession();
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 12,
+                  horizontal: 4,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Logout',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.orange,
+                      ),
+                    ),
+                    Icon(Icons.logout, color: Colors.orange, size: 20),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
             SettingsDangerZone(),
             const SizedBox(height: 60),
@@ -140,17 +174,14 @@ class SettingsOptions extends StatelessWidget {
                 ),
               ),
               trailing ??
-                  const Icon(
-                    Icons.chevron_right,
-                    color: Colors.grey,
-                    size: 20,
-                  ),
+                  const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
             ],
           ),
         ),
       ),
     );
   }
+
   // Method to show help request form modal
   void showHelpRequestModal(BuildContext context) {
     final TextEditingController helpController = TextEditingController();
@@ -200,9 +231,9 @@ class SettingsOptions extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Submit a request section
                 const Text(
                   'Submit a request',
@@ -212,25 +243,23 @@ class SettingsOptions extends StatelessWidget {
                     color: Colors.black87,
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 Text(
                   'How can we help?',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Help request text area
                 TextField(
                   controller: helpController,
                   maxLines: 6,
                   decoration: InputDecoration(
-                    hintText: 'What is your query about?\n\n\n\nCan you give us more details?',
+                    hintText:
+                        'What is your query about?\n\n\n\nCan you give us more details?',
                     hintStyle: TextStyle(
                       color: Colors.grey[400],
                       fontSize: 14,
@@ -247,9 +276,9 @@ class SettingsOptions extends StatelessWidget {
                     contentPadding: const EdgeInsets.all(12),
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Submit button
                 SizedBox(
                   width: double.infinity,
@@ -258,10 +287,10 @@ class SettingsOptions extends StatelessWidget {
                       if (helpController.text.trim().isNotEmpty) {
                         // Handle help request submission
                         await submitHelpRequest(helpController.text);
-                        
+
                         // Close help request modal
                         Navigator.of(context).pop();
-                        
+
                         // Show success modal
                         showHelpRequestSubmittedModal(context);
                       }
@@ -331,9 +360,9 @@ class SettingsOptions extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 // Help request illustration
                 SizedBox(
                   width: 120,
@@ -343,9 +372,9 @@ class SettingsOptions extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Success message
                 const Text(
                   'Help Request\nSubmitted!',
@@ -357,9 +386,9 @@ class SettingsOptions extends StatelessWidget {
                     height: 1.2,
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Description
                 Text(
                   'Your help request has been submitted. We\'ll get back to you soon!',
@@ -370,9 +399,9 @@ class SettingsOptions extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // OK Button
                 SizedBox(
                   width: double.infinity,
@@ -410,6 +439,7 @@ class SettingsOptions extends StatelessWidget {
     // For example: API call to submit help request
     await Future.delayed(const Duration(milliseconds: 500));
   }
+
   // Method to show feedback form modal
   void showFeedbackModal(BuildContext context) {
     final TextEditingController feedbackController = TextEditingController();
@@ -462,9 +492,9 @@ class SettingsOptions extends StatelessWidget {
                         ),
                       ],
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Rating section
                     const Text(
                       'Rate EmotiCoach',
@@ -474,9 +504,9 @@ class SettingsOptions extends StatelessWidget {
                         color: Colors.black87,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 8),
-                    
+
                     Text(
                       'Share your feedback with the developers to help improve EmotiCoach',
                       style: TextStyle(
@@ -485,9 +515,9 @@ class SettingsOptions extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Star rating
                     Row(
                       children: List.generate(5, (index) {
@@ -500,22 +530,23 @@ class SettingsOptions extends StatelessWidget {
                           child: Icon(
                             Icons.star,
                             size: 32,
-                            color: index < selectedRating 
-                                ? Colors.amber 
+                            color: index < selectedRating
+                                ? Colors.amber
                                 : Colors.grey[300],
                           ),
                         );
                       }),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Feedback text area
                     TextField(
                       controller: feedbackController,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: 'Only the stars, feedback, and app info will be shared.',
+                        hintText:
+                            'Only the stars, feedback, and app info will be shared.',
                         hintStyle: TextStyle(
                           color: Colors.grey[500],
                           fontSize: 14,
@@ -531,27 +562,30 @@ class SettingsOptions extends StatelessWidget {
                         contentPadding: const EdgeInsets.all(12),
                       ),
                     ),
-                    
+
                     const SizedBox(height: 24),
-                    
+
                     // Submit button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: selectedRating > 0 
+                        onPressed: selectedRating > 0
                             ? () async {
                                 // Handle feedback submission
-                                await submitFeedback(selectedRating, feedbackController.text);
-                                
+                                await submitFeedback(
+                                  selectedRating,
+                                  feedbackController.text,
+                                );
+
                                 // Close feedback modal
                                 Navigator.of(context).pop();
-                                
+
                                 // Show success modal
                                 showFeedbackSubmittedModal(context);
                               }
                             : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: selectedRating > 0 
+                          backgroundColor: selectedRating > 0
                               ? const Color(0xFFFF5722)
                               : Colors.grey[300],
                           foregroundColor: Colors.white,
@@ -626,9 +660,9 @@ class SettingsOptions extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 // Feedback illustration
                 SizedBox(
                   width: 120,
@@ -638,9 +672,9 @@ class SettingsOptions extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Success message
                 const Text(
                   'Feedback Submitted!',
@@ -650,9 +684,9 @@ class SettingsOptions extends StatelessWidget {
                     color: Colors.black87,
                   ),
                 ),
-                
+
                 const SizedBox(height: 16),
-                
+
                 // Description
                 Text(
                   'Thank you for your feedback! We appreciate your input.',
@@ -663,9 +697,9 @@ class SettingsOptions extends StatelessWidget {
                     height: 1.4,
                   ),
                 ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // OK Button
                 SizedBox(
                   width: double.infinity,
@@ -696,7 +730,6 @@ class SettingsOptions extends StatelessWidget {
       },
     );
   }
-
 }
 
 // Settings Actions Widget (Download Data, Logout)
@@ -726,10 +759,7 @@ class SettingsActions extends StatelessWidget {
             ),
             child: const Text(
               'Download my Data',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
         ),
@@ -752,17 +782,15 @@ class SettingsActions extends StatelessWidget {
             ),
             child: const Text(
               'Logout',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ),
         ),
       ],
     );
   }
-    void showDataDownloadedModal(BuildContext context) {
+
+  void showDataDownloadedModal(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -800,21 +828,21 @@ class SettingsActions extends StatelessWidget {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 // Illustration placeholder
                 SizedBox(
-                width: 120,
-                height: 120,
-                child: Image.asset(
-                  'assets/images/download.png', // Replace with your actual asset path
-                  fit: BoxFit.contain,
+                  width: 120,
+                  height: 120,
+                  child: Image.asset(
+                    'assets/images/download.png', // Replace with your actual asset path
+                    fit: BoxFit.contain,
+                  ),
                 ),
-              ),
-                
+
                 const SizedBox(height: 24),
-                
+
                 // Success message
                 const Text(
                   'Data Downloaded!',
@@ -824,10 +852,9 @@ class SettingsActions extends StatelessWidget {
                     color: Colors.black87,
                   ),
                 ),
-                
-                
+
                 const SizedBox(height: 24),
-                
+
                 // OK Button
                 SizedBox(
                   width: double.infinity,
@@ -891,7 +918,7 @@ class SettingsDangerZone extends StatelessWidget {
     );
   }
 
-    void _showDeleteConfirmationDialog(BuildContext context) {
+  void _showDeleteConfirmationDialog(BuildContext context) {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -919,7 +946,7 @@ class SettingsDangerZone extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Question text
                 const Text(
                   'Are you sure you want to delete\nyour account?',
@@ -931,7 +958,7 @@ class SettingsDangerZone extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Buttons
                 Row(
                   children: [
@@ -963,7 +990,9 @@ class SettingsDangerZone extends StatelessWidget {
                           Navigator.of(context).pop();
                         },
                         style: TextButton.styleFrom(
-                          backgroundColor: Color(0xFFD55E42), // Light red/coral color
+                          backgroundColor: Color(
+                            0xFFD55E42,
+                          ), // Light red/coral color
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 20),
                           shape: RoundedRectangleBorder(

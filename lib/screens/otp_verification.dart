@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../main.dart';
+import '../services/authenticated_api_service.dart';
 
 // Firebase Auth imports
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,10 +39,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   int _resendTimer = 60;
   bool _canResend = false;
   bool _isLoading = false;
-  
+
   // Firebase Auth instance
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
+
   // Backend URL
   String get _baseUrl {
     if (Platform.isAndroid) {
@@ -55,7 +56,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   void initState() {
     super.initState();
     _startResendTimer();
-    
+
     // Validate that we have the required verificationId for Firebase auth
     if (widget.verificationId == null) {
       print('Warning: No verification ID provided for OTP verification');
@@ -104,7 +105,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final otp = _otpControllers.map((c) => c.text).join();
-    
+
     if (otp.length != 6) {
       _showSnackBar('Please enter all 6 digits', Colors.red);
       return;
@@ -129,7 +130,10 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   // Firebase Auth Verification
   Future<void> _verifyWithFirebase(String otp) async {
     if (widget.verificationId == null) {
-      _showSnackBar('Verification session expired. Please go back and try again.', Colors.red);
+      _showSnackBar(
+        'Verification session expired. Please go back and try again.',
+        Colors.red,
+      );
       return;
     }
 
@@ -139,14 +143,14 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         verificationId: widget.verificationId!,
         smsCode: otp,
       );
-      
+
       // Sign in with credential
       UserCredential result = await _auth.signInWithCredential(credential);
-      
+
       if (result.user != null) {
         // Get Firebase ID token
         String? idToken = await result.user!.getIdToken();
-        
+
         if (idToken != null) {
           if (widget.purpose == AuthPurpose.signup) {
             // For signup, create user in backend
@@ -161,7 +165,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       }
     } on FirebaseAuthException catch (e) {
       print('Firebase verification error: ${e.code} - ${e.message}');
-      
+
       String errorMessage;
       switch (e.code) {
         case 'invalid-verification-code':
@@ -177,14 +181,17 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         default:
           errorMessage = 'Verification failed. Please try again.';
       }
-      
+
       _showSnackBar(errorMessage, Colors.red);
-      
+
       // Clear OTP fields for retry
       _clearOTPFields();
     } catch (e) {
       print('Unexpected error during verification: $e');
-      _showSnackBar('An unexpected error occurred. Please try again.', Colors.red);
+      _showSnackBar(
+        'An unexpected error occurred. Please try again.',
+        Colors.red,
+      );
       _clearOTPFields();
     }
   }
@@ -201,7 +208,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             'first_name': widget.firstName ?? '',
             'last_name': widget.lastName ?? '',
             'mobile_number': widget.mobileNumber.replaceAll('+63', ''),
-          }
+          },
         }),
       );
 
@@ -213,9 +220,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       } else {
         final errorData = jsonDecode(response.body);
         String errorMessage = errorData['detail'] ?? 'Failed to create account';
-        
+
         // If user already exists, treat as success
-        if (errorMessage.contains('already registered') || 
+        if (errorMessage.contains('already registered') ||
             errorMessage.contains('already exists')) {
           await _handleSuccessfulSignup();
         } else {
@@ -230,33 +237,63 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     }
   }
 
-  // Handle successful login
+  // Handle successful login - simplified
   Future<void> _handleSuccessfulLogin() async {
-    _showSnackBar('Login successful!', Colors.green);
-    
-    // Navigate to main screen
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
+    final otp = _otpControllers.map((c) => c.text).join();
+
+    // Use simple client-side verification
+    final success = await SimpleApiService.verifyOTP(
+      phoneNumber: widget.mobileNumber,
+      otp: otp,
+      firstName: widget.firstName,
+      lastName: widget.lastName,
+    );
+
+    if (success) {
+      _showSnackBar('Login successful!', Colors.green);
+
+      // Navigate to main screen
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+          (route) => false,
+        );
+      }
+    } else {
+      _showSnackBar('Invalid OTP. Please try again.', Colors.red);
+      _clearOTPFields();
     }
   }
 
-  // Handle successful signup
+  // Handle successful signup - simplified
   Future<void> _handleSuccessfulSignup() async {
-    _showSnackBar('Account created successfully!', Colors.green);
-    
-    // Navigate to main screen
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-        (route) => false,
-      );
+    final otp = _otpControllers.map((c) => c.text).join();
+
+    // Use simple client-side verification
+    final success = await SimpleApiService.verifyOTP(
+      phoneNumber: widget.mobileNumber,
+      otp: otp,
+      firstName: widget.firstName,
+      lastName: widget.lastName,
+    );
+
+    if (success) {
+      _showSnackBar('Account created successfully!', Colors.green);
+
+      // Navigate to main screen
+      await Future.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const MainScreen()),
+          (route) => false,
+        );
+      }
+    } else {
+      _showSnackBar('Invalid OTP. Please try again.', Colors.red);
+      _clearOTPFields();
     }
   }
 
@@ -272,8 +309,8 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       // For resend, we need to trigger new Firebase phone verification
       // This should be done from the parent screen
       _showSnackBar(
-        'Please go back and request a new verification code', 
-        Colors.orange
+        'Please go back and request a new verification code',
+        Colors.orange,
       );
     } finally {
       setState(() {
@@ -351,7 +388,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 40),
-                    
+
                     // Title
                     Text(
                       isLogin ? 'Verify to Login' : 'Enter Verification Code',
@@ -362,7 +399,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // Subtitle
                     Text(
                       'We sent a 6-digit code to\n${widget.mobileNumber}',
@@ -370,18 +407,21 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       style: const TextStyle(fontSize: 16, color: Colors.grey),
                     ),
                     const SizedBox(height: 8),
-                    
+
                     // Firebase Auth indicator
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
-                        color: hasValidVerificationId 
-                          ? Colors.green.shade50 
-                          : Colors.red.shade50,
+                        color: hasValidVerificationId
+                            ? Colors.green.shade50
+                            : Colors.red.shade50,
                         border: Border.all(
-                          color: hasValidVerificationId 
-                            ? Colors.green.shade200 
-                            : Colors.red.shade200
+                          color: hasValidVerificationId
+                              ? Colors.green.shade200
+                              : Colors.red.shade200,
                         ),
                         borderRadius: BorderRadius.circular(20),
                       ),
@@ -389,24 +429,24 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            hasValidVerificationId 
-                              ? Icons.security 
-                              : Icons.warning,
+                            hasValidVerificationId
+                                ? Icons.security
+                                : Icons.warning,
                             size: 16,
-                            color: hasValidVerificationId 
-                              ? Colors.green.shade600 
-                              : Colors.red.shade600,
+                            color: hasValidVerificationId
+                                ? Colors.green.shade600
+                                : Colors.red.shade600,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            hasValidVerificationId 
-                              ? 'Secured by Firebase Auth' 
-                              : 'Session expired - go back',
+                            hasValidVerificationId
+                                ? 'Secured by Firebase Auth'
+                                : 'Session expired - go back',
                             style: TextStyle(
                               fontSize: 12,
-                              color: hasValidVerificationId 
-                                ? Colors.green.shade700 
-                                : Colors.red.shade700,
+                              color: hasValidVerificationId
+                                  ? Colors.green.shade700
+                                  : Colors.red.shade700,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -433,11 +473,13 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: (_isLoading || !hasValidVerificationId) ? null : _verifyOTP,
+                        onPressed: (_isLoading || !hasValidVerificationId)
+                            ? null
+                            : _verifyOTP,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _isLoading || !hasValidVerificationId 
-                            ? Colors.grey 
-                            : Colors.blue,
+                          backgroundColor: _isLoading || !hasValidVerificationId
+                              ? Colors.grey
+                              : Colors.blue,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -451,13 +493,15 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                 height: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : Text(
-                                hasValidVerificationId 
-                                  ? 'Verify OTP' 
-                                  : 'Session Expired',
+                                hasValidVerificationId
+                                    ? 'Verify OTP'
+                                    : 'Session Expired',
                                 style: const TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -480,7 +524,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                                     'Get new code',
                                     style: TextStyle(
                                       fontWeight: FontWeight.w600,
-                                      color: _isLoading ? Colors.grey : Colors.blue,
+                                      color: _isLoading
+                                          ? Colors.grey
+                                          : Colors.blue,
                                     ),
                                   ),
                                 )
@@ -492,7 +538,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                       ),
 
                     const Spacer(),
-
 
                     const SizedBox(height: 20),
                   ],
