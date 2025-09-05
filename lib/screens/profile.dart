@@ -767,18 +767,16 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
                   // === PROFILE HEADER ===
                   _profileCard(
-                    name: displayName,
-                    level: 'Level 7: Comm Expert',
-                  ),
+                  name: displayName,
+                  level: 'Level 7: Comm Expert',
+                ),
 
-                  const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-                  // === PROGRESS DASHBOARD ===
-                  _title(title: 'Progress Dashboard'),
-                  // Progress Dashboard Widget
-                  _progressDashboard(progressXp: '1820', totalXp: '3800'),
-
-                  // === STATS ROW 1 ===
+                // === PROGRESS DASHBOARD ===
+                _title(title: 'Progress Dashboard'),
+                // Progress Dashboard Widget
+                _progressDashboard(progressXp: '1820', totalXp: '3800'),                  // === STATS ROW 1 ===
                   Row(
                     children: [
                       Expanded(

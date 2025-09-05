@@ -17,6 +17,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+// Session management
+import '../services/authenticated_api_service.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -337,6 +340,24 @@ class _LoginScreenState extends State<LoginScreen> {
           final responseData = json.decode(response.body);
           print('Google login successful: $responseData');
 
+          // Save Google login session
+          final displayNameParts = user.displayName?.split(' ') ?? [];
+          await SimpleApiService.saveGoogleSession(
+            email: user.email!,
+            firebaseUid: user.uid,
+            firstName: displayNameParts.isNotEmpty
+                ? displayNameParts.first
+                : null,
+            lastName: displayNameParts.length > 1
+                ? displayNameParts.sublist(1).join(' ')
+                : null,
+            additionalData: {
+              'photoUrl': user.photoURL,
+              'emailVerified': user.emailVerified,
+              'loginTimestamp': DateTime.now().toIso8601String(),
+            },
+          );
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Google login successful!'),
@@ -484,6 +505,20 @@ class _LoginScreenState extends State<LoginScreen> {
         // Email login successful
         print('Email login successful: $responseData');
 
+        // Save email login session
+        await SimpleApiService.saveEmailSession(
+          email: email,
+          firstName: responseData['first_name'],
+          lastName: responseData['last_name'],
+          phoneNumber: responseData['phone_number'],
+          firebaseUid: responseData['firebase_uid'],
+          additionalData: {
+            'loginTimestamp': DateTime.now().toIso8601String(),
+            'userLevel': responseData['level'],
+            'accountType': responseData['account_type'],
+          },
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Login successful!'),
@@ -491,8 +526,8 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         );
 
-        // TODO: Navigate to home screen
-        // Navigator.pushReplacementNamed(context, '/home');
+        // Navigate to home screen
+        Navigator.pushReplacementNamed(context, '/home');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

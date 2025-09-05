@@ -6,6 +6,7 @@ import 'dart:io';
 import '../main.dart';
 import '../config/api_config.dart';
 import '../services/authenticated_api_service.dart';
+import '../services/session_service.dart';
 
 // Firebase Auth imports
 import 'package:firebase_auth/firebase_auth.dart';
@@ -238,15 +239,59 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   Future<void> _handleSuccessfulLogin() async {
     final otp = _otpControllers.map((c) => c.text).join();
 
+    print('🔐 Attempting login with:');
+    print('   Phone: ${widget.mobileNumber}');
+    print('   First Name: ${widget.firstName ?? "NOT PROVIDED"}');
+    print('   Last Name: ${widget.lastName ?? "NOT PROVIDED"}');
+
     // Use simple client-side verification
     final success = await SimpleApiService.verifyOTP(
       phoneNumber: widget.mobileNumber,
       otp: otp,
-      firstName: widget.firstName,
-      lastName: widget.lastName,
+      firstName: widget.firstName, // This might be null for login
+      lastName: widget.lastName, // This might be null for login
     );
 
     if (success) {
+      // Debug: Check what was actually saved
+      print('✅ Login successful! Checking saved session data:');
+      final savedProfile = await SimpleSessionService.getUserProfile();
+      print('   Saved profile: $savedProfile');
+
+      // If we don't have names from the form (login case), try to get them from Firebase/backend
+      if ((widget.firstName == null || widget.firstName!.isEmpty) &&
+          (widget.lastName == null || widget.lastName!.isEmpty)) {
+        print('📡 No names provided during login, fetching from backend...');
+        try {
+          // Import the UserInfoHandler to get names from backend
+          final displayName = await _fetchUserNameFromBackend();
+          if (displayName != 'User' && displayName.isNotEmpty) {
+            final names = displayName.split(' ');
+            final firstName = names.isNotEmpty ? names.first : '';
+            final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+
+            // Update session with the fetched names
+            if (firstName.isNotEmpty) {
+              await SimpleSessionService.updateSessionData(
+                'user_first_name',
+                firstName,
+              );
+              await SimpleSessionService.updateSessionData(
+                'user_last_name',
+                lastName,
+              );
+              await SimpleSessionService.updateSessionData(
+                'user_name',
+                displayName,
+              );
+              print('✅ Updated session with backend names: $displayName');
+            }
+          }
+        } catch (e) {
+          print('⚠️ Could not fetch names from backend: $e');
+        }
+      }
+
       _showSnackBar('Login successful!', Colors.green);
 
       // Navigate to main screen
@@ -261,6 +306,53 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     } else {
       _showSnackBar('Invalid OTP. Please try again.', Colors.red);
       _clearOTPFields();
+    }
+  }
+
+  // Helper method to fetch user name from backend
+  Future<String> _fetchUserNameFromBackend() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        print('🔍 Fetching user details from backend for UID: ${user.uid}');
+
+        // First try to call the backend API to get user details
+        final response = await http.get(
+          Uri.parse('${ApiConfig.baseUrl}/users/${user.uid}'),
+          headers: {'Content-Type': 'application/json'},
+        );
+
+        print('📡 Backend API response status: ${response.statusCode}');
+        print('📡 Backend API response body: ${response.body}');
+
+        if (response.statusCode == 200) {
+          final userData = jsonDecode(response.body);
+          final firstName = userData['FirstName'] ?? '';
+          final lastName = userData['LastName'] ?? '';
+          print('✅ Got user data from backend: $firstName $lastName');
+
+          if (firstName.isNotEmpty || lastName.isNotEmpty) {
+            return '$firstName $lastName'.trim();
+          }
+        } else {
+          print(
+            '❌ Backend API call failed: ${response.statusCode} - ${response.body}',
+          );
+        }
+
+        // Fallback to Firebase displayName if backend fails
+        if (user.displayName != null && user.displayName!.isNotEmpty) {
+          print(
+            '🔄 Using Firebase displayName as fallback: ${user.displayName}',
+          );
+          return user.displayName!;
+        }
+      }
+      print('⚠️ No user data found, returning default "User"');
+      return 'User';
+    } catch (e) {
+      print('❌ Error fetching user name from backend: $e');
+      return 'User';
     }
   }
 
