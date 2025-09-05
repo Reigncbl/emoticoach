@@ -1,4 +1,4 @@
-1from sqlmodel import Session, select
+from sqlmodel import Session, select
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, Optional
 import logging
@@ -164,12 +164,20 @@ async def create_firebase_user_service(
             # Continue without mobile number if formatting fails
             mobile_for_db = None
         
-        # Check if user already exists
+        # Check if user already exists by Firebase UID
+        existing_user = session.exec(
+            select(UserInfo).where(UserInfo.UserId == firebase_uid)
+        ).first()
+        if existing_user:
+            logger.info(f"User already exists with Firebase UID: {firebase_uid}")
+            return existing_user
+        
+        # Check if mobile number already exists (secondary check)
         if mobile_for_db:
-            existing_user = session.exec(
+            existing_mobile_user = session.exec(
                 select(UserInfo).where(UserInfo.MobileNumber == mobile_for_db)
             ).first()
-            if existing_user:
+            if existing_mobile_user:
                 raise ValueError("User already registered with this phone number")
         
         # Extract name parts
@@ -177,25 +185,21 @@ async def create_firebase_user_service(
         first_name = additional_info.get('first_name') if additional_info else (name_parts[0] or 'User')
         last_name = additional_info.get('last_name') if additional_info else (name_parts[1] if len(name_parts) > 1 else '')
         
-        # Create new user WITHOUT specifying UserId - it will auto-increment
+        # Create new user with Firebase UID as UserId primary key
         new_user = UserInfo(
-            # UserId is NOT specified - PostgreSQL will auto-generate it
+            UserId=firebase_uid,  # Firebase UID as primary key
             FirstName=first_name,
             LastName=last_name,
-            MobileNumber=mobile_for_db,  # This can be None if formatting failed
+            MobileNumber=mobile_for_db,  # This can be None
             PasswordHash=None,  # Firebase auth, no local password
             CreatedAt=date.today()
         )
         
-        # Add Firebase UID if model supports it
-        if hasattr(UserInfo, 'FirebaseUID'):
-            new_user.FirebaseUID = firebase_uid
-        
         session.add(new_user)
         session.commit()
-        session.refresh(new_user)  # This will populate the auto-generated UserId
+        session.refresh(new_user)
         
-        logger.info(f"Firebase user created successfully with ID: {new_user.UserId}")
+        logger.info(f"Firebase user created successfully with UID: {new_user.UserId}")
         return new_user
         
     except ValueError:

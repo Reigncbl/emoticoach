@@ -41,17 +41,17 @@ class UserCreateRequest(BaseModel):
     MobileNumber: str
 
 class UserResponse(BaseModel):
-    UserId: int
-    FirstName: Optional[str]
-    LastName: Optional[str]
+    UserId: str  # Firebase UID
+    FirstName: str
+    LastName: str
     MobileNumber: Optional[str]
-    CreatedAt: Optional[date]
+    CreatedAt: date
 
 class FirebaseUserResponse(BaseModel):
     """Response for Firebase user creation with tokens"""
-    user_id: int
-    first_name: Optional[str]
-    last_name: Optional[str]
+    user_id: str  # Firebase UID
+    first_name: str
+    last_name: str
     mobile_number: Optional[str]
     access_token: str
     refresh_token: str
@@ -106,7 +106,7 @@ async def create_firebase_user(
         
         # Create JWT tokens for the new user
         auth_tokens = create_auth_tokens(
-            user_id=new_user.UserId,
+            user_id=new_user.UserId,  # Firebase UID
             mobile_number=new_user.MobileNumber,
             extra_data={
                 "signup_time": new_user.CreatedAt.isoformat() if new_user.CreatedAt else None
