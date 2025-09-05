@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/session_service.dart';
+import 'login.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -32,39 +33,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 32),
             SettingsActions(),
-            const SizedBox(height: 24),
-            // Logout Button
-            InkWell(
-              onTap: () async {
-                await SimpleSessionService.clearSession();
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => false,
-                );
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 4,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Logout',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    Icon(Icons.logout, color: Colors.orange, size: 20),
-                  ],
-                ),
-              ),
-            ),
             const SizedBox(height: 24),
             SettingsDangerZone(),
             const SizedBox(height: 60),
@@ -768,8 +736,13 @@ class SettingsActions extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
-            onPressed: () {
-              // Handle logout
+            onPressed: () async {
+              await SimpleSessionService.clearSession();
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (route) => false,
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFFFEBEE),

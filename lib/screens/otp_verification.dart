@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import '../main.dart';
+import '../config/api_config.dart';
 import '../services/authenticated_api_service.dart';
 
 // Firebase Auth imports
@@ -42,15 +43,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   // Firebase Auth instance
   final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  // Backend URL
-  String get _baseUrl {
-    if (Platform.isAndroid) {
-      return 'http://192.168.100.144:8000';
-    } else {
-      return 'http://10.0.2.2:8000';
-    }
-  }
 
   @override
   void initState() {
@@ -200,7 +192,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
   Future<void> _createUserInBackend(String idToken) async {
     try {
       final response = await http.post(
-        Uri.parse('$_baseUrl/users/create-firebase-user'),
+        Uri.parse(ApiConfig.createFirebaseUser),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'firebase_id_token': idToken,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/colors.dart';
+import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart'; // Google icon
 import 'package:iconify_flutter/icons/ic.dart'; // Email icon
@@ -45,17 +46,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // Firebase Auth variables
   String? _verificationId;
   bool _isPhoneAuthInProgress = false;
-
-  // Fixed base URL - Use your computer's IP address or emulator mapping
-  String get _baseUrl {
-    if (Platform.isAndroid) {
-      // For Android emulator, use special localhost mapping
-      return 'http://192.168.56.1:8000';
-    } else {
-      // For iOS simulator or physical devices, use your computer's IP
-      return 'http://10.0.2.2:8000'; // Replace with YOUR actual IP
-    }
-  }
 
   @override
   void initState() {
@@ -141,7 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/users/firebase-phone-verified'),
+            Uri.parse('${ApiConfig.baseUrl}/users/firebase-phone-verified'),
             headers: {
               'Content-Type': 'application/json',
               'User-Agent': _userAgent ?? 'Flutter App',
@@ -334,7 +324,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Send ONLY the Firebase ID token to your backend
         final response = await http
             .post(
-              Uri.parse('$_baseUrl/auth/google-login'),
+              Uri.parse('${ApiConfig.baseUrl}/auth/google-login'),
               headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': _userAgent ?? 'Flutter App',
@@ -479,7 +469,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/users/login-email'),
+            Uri.parse(ApiConfig.loginEmail),
             headers: {
               'Content-Type': 'application/json',
               'User-Agent': _userAgent ?? 'Flutter App',
@@ -874,7 +864,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 ),
                                 Text(
-                                  'Backend URL: $_baseUrl',
+                                  'Backend URL: ${ApiConfig.baseUrl}',
                                   style: const TextStyle(fontSize: 10),
                                 ),
                                 Text(
