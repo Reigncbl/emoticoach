@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/scenario_models.dart';
-import 'package:emoticoach/screens/learning/models/reading_model.dart';
+import 'package:emoticoach/models/reading_model.dart';
 
 class APIService {
   final http.Client _client;
@@ -231,6 +231,251 @@ class APIService {
       }
     } catch (e) {
       throw Exception('Failed to fetch readings: $e');
+    }
+  }
+
+  // ===============================
+  // TELEGRAM INTEGRATION METHODS
+  // ===============================
+
+  /// Start Telegram authentication - sends OTP to Telegram
+  Future<Map<String, dynamic>> startTelegramAuth(String phoneNumber) async {
+    try {
+      print('Starting Telegram authentication for: $phoneNumber');
+      
+      final requestBody = {
+        'phone_number': phoneNumber,
+      };
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/auth/start'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('Telegram auth start response: ${response.statusCode}');
+      print('Telegram auth start body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'message': responseData['message'] ?? 'Code sent to Telegram',
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to send Telegram code',
+        };
+      }
+    } catch (e) {
+      print('Error starting Telegram auth: $e');
+      return {
+        'success': false,
+        'error': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Verify Telegram authentication code
+  Future<Map<String, dynamic>> verifyTelegramAuth({
+    required String phoneNumber,
+    required String code,
+    String? password,
+  }) async {
+    try {
+      print('Verifying Telegram code for: $phoneNumber');
+      
+      final requestBody = {
+        'phone_number': phoneNumber,
+        'code': code,
+        if (password != null) 'password': password,
+      };
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/auth/verify'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('Telegram verify response: ${response.statusCode}');
+      print('Telegram verify body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        
+        // Check if password is required for 2FA
+        if (responseData['password_required'] == true) {
+          return {
+            'success': false,
+            'password_required': true,
+            'message': 'Two-factor authentication password required',
+          };
+        }
+        
+        return {
+          'success': true,
+          'message': responseData['message'] ?? 'Telegram authenticated successfully',
+          'user_id': responseData['user_id'],
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to verify Telegram code',
+        };
+      }
+    } catch (e) {
+      print('Error verifying Telegram auth: $e');
+      return {
+        'success': false,
+        'error': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Check Telegram authentication status
+  Future<Map<String, dynamic>> getTelegramStatus(String phoneNumber) async {
+    try {
+      print('Checking Telegram status for: $phoneNumber');
+      
+      final response = await _client
+          .get(
+            Uri.parse('$baseUrl/status?phone_number=$phoneNumber'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('Telegram status response: ${response.statusCode}');
+      print('Telegram status body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'authenticated': responseData['authenticated'] ?? false,
+          'user': responseData['user'],
+        };
+      } else {
+        return {
+          'success': false,
+          'authenticated': false,
+          'error': 'Failed to check Telegram status',
+        };
+      }
+    } catch (e) {
+      print('Error checking Telegram status: $e');
+      return {
+        'success': false,
+        'authenticated': false,
+        'error': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Get Telegram contacts
+  Future<Map<String, dynamic>> getTelegramContacts(String phoneNumber) async {
+    try {
+      print('Fetching Telegram contacts for: $phoneNumber');
+      
+      final response = await _client
+          .get(
+            Uri.parse('$baseUrl/contacts?phone_number=$phoneNumber'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('Telegram contacts response: ${response.statusCode}');
+      print('Telegram contacts body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'contacts': responseData['contacts'] ?? [],
+          'total': responseData['total'] ?? 0,
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': 'Not authenticated with Telegram',
+          'auth_required': true,
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to fetch Telegram contacts',
+        };
+      }
+    } catch (e) {
+      print('Error fetching Telegram contacts: $e');
+      return {
+        'success': false,
+        'error': 'Network error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Get messages from a Telegram contact
+  Future<Map<String, dynamic>> getTelegramMessages({
+    required String phoneNumber,
+    required String contactPhone,
+    required String firstName,
+    required String lastName,
+  }) async {
+    try {
+      print('Fetching Telegram messages for contact: $firstName $lastName');
+      
+      final requestBody = {
+        'phone': contactPhone,
+        'first_name': firstName,
+        'last_name': lastName,
+      };
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/messages?phone_number=$phoneNumber'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      print('Telegram messages response: ${response.statusCode}');
+      print('Telegram messages body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        return {
+          'success': true,
+          'sender': responseData['sender'],
+          'receiver': responseData['receiver'],
+          'messages': responseData['messages'] ?? [],
+        };
+      } else if (response.statusCode == 401) {
+        return {
+          'success': false,
+          'error': 'Not authenticated with Telegram',
+          'auth_required': true,
+        };
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to fetch messages',
+        };
+      }
+    } catch (e) {
+      print('Error fetching Telegram messages: $e');
+      return {
+        'success': false,
+        'error': 'Network error: ${e.toString()}',
+      };
     }
   }
 }

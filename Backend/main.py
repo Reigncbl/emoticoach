@@ -30,7 +30,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(book_routes)
-#app.include_router(message_routes)
+app.include_router(message_routes)
 app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
 

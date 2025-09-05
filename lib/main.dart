@@ -6,10 +6,11 @@ import 'screens/home.dart';
 import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
 import 'screens/overlays/overlay_ui.dart';
+import "screens/learning/scenario_screen.dart";
+import 'widgets/bottom_nav_bar.dart';
 import 'controllers/app_monitor_controller.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/learning/scenario_screen.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -30,7 +31,7 @@ class LearnScreen extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Fixed: Only initialize Firebase if it hasn't been initialized yet
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(
@@ -40,7 +41,7 @@ void main() async {
   } else {
     log('⚠️ Firebase already initialized, skipping...');
   }
-  
+
   _setupGlobalMethodChannel();
   runApp(const MyApp());
 }
@@ -94,7 +95,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'OpenSans'),
-      home: OnboardingScreen(),
+      home: MainScreen(),
     );
   }
 }
@@ -103,10 +104,10 @@ class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
   @override
-  State<MainScreen> createState() => _MainScreenState();
+  State<MainScreen> createState() => MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
+class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   final AppMonitorController _appMonitor = AppMonitorController();
 
@@ -116,6 +117,13 @@ class _MainScreenState extends State<MainScreen> {
     LearningScreen(), // index 2
     ProfileScreen(), // index 3
   ];
+
+  // Method to change the current index from other widgets
+  void changeIndex(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
 
   @override
   void initState() {
@@ -149,31 +157,9 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: const Color(0xFF3176F8),
-        unselectedItemColor: Colors.grey[600],
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,
-        showUnselectedLabels: true,
         onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.layers_outlined),
-            label: 'Overlay',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.menu_book_outlined),
-            label: 'Learn',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: 'Profile',
-          ),
-        ],
       ),
     );
   }

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:iconify_flutter/iconify_flutter.dart';
+import 'package:iconify_flutter/icons/ic.dart';
+import '../utils/colors.dart';
 
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -25,32 +28,62 @@ class BottomNavBar extends StatelessWidget {
     }
   }
 
+  Widget _buildIcon(String iconData, int index) {
+    final isSelected = currentIndex == index;
+    final color = isSelected ? kPrimaryBlue : kBlack;
+
+    return Iconify(iconData, size: 30, color: color);
+  }
+
   @override
   Widget build(BuildContext context) {
-    const Color kPrimaryBlue = Color(0xFF3176F8);
-
-    return BottomNavigationBar(
-      selectedItemColor: kPrimaryBlue,
-      unselectedItemColor: Colors.grey[600],
-      type: BottomNavigationBarType.fixed,
-      currentIndex: currentIndex,
-      onTap: (index) => _handleTap(context, index),
-      showUnselectedLabels: true,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.layers_outlined),
-          label: 'Overlay',
+    return Container(
+      padding: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: kBlack.withOpacity(0.3),
+            blurRadius: 15,
+            spreadRadius: 2,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: BottomNavigationBar(
+        selectedItemColor: kPrimaryBlue,
+        unselectedItemColor: kBlack,
+        type: BottomNavigationBarType.fixed,
+        currentIndex: currentIndex,
+        onTap: (index) => _handleTap(context, index),
+        showUnselectedLabels: true,
+        selectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.menu_book_outlined),
-          label: 'Learn',
+        unselectedLabelStyle: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 12,
         ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.person_outline),
-          label: 'Profile',
-        ),
-      ],
+        items: [
+          BottomNavigationBarItem(
+            icon: _buildIcon(Ic.outline_home, 0),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: _buildIcon(Ic.outline_layers, 1),
+            label: 'Overlay',
+          ),
+          BottomNavigationBarItem(
+            icon: _buildIcon(Ic.outline_menu_book, 2),
+            label: 'Learn',
+          ),
+          BottomNavigationBarItem(
+            icon: _buildIcon(Ic.person_outline, 3),
+            label: 'Profile',
+          ),
+        ],
+      ),
     );
   }
 }

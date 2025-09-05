@@ -1,16 +1,10 @@
-import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 import 'settings.dart';
-import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:iconify_flutter/icons/ic.dart'; // Material Icons
-import 'dart:ui'; // required for ImageFilter
+import 'dart:ui';
+import '../widgets/telegram_status_widget.dart';
+import '../widgets/telegram_verification_widget.dart';
 
-enum ActivityType {
-  badgeEarned,
-  moduleCompleted,
-  levelReached,
-  courseStarted,
-}
+enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -20,6 +14,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  // === TELEGRAM INTEGRATION STATE ===
+  bool _showTelegramVerification = false;
+  String? _userMobileNumber =
+      '+639762325664'; // This should come from your user session/storage
+
   // === NAVIGATION FUNCTIONS ===
   void _navigateToSettings() {
     Navigator.push(
@@ -31,6 +30,84 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _editProfile() {
     print("Edit Profile tapped");
     // Navigate to Edit Profile screen here
+  }
+
+  // === TELEGRAM INTEGRATION FUNCTIONS ===
+  void _showTelegramVerificationDialog() {
+    setState(() {
+      _showTelegramVerification = true;
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          child: TelegramVerificationWidget(
+            userMobileNumber: _userMobileNumber,
+            onVerificationSuccess: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _showTelegramVerification = false;
+              });
+              // Refresh the page or show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Telegram connected successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            onCancel: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _showTelegramVerification = false;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _disconnectTelegram() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disconnect Telegram'),
+        content: const Text(
+          'Are you sure you want to disconnect your Telegram account? You will lose access to enhanced features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Implement actual disconnect logic
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Telegram disconnected'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Disconnect',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // == SPECIFIC FUNCTIONS ===
@@ -73,27 +150,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   IconData _getActivityIcon(ActivityType type) {
-  switch (type) {
-    case ActivityType.badgeEarned:
-      return Icons.emoji_events; // Trophy icon
-    case ActivityType.moduleCompleted:
-      return Icons.check_circle; // Checkmark
-    case ActivityType.levelReached:
-      return Icons.star; // Star for level up
-    case ActivityType.courseStarted:
-      return Icons.school; // Graduation cap
+    switch (type) {
+      case ActivityType.badgeEarned:
+        return Icons.emoji_events; // Trophy icon
+      case ActivityType.moduleCompleted:
+        return Icons.check_circle; // Checkmark
+      case ActivityType.levelReached:
+        return Icons.star; // Star for level up
+      case ActivityType.courseStarted:
+        return Icons.school; // Graduation cap
+    }
   }
-}
-
 
   // == GLOBAL FUNCTIONS ===
 
   String _formatDate(DateTime date, {String? action}) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     final actionText = action != null ? '$action ' : '';
-    
+
     if (difference.inDays >= 14) {
       final weeks = (difference.inDays / 7).floor();
       return '$actionText$weeks week${weeks == 1 ? '' : 's'} ago';
@@ -111,19 +187,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // === UI HELPERS ===
 
   // profile card
-  Widget _profileCard({
-    required String name,
-    required String level,
-  }) {
+  Widget _profileCard({required String name, required String level}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            kBrightBlue,
-            kDarkerBlue,
-          ],
+          colors: [kBrightBlue, kDarkerBlue],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -148,11 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: CircleAvatar(
               radius: 35,
               backgroundColor: Colors.white.withOpacity(0.3),
-              child: Icon(
-                Icons.person_outline,
-                size: 40,
-                color: Colors.white,
-              ),
+              child: Icon(Icons.person_outline, size: 40, color: Colors.white),
             ),
           ),
           const SizedBox(width: 20),
@@ -175,7 +241,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                 // Level Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -187,11 +256,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        Icons.star_outline,
-                        size: 16,
-                        color: Colors.white,
-                      ),
+                      Icon(Icons.star_outline, size: 16, color: Colors.white),
                       const SizedBox(width: 6),
                       Text(
                         level,
@@ -223,12 +288,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     double progress = currentXp / nextLevelXp;
 
     return Container(
-      padding: const EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 16,
-        bottom: 20,
-      ),
+      padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 20),
       decoration: BoxDecoration(
         color: kWhite.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
@@ -259,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          
+
           // Progress Bar
           Container(
             height: 8,
@@ -345,18 +405,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Feedback over time graph
-  Widget _feedbackGraph ({
+  Widget _feedbackGraph({
     required String feedbackScore,
     required DateTime date,
   }) {
-    return Container (
-      
-    );
+    return Container();
   }
 
   // Main container widget for the skills graph/progress bar
   Widget _skillsGraphWidget() {
-    return ClipRRect (
+    return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -473,7 +531,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color? backgroundColor,
     Color? iconColor,
   }) {
-    return ClipRRect (
+    return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
@@ -495,8 +553,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 48,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: iconColor?.withOpacity(0.1) ?? Colors.blue.withOpacity(0.1),
-
+                      color:
+                          iconColor?.withOpacity(0.1) ??
+                          Colors.blue.withOpacity(0.1),
                     ),
                     child: Icon(
                       iconData,
@@ -556,7 +615,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    _formatDate(dateEarned, action: 'Earned'), // e.g. "Earned 1 hour ago",
+                    _formatDate(
+                      dateEarned,
+                      action: 'Earned',
+                    ), // e.g. "Earned 1 hour ago",
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -604,8 +666,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: status
-                        ? const Color(0xFFE3F2FD) // Light blue background when owned
-                        : const Color(0xFFE0E0E0), // Grey background when unowned
+                        ? const Color(
+                            0xFFE3F2FD,
+                          ) // Light blue background when owned
+                        : const Color(
+                            0xFFE0E0E0,
+                          ), // Grey background when unowned
                   ),
                   child: Center(
                     child: Icon(
@@ -649,12 +715,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color? backgroundColor,
     Color? accentColor,
   }) {
-    return ClipRRect( // Needed to clip the blur effect properly
+    return ClipRRect(
+      // Needed to clip the blur effect properly
       borderRadius: BorderRadius.zero, // No border radius
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          margin: const EdgeInsets.only(left: 0, right: 0), // to cancel global padding
+          margin: const EdgeInsets.only(
+            left: 0,
+            right: 0,
+          ), // to cancel global padding
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.1), // Glass background
@@ -670,13 +740,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: accentColor?.withOpacity(0.8) ?? Colors.green.withOpacity(0.8),
+                  color:
+                      accentColor?.withOpacity(0.8) ??
+                      Colors.green.withOpacity(0.8),
                 ),
-                child: Icon(
-                  icon.icon,
-                  color: Colors.white,
-                  size: 24,
-                ),
+                child: Icon(icon.icon, color: Colors.white, size: 24),
               ),
               const SizedBox(width: 16),
               // Content
@@ -712,9 +780,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // Title Component
-  Widget _title({
-    required String title,
-  }) {
+  Widget _title({required String title}) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
@@ -727,6 +793,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
   // === MAIN UI ===
   @override
   Widget build(BuildContext context) {
@@ -755,11 +822,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       GestureDetector(
                         onTap: _editProfile,
-                        child: const Iconify(
-                          Ic.edit,
-                          size: 28,
-                          color: kBlack,
-                        ),
+                        child: const Iconify(Ic.edit, size: 28, color: kBlack),
                       ),
 
                       const SizedBox(width: 4),
@@ -786,12 +849,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
 
                   // === PROGRESS DASHBOARD ===
-                  _title (title: 'Progress Dashboard'),
+                  _title(title: 'Progress Dashboard'),
                   // Progress Dashboard Widget
-                  _progressDashboard(
-                    progressXp: '1820',
-                    totalXp: '3800',
-                  ),
+                  _progressDashboard(progressXp: '1820', totalXp: '3800'),
 
                   // === STATS ROW 1 ===
                   Row(
@@ -830,7 +890,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // === KEY SKILLS SECTION ===
                   const SizedBox(height: 12),
 
-                  _title (title: 'Key Skills'),
+                  _title(title: 'Key Skills'),
 
                   const SizedBox(height: 12),
 
@@ -838,14 +898,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   const SizedBox(height: 24),
 
+                  // === TELEGRAM INTEGRATION SECTION ===
+                  _title(title: 'Telegram Integration'),
+
+                  const SizedBox(height: 12),
+
+                  TelegramStatusWidget(
+                    userMobileNumber: _userMobileNumber,
+                    onConnectPressed: _showTelegramVerificationDialog,
+                    onDisconnectPressed: _disconnectTelegram,
+                  ),
+
+                  const SizedBox(height: 24),
+
                   // === BADGES SECTION ===
-                  _title (title: 'Badges'),
+                  _title(title: 'Badges'),
 
                   const SizedBox(height: 12),
 
                   // Badge Component ROW 1
-
-                  Row (
+                  Row(
                     children: [
                       Expanded(
                         child: _badgeComponent(
@@ -857,7 +929,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Top Performer',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -872,7 +946,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Badge 3',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -887,7 +963,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Badge 4',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -896,7 +974,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
 
                   // Badge Component ROW 2
-                  Row (
+                  Row(
                     children: [
                       Expanded(
                         child: _badgeComponent(
@@ -908,7 +986,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Badge 6',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -923,7 +1003,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Badge 1',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -938,7 +1020,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             badgeName: 'Badge 8',
                             badgeDescription:
                                 'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(const Duration(days: 14)),
+                            dateEarned: DateTime.now().subtract(
+                              const Duration(days: 14),
+                            ),
                             rarityText: 'Only 12% of users have this',
                           ),
                         ),
@@ -966,7 +1050,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
 
                   // === ACTIVITY SECTION ===
-                  _title (title: 'Activity'),
+                  _title(title: 'Activity'),
 
                   const SizedBox(height: 12),
 
@@ -1005,7 +1089,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     backgroundColor: Colors.amber.shade50,
                     accentColor: Colors.amber.shade600,
                   ),
-                
                 ],
               ),
             ),
