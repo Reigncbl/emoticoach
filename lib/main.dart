@@ -7,6 +7,7 @@ import 'screens/overlay_page.dart';
 import 'screens/profile.dart';
 import 'screens/overlays/overlay_ui.dart';
 import 'controllers/app_monitor_controller.dart';
+import 'services/session_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/learning/scenario_screen.dart';
@@ -30,7 +31,7 @@ class LearnScreen extends StatelessWidget {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Fixed: Only initialize Firebase if it hasn't been initialized yet
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(
@@ -40,7 +41,7 @@ void main() async {
   } else {
     log('⚠️ Firebase already initialized, skipping...');
   }
-  
+
   _setupGlobalMethodChannel();
   runApp(const MyApp());
 }
@@ -94,7 +95,21 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'OpenSans'),
-      home: OnboardingScreen(),
+      home: FutureBuilder<bool>(
+        future: SimpleSessionService.isLoggedIn(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          // If logged in, go to home. Otherwise, show onboarding
+          return snapshot.data == true
+              ? const MainScreen()
+              : OnboardingScreen();
+        },
+      ),
     );
   }
 }

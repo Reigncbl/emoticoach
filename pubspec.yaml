@@ -32,6 +32,7 @@ dependencies:
   iconify_flutter: ^0.0.7
   smooth_page_indicator: ^1.2.1
   flutter_native_splash: ^2.4.6
+  shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:
@@ -59,4 +60,3 @@ flutter:
           weight: 700
         - asset: assets/fonts/OpenSans-ExtraBold.ttf
           weight: 800
-

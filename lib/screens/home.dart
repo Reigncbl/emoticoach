@@ -1,9 +1,21 @@
 // ignore_for_file: deprecated_member_use
 import 'package:flutter/material.dart';
 import '../utils/colors.dart';
+import '../utils/user_data_mixin.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> with UserDataMixin {
+  @override
+  void initState() {
+    super.initState();
+    loadUserData(); // Using the mixin method
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +32,7 @@ class HomePage extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Good morning, Darlene Erika!',
+                      userGreeting,
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 20,

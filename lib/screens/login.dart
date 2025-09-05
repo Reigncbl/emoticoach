@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/colors.dart';
+import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart'; // Google icon
 import 'package:iconify_flutter/icons/ic.dart'; // Email icon
@@ -15,6 +16,10 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+// Session management
+import '../services/authenticated_api_service.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -28,7 +33,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   // Controller for phone number input
   final TextEditingController _phoneController = TextEditingController();
-  
+
   // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
@@ -36,7 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
   // Backend Integration Variables
   bool _isLoading = false;
   String _errorMessage = '';
-  
+
   // Device info for security
   String? _deviceInfo;
   String? _userAgent;
@@ -44,17 +49,6 @@ class _LoginScreenState extends State<LoginScreen> {
   // Firebase Auth variables
   String? _verificationId;
   bool _isPhoneAuthInProgress = false;
-
-  // Fixed base URL - Use your computer's IP address or emulator mapping
-  String get _baseUrl {
-    if (Platform.isAndroid) {
-      // For Android emulator, use special localhost mapping
-      return 'http://10.96.80.29:8000';
-    } else {
-      // For iOS simulator or physical devices, use your computer's IP
-      return 'http://10.0.2.2:8000'; // Replace with YOUR actual IP
-    }
-  }
 
   @override
   void initState() {
@@ -65,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _isMobileFocused = _mobileFocusNode.hasFocus;
       });
     });
-    
+
     // Initialize device info
     _initializeDeviceInfo();
   }
@@ -81,11 +75,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _initializeDeviceInfo() async {
     try {
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-      
+
       if (Platform.isAndroid) {
         AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
         _deviceInfo = '${androidInfo.brand} ${androidInfo.model}';
-        _userAgent = 'Flutter Android/${androidInfo.version.release} (${androidInfo.model})';
+        _userAgent =
+            'Flutter Android/${androidInfo.version.release} (${androidInfo.model})';
       } else if (Platform.isIOS) {
         IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
         _deviceInfo = '${iosInfo.name} ${iosInfo.model}';
@@ -108,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
         .replaceAll(' ', '')
         .replaceAll('(', '')
         .replaceAll(')', '');
-    
+
     // Handle different input formats
     if (cleaned.startsWith('0') && cleaned.length == 11) {
       // 09955578757 -> +639955578757
@@ -120,59 +115,37 @@ class _LoginScreenState extends State<LoginScreen> {
       // Any 10-digit number -> +63 prefix
       return '+63$cleaned';
     }
-    
+
     // If already has +63 or other format, return as is
     return phoneInput.startsWith('+') ? phoneInput : '+63$cleaned';
   }
 
-  // Enhanced user existence check
+  // Enhanced user existence check - simplified (always return true)
   Future<bool> _checkUserExists(String mobileNumber) async {
-    try {
-      print('Checking if user exists: $mobileNumber');
-      
-      // URL encode the mobile number to handle the + character
-      final encodedNumber = Uri.encodeComponent(mobileNumber);
-      
-      final response = await http.get(
-        Uri.parse('$_baseUrl/users/check-mobile?mobile_number=$encodedNumber'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': _userAgent ?? 'Flutter App',
-        },
-      ).timeout(const Duration(seconds: 15));
-
-      print('Check user response: ${response.statusCode}');
-      print('Check user body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        return responseData['exists'] ?? false;
-      }
-      return false;
-    } on http.ClientException catch (e) {
-      print('Connection error checking user: $e');
-      return false;
-    } catch (e) {
-      print('Error checking user: $e');
-      return false;
-    }
+    // For simple client-side session, always allow login
+    return true;
   }
 
   // Send verification data to backend after Firebase Auth success
-  Future<void> _notifyBackendOfVerification(String mobileNumber, String firebaseUid) async {
+  Future<void> _notifyBackendOfVerification(
+    String mobileNumber,
+    String firebaseUid,
+  ) async {
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/users/firebase-phone-verified'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': _userAgent ?? 'Flutter App',
-        },
-        body: json.encode({
-          'mobile_number': mobileNumber,
-          'firebase_uid': firebaseUid,
-          'device_info': _deviceInfo,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/users/firebase-phone-verified'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': _userAgent ?? 'Flutter App',
+            },
+            body: json.encode({
+              'mobile_number': mobileNumber,
+              'firebase_uid': firebaseUid,
+              'device_info': _deviceInfo,
+            }),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         // Backend notified successfully
@@ -196,16 +169,17 @@ class _LoginScreenState extends State<LoginScreen> {
       await FirebaseAuth.instance.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 120),
-        
+
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             // Auto-verification completed
-            UserCredential result = await FirebaseAuth.instance.signInWithCredential(credential);
-            
+            UserCredential result = await FirebaseAuth.instance
+                .signInWithCredential(credential);
+
             if (result.user != null) {
               // Notify backend
               await _notifyBackendOfVerification(phoneNumber, result.user!.uid);
-              
+
               // Navigate to OTP screen (or home if auto-verified)
               Navigator.push(
                 context,
@@ -220,11 +194,12 @@ class _LoginScreenState extends State<LoginScreen> {
           } catch (e) {
             print('Auto-verification error: $e');
             setState(() {
-              _errorMessage = 'Auto-verification failed. Please enter code manually.';
+              _errorMessage =
+                  'Auto-verification failed. Please enter code manually.';
             });
           }
         },
-        
+
         verificationFailed: (FirebaseAuthException e) {
           print('Verification failed: ${e.code} - ${e.message}');
           setState(() {
@@ -232,7 +207,8 @@ class _LoginScreenState extends State<LoginScreen> {
             if (e.code == 'invalid-phone-number') {
               _errorMessage = 'Invalid phone number format.';
             } else if (e.code == 'too-many-requests') {
-              _errorMessage = 'Too many verification attempts. Please try again later.';
+              _errorMessage =
+                  'Too many verification attempts. Please try again later.';
             } else if (e.code == 'web-context-cancelled') {
               _errorMessage = 'Verification was cancelled. Please try again.';
             } else {
@@ -240,15 +216,15 @@ class _LoginScreenState extends State<LoginScreen> {
             }
           });
         },
-        
+
         codeSent: (String verificationId, int? resendToken) {
           print('SMS code sent successfully');
           _verificationId = verificationId;
-          
+
           setState(() {
             _isPhoneAuthInProgress = false;
           });
-          
+
           // Navigate to OTP verification screen
           Navigator.push(
             context,
@@ -260,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           );
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification code sent successfully!'),
@@ -268,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         },
-        
+
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
         },
@@ -282,155 +258,160 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Updated SMS handling using Firebase Auth
+  // Updated SMS handling using Firebase Auth - simplified
   void _handleSendSms() async {
     if (_formKey.currentState!.validate()) {
       String phoneInput = _phoneController.text.trim();
-      
-      // Format to +63 format for backend
+
+      // Format to +63 format for Firebase
       String formattedMobile = _formatPhoneNumber(phoneInput);
-      
+
       print("Send SMS to: $formattedMobile (Formatted with +63)");
-      print("Using Firebase Auth instead of custom backend SMS");
+      print("Using Firebase Auth for verification");
 
-      // Check if user exists first
-      bool userExists = await _checkUserExists(formattedMobile);
-      
-      if (!userExists) {
-        // User doesn't exist - show error and suggest signup
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Mobile number not registered. Please sign up first.'),
-            backgroundColor: Colors.orange,
-            action: SnackBarAction(
-              label: 'Sign Up',
-              textColor: Colors.white,
-              onPressed: _goToSignup,
-            ),
-          ),
-        );
-        return;
-      }
-
-      // Use Firebase Phone Auth (handles reCAPTCHA automatically)
+      // For simple client session, always proceed to Firebase auth
       _handleFirebasePhoneAuth(formattedMobile);
     }
   }
 
   // Enhanced Google login (placeholder for now)
   void _handleGoogleLogin() async {
-  print("Google login pressed");
-  
-  setState(() {
-    _isLoading = true;
-  });
+    print("Google login pressed");
 
-  try {
-    // Initialize Google Sign In
-    final GoogleSignIn googleSignIn = GoogleSignIn(
-      scopes: ['email', 'profile'], // Add required scopes
-    );
+    setState(() {
+      _isLoading = true;
+    });
 
-    // Sign out first to ensure account picker shows
-    await googleSignIn.signOut();
+    try {
+      // Initialize Google Sign In
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'], // Add required scopes
+      );
 
-    // Trigger the Google authentication flow
-    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-    
-    if (googleUser == null) {
-      // User cancelled the sign-in
+      // Sign out first to ensure account picker shows
+      await googleSignIn.signOut();
+
+      // Trigger the Google authentication flow
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // Create a new credential for Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      final UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithCredential(credential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        // Get the Firebase ID token
+        final String? firebaseIdToken = await user.getIdToken();
+
+        print('Firebase User ID: ${user.uid}');
+        print('User Email: ${user.email}');
+
+        // Send ONLY the Firebase ID token to your backend
+        final response = await http
+            .post(
+              Uri.parse('${ApiConfig.baseUrl}/auth/google-login'),
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': _userAgent ?? 'Flutter App',
+              },
+              body: json.encode({'firebase_id_token': firebaseIdToken}),
+            )
+            .timeout(const Duration(seconds: 30));
+
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          print('Google login successful: $responseData');
+
+          // Save Google login session
+          final displayNameParts = user.displayName?.split(' ') ?? [];
+          await SimpleApiService.saveGoogleSession(
+            email: user.email!,
+            firebaseUid: user.uid,
+            firstName: displayNameParts.isNotEmpty
+                ? displayNameParts.first
+                : null,
+            lastName: displayNameParts.length > 1
+                ? displayNameParts.sublist(1).join(' ')
+                : null,
+            additionalData: {
+              'photoUrl': user.photoURL,
+              'emailVerified': user.emailVerified,
+              'loginTimestamp': DateTime.now().toIso8601String(),
+            },
+          );
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Google login successful!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // Navigate to home screen
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          final responseData = json.decode(response.body);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                responseData['detail'] ??
+                    'Google login failed. Please try again.',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } on FirebaseAuthException catch (e) {
+      print('Firebase Auth error: ${e.code} - ${e.message}');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google authentication failed. Please try again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } on http.ClientException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connection error: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      print('Google login error: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('An unexpected error occurred during Google login.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
       setState(() {
         _isLoading = false;
       });
-      return;
     }
-
-    // Obtain the auth details from the request
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-    // Create a new credential for Firebase
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
-
-    // Sign in to Firebase with the Google credential
-    final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-    final User? user = userCredential.user;
-
-    if (user != null) {
-      // Get the Firebase ID token
-      final String? firebaseIdToken = await user.getIdToken();
-      
-      print('Firebase User ID: ${user.uid}');
-      print('User Email: ${user.email}');
-
-      // Send ONLY the Firebase ID token to your backend
-      final response = await http.post(
-        Uri.parse('$_baseUrl/auth/google-login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': _userAgent ?? 'Flutter App',
-        },
-        body: json.encode({
-          'firebase_id_token': firebaseIdToken,
-        }),
-      ).timeout(const Duration(seconds: 30));
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        print('Google login successful: $responseData');
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Google login successful!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        
-        // Navigate to home screen
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        final responseData = json.decode(response.body);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(responseData['detail'] ?? 'Google login failed. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  } on FirebaseAuthException catch (e) {
-    print('Firebase Auth error: ${e.code} - ${e.message}');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Google authentication failed. Please try again.'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } on http.ClientException catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Connection error: ${e.message}'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } catch (e) {
-    print('Google login error: $e');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('An unexpected error occurred during Google login.'),
-        backgroundColor: Colors.red,
-      ),
-    );
-  } finally {
-    setState(() {
-      _isLoading = false;
-    });
   }
-}
+
   // Email login with better error handling
   void _handleEmailLogin() async {
     print("Email login pressed");
@@ -507,33 +488,46 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/users/login-email'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': _userAgent ?? 'Flutter App',
-        },
-        body: json.encode({
-          'email': email,
-          'password': password,
-        }),
-      ).timeout(const Duration(seconds: 30));
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.loginEmail),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': _userAgent ?? 'Flutter App',
+            },
+            body: json.encode({'email': email, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       final responseData = json.decode(response.body);
 
       if (response.statusCode == 200) {
         // Email login successful
         print('Email login successful: $responseData');
-        
+
+        // Save email login session
+        await SimpleApiService.saveEmailSession(
+          email: email,
+          firstName: responseData['first_name'],
+          lastName: responseData['last_name'],
+          phoneNumber: responseData['phone_number'],
+          firebaseUid: responseData['firebase_uid'],
+          additionalData: {
+            'loginTimestamp': DateTime.now().toIso8601String(),
+            'userLevel': responseData['level'],
+            'accountType': responseData['account_type'],
+          },
+        );
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Login successful!'),
             backgroundColor: Colors.green,
           ),
         );
-        
-        // TODO: Navigate to home screen
-        // Navigator.pushReplacementNamed(context, '/home');
+
+        // Navigate to home screen
+        Navigator.pushReplacementNamed(context, '/home');
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -600,7 +594,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     children: [
                       const SizedBox(height: 120),
-                      
+
                       // Login Title
                       const Text(
                         "Login",
@@ -641,13 +635,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("Mobile Number", style: TextStyle(fontSize: 16)),
+                          const Text(
+                            "Mobile Number",
+                            style: TextStyle(fontSize: 16),
+                          ),
                           const SizedBox(height: 8),
                           Container(
                             height: 48,
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: _isMobileFocused ? Colors.blue : Colors.grey,
+                                color: _isMobileFocused
+                                    ? Colors.blue
+                                    : Colors.grey,
                                 width: _isMobileFocused ? 2.0 : 1.0,
                               ),
                               borderRadius: BorderRadius.circular(8.0),
@@ -656,16 +655,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: const Center(
-                                    child: Text('+63'),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
                                   ),
+                                  child: const Center(child: Text('+63')),
                                 ),
                                 Container(
                                   width: 1,
                                   height: 24,
                                   color: Colors.grey,
-                                  margin: const EdgeInsets.symmetric(vertical: 12),
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
                                 ),
                                 Expanded(
                                   child: TextFormField(
@@ -673,12 +674,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                     focusNode: _mobileFocusNode,
                                     keyboardType: TextInputType.number,
                                     maxLength: 10,
-                                    enabled: !_isLoading && !_isPhoneAuthInProgress,
+                                    enabled:
+                                        !_isLoading && !_isPhoneAuthInProgress,
                                     inputFormatters: [
                                       FilteringTextInputFormatter.digitsOnly,
                                     ],
                                     validator: (value) {
-                                      if (value == null || value.trim().isEmpty) {
+                                      if (value == null ||
+                                          value.trim().isEmpty) {
                                         return 'Enter your mobile number';
                                       }
                                       if (value.length != 10) {
@@ -716,9 +719,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: double.infinity,
                         height: 50,
                         child: ElevatedButton(
-                          onPressed: _isLoading || _isPhoneAuthInProgress ? null : _handleSendSms,
+                          onPressed: _isLoading || _isPhoneAuthInProgress
+                              ? null
+                              : _handleSendSms,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: _isLoading || _isPhoneAuthInProgress ? Colors.grey : Colors.blueAccent,
+                            backgroundColor:
+                                _isLoading || _isPhoneAuthInProgress
+                                ? Colors.grey
+                                : Colors.blueAccent,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8.0),
                             ),
@@ -732,24 +740,40 @@ class _LoginScreenState extends State<LoginScreen> {
                                       height: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
                                     Text(
-                                      _isPhoneAuthInProgress ? "Sending SMS..." : "Processing...",
-                                      style: const TextStyle(fontSize: 16, color: Colors.white),
+                                      _isPhoneAuthInProgress
+                                          ? "Sending SMS..."
+                                          : "Processing...",
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ],
                                 )
                               : const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.sms, size: 20, color: Colors.white),
+                                    Icon(
+                                      Icons.sms,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
                                     SizedBox(width: 8),
                                     Text(
                                       "Send SMS",
-                                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -767,7 +791,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.verified_user, color: Colors.green.shade700, size: 16),
+                            Icon(
+                              Icons.verified_user,
+                              color: Colors.green.shade700,
+                              size: 16,
+                            ),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
@@ -785,8 +813,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 20),
 
                       // Divider Text
-                      const Text("or",
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const Text(
+                        "or",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // Social Login Buttons
@@ -795,17 +828,25 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           // Google Login
                           GestureDetector(
-                            onTap: _isLoading || _isPhoneAuthInProgress ? null : _handleGoogleLogin,
+                            onTap: _isLoading || _isPhoneAuthInProgress
+                                ? null
+                                : _handleGoogleLogin,
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                border: Border.all(color: _isLoading || _isPhoneAuthInProgress ? Colors.grey : Colors.blueAccent),
+                                border: Border.all(
+                                  color: _isLoading || _isPhoneAuthInProgress
+                                      ? Colors.grey
+                                      : Colors.blueAccent,
+                                ),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Iconify(
                                 Ri.google_fill,
                                 size: 28,
-                                color: _isLoading || _isPhoneAuthInProgress ? Colors.grey : Colors.blueAccent,
+                                color: _isLoading || _isPhoneAuthInProgress
+                                    ? Colors.grey
+                                    : Colors.blueAccent,
                               ),
                             ),
                           ),
@@ -821,11 +862,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           const Text("Don't have an account yet? "),
                           GestureDetector(
-                            onTap: _isLoading || _isPhoneAuthInProgress ? null : _goToSignup,
+                            onTap: _isLoading || _isPhoneAuthInProgress
+                                ? null
+                                : _goToSignup,
                             child: Text(
                               "Signup",
                               style: TextStyle(
-                                color: _isLoading || _isPhoneAuthInProgress ? Colors.grey : Colors.deepOrange,
+                                color: _isLoading || _isPhoneAuthInProgress
+                                    ? Colors.grey
+                                    : Colors.deepOrange,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -846,12 +891,33 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Debug Info:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                Text('Backend URL: $_baseUrl', style: const TextStyle(fontSize: 10)),
-                                Text('Platform: ${Platform.isAndroid ? "Android" : "iOS"}', style: const TextStyle(fontSize: 10)),
-                                Text('Device: $_deviceInfo', style: const TextStyle(fontSize: 10)),
-                                Text('User Agent: $_userAgent', style: const TextStyle(fontSize: 10)),
-                                const Text('Auth: Firebase Native', style: TextStyle(fontSize: 10)),
+                                const Text(
+                                  'Debug Info:',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  'Backend URL: ${ApiConfig.baseUrl}',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                Text(
+                                  'Platform: ${Platform.isAndroid ? "Android" : "iOS"}',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                Text(
+                                  'Device: $_deviceInfo',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                Text(
+                                  'User Agent: $_userAgent',
+                                  style: const TextStyle(fontSize: 10),
+                                ),
+                                const Text(
+                                  'Auth: Firebase Native',
+                                  style: TextStyle(fontSize: 10),
+                                ),
                               ],
                             ),
                           ),
@@ -866,9 +932,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (_isLoading || _isPhoneAuthInProgress)
               Container(
                 color: Colors.black.withOpacity(0.3),
-                child: const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                child: const Center(child: CircularProgressIndicator()),
               ),
           ],
         ),

@@ -9,6 +9,12 @@ import logging
 from model.userinfo import UserInfo
 from core.db_connection import get_db as get_session
 from services.auth_signup import create_firebase_user_service
+from services.auth_service import (
+    create_auth_tokens, 
+    verify_token, 
+    get_current_user,
+    AuthTokens
+)
 from firebase_admin.exceptions import FirebaseError
 import traceback
 # Import services
@@ -35,11 +41,21 @@ class UserCreateRequest(BaseModel):
     MobileNumber: str
 
 class UserResponse(BaseModel):
-    UserId: int
-    FirstName: Optional[str]
-    LastName: Optional[str]
+    UserId: str  # Firebase UID
+    FirstName: str
+    LastName: str
     MobileNumber: Optional[str]
-    CreatedAt: Optional[date]
+    CreatedAt: date
+
+class FirebaseUserResponse(BaseModel):
+    """Response for Firebase user creation with tokens"""
+    user_id: str  # Firebase UID
+    first_name: str
+    last_name: str
+    mobile_number: Optional[str]
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
 
 class SMSRequest(BaseModel):
     """For sending SMS OTP"""
@@ -72,7 +88,7 @@ class GoogleLoginRequest(BaseModel):
     google_token: str
 
 # === REGISTRATION ENDPOINTS ===
-@userinfo_router.post("/create-firebase-user", response_model=UserResponse, status_code=201)
+@userinfo_router.post("/create-firebase-user", response_model=FirebaseUserResponse, status_code=201)
 async def create_firebase_user(
     request: FirebaseUserCreateRequest,
     session: Session = Depends(get_session)
@@ -87,12 +103,24 @@ async def create_firebase_user(
             session=session,
             additional_info=request.additional_info
         )
-        return UserResponse(
-            UserId=new_user.UserId,
-            FirstName=new_user.FirstName,
-            LastName=new_user.LastName,
-            MobileNumber=new_user.MobileNumber,
-            CreatedAt=new_user.CreatedAt
+        
+        # Create JWT tokens for the new user
+        auth_tokens = create_auth_tokens(
+            user_id=new_user.UserId,  # Firebase UID
+            mobile_number=new_user.MobileNumber,
+            extra_data={
+                "signup_time": new_user.CreatedAt.isoformat() if new_user.CreatedAt else None
+            }
+        )
+        
+        return FirebaseUserResponse(
+            user_id=new_user.UserId,
+            first_name=new_user.FirstName,
+            last_name=new_user.LastName,
+            mobile_number=new_user.MobileNumber,
+            access_token=auth_tokens.access_token,
+            refresh_token=auth_tokens.refresh_token,
+            token_type=auth_tokens.token_type
         )
     except FirebaseError as e:
         logger.error(f"Firebase token verification failed: {str(e)}")
@@ -590,7 +618,7 @@ async def create_user_direct(
 
 @userinfo_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: int,
+    user_id: str,
     session: Session = Depends(get_session)
 ):
     """Get a user by ID"""

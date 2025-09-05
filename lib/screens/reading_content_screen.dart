@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class ReadingContentScreen extends StatefulWidget {
   const ReadingContentScreen({super.key});
@@ -12,8 +13,7 @@ class ReadingContentScreen extends StatefulWidget {
 class _ReadingContentScreenState extends State<ReadingContentScreen> {
   late Future<List<Map<String, dynamic>>> _pageDataFuture;
 
-  final String baseUrl =
-      'http://127.0.0.1:8000/book/R-00002/24'; // Replace with your actual API
+  final String baseUrl = '${ApiConfig.baseUrl}/book/R-00002/24';
 
   @override
   void initState() {
