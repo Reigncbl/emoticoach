@@ -618,7 +618,7 @@ async def create_user_direct(
 
 @userinfo_router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
-    user_id: int,
+    user_id: str,
     session: Session = Depends(get_session)
 ):
     """Get a user by ID"""

@@ -144,7 +144,9 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
         String? idToken = await result.user!.getIdToken();
 
         if (idToken != null) {
-          print('📱 Firebase ID Token obtained: ${idToken.substring(0, 20)}...');
+          print(
+            '📱 Firebase ID Token obtained: ${idToken.substring(0, 20)}...',
+          );
           if (widget.purpose == AuthPurpose.signup) {
             print('📝 Calling backend for signup...');
             // For signup, create user in backend
