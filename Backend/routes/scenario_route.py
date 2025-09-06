@@ -5,7 +5,7 @@ from model.readingsinfo import ReadingsInfo
 from model.readingblock import ReadingBlock
 from core.db_connection import SessionDep
 from core.supabase_config import SupabaseStorage
-from model.scenario import Scenario
+from model.scenario_with_config import ScenarioWithConfig
 from services.scenario import (
     chat_with_ai, 
     evaluate_conversation,
@@ -30,7 +30,7 @@ class CreateScenarioRequest(BaseModel):
     yaml_content: str
 
 
-scenario_router = APIRouter()
+scenario_router = APIRouter(prefix="/scenarios")
 
 @scenario_router.get('/start/{scenario_id}', response_model=ConfigResponse)
 async def start(scenario_id: int):
@@ -135,15 +135,22 @@ async def create_scenario(request: CreateScenarioRequest, session: SessionDep):
         if not upload_success:
             raise HTTPException(status_code=500, detail="Failed to upload YAML configuration")
         
+        # Parse YAML content to get character config
+        import yaml
+        try:
+            yaml_config = yaml.safe_load(request.yaml_content)
+        except yaml.YAMLError:
+            raise HTTPException(status_code=400, detail="Invalid YAML content")
+        
         # Create scenario record in database
-        scenario = Scenario(
+        scenario = ScenarioWithConfig(
             title=request.title,
             description=request.description,
             category=request.category,
             difficulty=request.difficulty,
-            config_file=request.config_file,
             estimated_duration=request.estimated_duration,
-            max_turns=request.max_turns
+            max_turns=request.max_turns,
+            character_config=yaml_config
         )
         
         session.add(scenario)

@@ -11,4 +11,13 @@ class ApiConfig {
   static String get verifyLoginOtp => '$baseUrl/users/verify-login-otp';
   static String get loginEmail => '$baseUrl/users/login-email';
   static String get loginMobile => '$baseUrl/users/login-mobile';
+
+  // Scenario endpoints
+  static String get scenariosList => '$baseUrl/scenarios/list';
+  static String scenarioStart(int scenarioId) =>
+      '$baseUrl/scenarios/start/$scenarioId';
+  static String scenarioDetails(int scenarioId) =>
+      '$baseUrl/scenarios/details/$scenarioId';
+  static String get scenarioChat => '$baseUrl/scenarios/chat';
+  static String get scenarioEvaluate => '$baseUrl/scenarios/evaluate';
 }

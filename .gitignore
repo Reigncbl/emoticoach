@@ -59,3 +59,6 @@ android/app/google-services.json
 Backend/firebase_credentials.json
 firebase.json
 lib/firebase_options.dart
+
+# Windows artifacts
+nul

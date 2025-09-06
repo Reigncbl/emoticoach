@@ -1,5 +1,62 @@
 import 'dart:convert';
 
+class Scenario {
+  final int id;
+  final String title;
+  final String description;
+  final String category;
+  final String difficulty;
+  final String? configFile;
+  final int? estimatedDuration;
+  final int? maxTurns;
+  final bool isActive;
+
+  Scenario({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.difficulty,
+    this.configFile,
+    this.estimatedDuration,
+    this.maxTurns,
+    required this.isActive,
+  });
+
+  factory Scenario.fromJson(Map<String, dynamic> json) {
+    return Scenario(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      category: json['category'] as String,
+      difficulty: json['difficulty'] as String,
+      configFile: json['config_file'] as String?,
+      estimatedDuration: json['estimated_duration'] as int?,
+      maxTurns: json['max_turns'] as int?,
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'category': category,
+      'difficulty': difficulty,
+      'config_file': configFile,
+      'estimated_duration': estimatedDuration,
+      'max_turns': maxTurns,
+      'is_active': isActive,
+    };
+  }
+
+  String get formattedDuration {
+    if (estimatedDuration == null) return '10-15 min';
+    return '${estimatedDuration! - 2}-${estimatedDuration! + 3} min';
+  }
+}
+
 class ConversationMessage {
   final String role;
   final String content;

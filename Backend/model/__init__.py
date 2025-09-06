@@ -4,6 +4,6 @@ from .readingsinfo import ReadingsInfo
 from .readingprogress import ReadingProgress
 from .readingblock import ReadingBlock
 from .userinfo import UserInfo
-from .scenario import Scenario
+from .scenario_with_config import ScenarioWithConfig
 
-__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "Scenario"]
+__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "ScenarioWithConfig"]

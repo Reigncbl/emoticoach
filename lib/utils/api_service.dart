@@ -102,11 +102,13 @@ class APIService {
   }
 
   // Scenario API Methods
-  Future<ConfigResponse> startConversation() async {
-    print('Starting conversation - calling: $baseUrl/start');
+  Future<ConfigResponse> startConversation(int scenarioId) async {
+    print(
+      'Starting conversation - calling: $baseUrl/scenarios/start/$scenarioId',
+    );
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/start'),
+        Uri.parse('$baseUrl/scenarios/start/$scenarioId'),
         headers: {'Content-Type': 'application/json'},
       );
 
@@ -128,12 +130,12 @@ class APIService {
   }
 
   Future<ChatResponse> sendMessage(ChatRequest request) async {
-    print('Sending message - calling: $baseUrl/chat');
+    print('Sending message - calling: $baseUrl/scenarios/chat');
     print('Request body: ${jsonEncode(request.toJson())}');
 
     try {
       final response = await _client.post(
-        Uri.parse('$baseUrl/chat'),
+        Uri.parse('$baseUrl/scenarios/chat'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(request.toJson()),
       );
@@ -158,12 +160,12 @@ class APIService {
   Future<EvaluationResponse> evaluateConversation(
     EvaluationRequest request,
   ) async {
-    print('Evaluating conversation - calling: $baseUrl/evaluate');
+    print('Evaluating conversation - calling: $baseUrl/scenarios/evaluate');
     print('Request body: ${jsonEncode(request.toJson())}');
 
     try {
       final response = await _client.post(
-        Uri.parse('$baseUrl/evaluate'),
+        Uri.parse('$baseUrl/scenarios/evaluate'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(request.toJson()),
       );

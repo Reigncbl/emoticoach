@@ -5,12 +5,14 @@ import '../../models/scenario_models.dart';
 import 'evaluation.dart';
 
 class ScenarioScreen extends StatefulWidget {
+  final int scenarioId;
   final String scenarioTitle;
   final String aiPersona;
   final String initialMessage;
 
   const ScenarioScreen({
     super.key,
+    required this.scenarioId,
     required this.scenarioTitle,
     required this.aiPersona,
     required this.initialMessage,
@@ -50,7 +52,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     });
 
     try {
-      final response = await _apiService.startConversation();
+      final response = await _apiService.startConversation(widget.scenarioId);
 
       if (response.success && response.firstMessage != null) {
         setState(() {

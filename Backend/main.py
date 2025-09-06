@@ -8,9 +8,8 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import book_routes, userinfo_routes,scenario_routes
-# Temporarily disable message_routes which might be causing the hang
-from routes import message_routes
+from routes import book_routes, userinfo_routes,scenario_routes,message_routes
+
 
 
 
@@ -32,7 +31,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(book_routes)
-app.include_router(message_routes)  # Temporarily disabled
+app.include_router(message_routes)
 app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
 

@@ -1,0 +1,33 @@
+{
+  "evaluation_results": {
+    "evaluation": {
+      "clarity": 6,
+      "empathy": 5,
+      "assertiveness": 5,
+      "appropriateness": 7,
+      "tip": "Try softer phrasing like 'I'm here for you—do you want to talk about what's going on?' to show warmth and reduce pressure."
+    }
+  },
+  "user_replies": [
+    "why? what's wrong?"
+  ],
+  "total_user_messages": 1,
+  "conversation_context": [
+    {
+      "role": "assistant",
+      "content": "Hey... I'm really struggling right now. Everything feels like it's falling apart and I don't know how to handle it all."
+    },
+    {
+      "role": "user",
+      "content": "why? what's wrong?"
+    },
+    {
+      "role": "assistant",
+      "content": "I’m sorry—I didn’t mean to leave you hanging. I was trying to give you space to tell me what’s going on in your own words, but I realize that can feel like I’m just sitting here silent when you’re already overwhelmed.\n\nSo let’s back up. You said “everything feels like it’s falling apart.” Can you give me one piece of that—whatever’s loudest in your head right now? No pressure to explain the whole picture; just the part that’s hurting most at this moment."
+    }
+  ],
+  "evaluation_timestamp": "2025-09-06T17:16:15.963249",
+  "character_name": "Teacher",
+  "scenario": "Unknown Scenario",
+  "scenario_id": null
+}

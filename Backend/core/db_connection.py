@@ -10,7 +10,19 @@ DATABASE_URL = (
     f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@"
     f"{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 )
-engine = create_engine(DATABASE_URL)
+
+# Create engine with connection pooling and timeout settings
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,  # Validates connections before use
+    pool_recycle=3600,   # Recycle connections every hour
+    connect_args={
+        "connect_timeout": 10,
+        "application_name": "emoticoach_backend",
+    }
+)
 
 def get_db():
     with Session(engine, autoflush=False, autocommit=False) as db:
