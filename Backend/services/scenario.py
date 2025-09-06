@@ -9,6 +9,10 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from llama_index.llms.groq import Groq
 from llama_index.core.llms import ChatMessage as LlamaMessage, MessageRole
+from sqlmodel import Session
+from core.db_connection import engine
+from core.supabase_config import SupabaseStorage
+from model.scenario import Scenario
 
 class ConversationMessage(BaseModel):
     role: str  # "user" or "assistant"
@@ -16,6 +20,7 @@ class ConversationMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    scenario_id: Optional[int] = None  # Add scenario_id to load specific config
     conversation_history: Optional[List[ConversationMessage]] = None
 
 class ChatResponse(BaseModel):
@@ -26,6 +31,7 @@ class ChatResponse(BaseModel):
 
 class EvaluationRequest(BaseModel):
     conversation_history: List[ConversationMessage]
+    scenario_id: Optional[int] = None  # Add scenario_id for context
 
 class EvaluationResponse(BaseModel):
     success: bool
@@ -37,27 +43,41 @@ class EvaluationResponse(BaseModel):
 
 class ConfigResponse(BaseModel):
     success: bool
+    scenario_id: Optional[int] = None
+    scenario_title: Optional[str] = None
     character_name: Optional[str] = None
     first_message: Optional[str] = None
     conversation_started: Optional[bool] = None
     error: Optional[str] = None
 
-def load_config() -> Dict[str, Any]:
-    """Load the teacher roleplay configuration."""
+def load_config(scenario_id: Optional[int] = None) -> Dict[str, Any]:
+    """Load roleplay configuration from YAML file."""
     try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(os.path.dirname(script_dir), "Templates", "teacher_config.yaml")
-        
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found at: {config_path}")
+        if scenario_id:
+            # Load specific scenario config from Supabase Storage
+            with Session(engine) as session:
+                scenario = session.get(Scenario, scenario_id)
+                if not scenario:
+                    raise ValueError(f"Scenario with ID {scenario_id} not found")
+                
+                # Use the scenario's load_config method which handles Supabase Storage
+                return scenario.load_config()
+        else:
+            # Default to teacher config from local file for backward compatibility
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(os.path.dirname(script_dir), "Templates", "teacher_config.yaml")
             
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+            if not os.path.exists(config_path):
+                raise FileNotFoundError(f"Config file not found at: {config_path}")
+                
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = yaml.safe_load(f)
+                
+            if not config or "roleplay" not in config:
+                raise ValueError("Invalid config structure")
+                
+            return config
             
-        if not config or "roleplay" not in config:
-            raise ValueError("Invalid config structure")
-            
-        return config
     except Exception as e:
         raise Exception(f"Failed to load config: {str(e)}")
 
@@ -137,7 +157,7 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             return ChatResponse(success=False, error="Missing model or api_key environment variables")
         
         llm = Groq(model=model, api_key=api_key)
-        config = load_config()
+        config = load_config(request.scenario_id)
         character_name = config["roleplay"]["name"]
         
         # Build system prompt with strong roleplay instructions
@@ -183,7 +203,7 @@ async def evaluate_conversation(request: EvaluationRequest) -> EvaluationRespons
             return EvaluationResponse(success=False, error="Missing model or api_key environment variables")
         
         llm = Groq(model=model, api_key=api_key)
-        config = load_config()
+        config = load_config(request.scenario_id)
         character_name = config["roleplay"]["name"]
         
         # Extract user replies for focused evaluation
@@ -257,6 +277,13 @@ USER'S REPLIES TO EVALUATE:
             }
         
         # Save comprehensive evaluation data
+        scenario_name = "Unknown Scenario"
+        if request.scenario_id:
+            with Session(engine) as session:
+                scenario = session.get(Scenario, request.scenario_id)
+                if scenario:
+                    scenario_name = scenario.title
+        
         evaluation_record = {
             "evaluation_results": evaluation_data,
             "user_replies": user_replies,
@@ -264,7 +291,8 @@ USER'S REPLIES TO EVALUATE:
             "conversation_context": [{"role": msg.role, "content": msg.content} for msg in request.conversation_history],
             "evaluation_timestamp": datetime.now().isoformat(),
             "character_name": character_name,
-            "scenario": "Casual Chat with Professor"
+            "scenario": scenario_name,
+            "scenario_id": request.scenario_id
         }
         
         # Save to file
@@ -288,19 +316,76 @@ USER'S REPLIES TO EVALUATE:
     except Exception as e:
         return EvaluationResponse(success=False, error=str(e))
 
-async def start_conversation() -> ConfigResponse:
-    """Initialize conversation and return character's opening message."""
+async def start_conversation(scenario_id: int) -> ConfigResponse:
+    """Initialize conversation and return character's opening message for specific scenario."""
     try:
-        config = load_config()
+        # Get scenario from database
+        with Session(engine) as session:
+            scenario = session.get(Scenario, scenario_id)
+            if not scenario:
+                return ConfigResponse(success=False, error=f"Scenario with ID {scenario_id} not found")
+        
+        # Load config
+        config = load_config(scenario_id)
         
         return ConfigResponse(
             success=True,
+            scenario_id=scenario_id,
+            scenario_title=scenario.title,
             character_name=config["roleplay"]["name"],
-            first_message=config["roleplay"]["first_message"],
+            first_message=config["roleplay"]["first_message"].strip(),
             conversation_started=True
         )
     
     except Exception as e:
         return ConfigResponse(success=False, error=str(e))
+
+def get_available_scenarios() -> List[Dict[str, Any]]:
+    """Get list of available scenarios."""
+    try:
+        with Session(engine) as session:
+            scenarios = session.query(Scenario).filter(Scenario.is_active == True).all()
+            
+            scenario_list = []
+            for scenario in scenarios:
+                scenario_list.append({
+                    "id": scenario.id,
+                    "title": scenario.title,
+                    "description": scenario.description,
+                    "category": scenario.category,
+                    "difficulty": scenario.difficulty,
+                    "estimated_duration": scenario.estimated_duration,
+                    "character_name": scenario.character_name,
+                })
+            
+            return scenario_list
+    except Exception as e:
+        raise Exception(f"Failed to get scenarios: {str(e)}")
+
+def get_scenario_details(scenario_id: int) -> Dict[str, Any]:
+    """Get detailed information about a specific scenario."""
+    try:
+        with Session(engine) as session:
+            scenario = session.get(Scenario, scenario_id)
+            if not scenario:
+                raise ValueError(f"Scenario with ID {scenario_id} not found")
+            
+            # Load YAML config for additional details
+            config = load_config(scenario_id)
+            
+            return {
+                "id": scenario.id,
+                "title": scenario.title,
+                "description": scenario.description,
+                "category": scenario.category,
+                "difficulty": scenario.difficulty,
+                "estimated_duration": scenario.estimated_duration,
+                "max_turns": scenario.max_turns,
+                "character_name": config["roleplay"]["name"],
+                "opening_message": config["roleplay"]["first_message"].strip(),
+                "character_description": config["roleplay"]["description"]
+            }
+    except Exception as e:
+        raise Exception(f"Failed to get scenario details: {str(e)}")
 
 

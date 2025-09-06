@@ -1,12 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from sqlmodel import select
+from pydantic import BaseModel
 from model.readingsinfo import ReadingsInfo
 from model.readingblock import ReadingBlock
 from core.db_connection import SessionDep
+from core.supabase_config import SupabaseStorage
+from model.scenario import Scenario
 from services.scenario import (
     chat_with_ai, 
     evaluate_conversation,
     start_conversation,
+    get_available_scenarios,
+    get_scenario_details,
     ChatRequest, 
     ChatResponse,
     EvaluationRequest,
@@ -14,18 +19,28 @@ from services.scenario import (
     ConfigResponse
 )
 
+class CreateScenarioRequest(BaseModel):
+    title: str
+    description: str
+    category: str
+    difficulty: str = "beginner"
+    estimated_duration: int = 10
+    max_turns: int = 10
+    config_file: str
+    yaml_content: str
+
 
 scenario_router = APIRouter()
 
-@scenario_router.get('/start', response_model=ConfigResponse)
-async def start():
+@scenario_router.get('/start/{scenario_id}', response_model=ConfigResponse)
+async def start(scenario_id: int):
     """
-    Start a new conversation with the AI character.
+    Start a new conversation with the AI character for a specific scenario.
     
     Returns the character's opening message to begin the conversation.
     """
     try:
-        response = await start_conversation()
+        response = await start_conversation(scenario_id)
         if not response.success:
             raise HTTPException(status_code=500, detail=response.error)
         return response
@@ -68,3 +83,118 @@ async def evaluate(request: EvaluationRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@scenario_router.get('/list')
+async def list_scenarios():
+    """
+    Get list of available scenarios.
+    
+    Returns all active scenarios with basic information.
+    """
+    try:
+        scenarios = get_available_scenarios()
+        return {"success": True, "scenarios": scenarios}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@scenario_router.get('/details/{scenario_id}')
+async def get_details(scenario_id: int):
+    """
+    Get detailed information about a specific scenario.
+    
+    Returns comprehensive scenario details including character info.
+    """
+    try:
+        details = get_scenario_details(scenario_id)
+        return {"success": True, "scenario": details}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@scenario_router.post('/create')
+async def create_scenario(request: CreateScenarioRequest, session: SessionDep):
+    """
+    Create a new scenario with YAML configuration.
+    
+    - **title**: Scenario title
+    - **description**: Scenario description
+    - **category**: Category (workplace, family, friendship, social, etc.)
+    - **difficulty**: beginner, intermediate, or advanced
+    - **estimated_duration**: Estimated time in minutes
+    - **max_turns**: Maximum conversation turns
+    - **config_file**: YAML filename (should end with .yaml)
+    - **yaml_content**: Complete YAML configuration content
+    """
+    try:
+        # Validate YAML filename
+        if not request.config_file.endswith('.yaml'):
+            raise HTTPException(status_code=400, detail="Config file must be a .yaml file")
+        
+        # Upload YAML to Supabase Storage
+        storage = SupabaseStorage()
+        upload_success = storage.upload_yaml(request.config_file, request.yaml_content)
+        
+        if not upload_success:
+            raise HTTPException(status_code=500, detail="Failed to upload YAML configuration")
+        
+        # Create scenario record in database
+        scenario = Scenario(
+            title=request.title,
+            description=request.description,
+            category=request.category,
+            difficulty=request.difficulty,
+            config_file=request.config_file,
+            estimated_duration=request.estimated_duration,
+            max_turns=request.max_turns
+        )
+        
+        session.add(scenario)
+        session.commit()
+        session.refresh(scenario)
+        
+        return {
+            "success": True,
+            "message": "Scenario created successfully",
+            "scenario_id": scenario.id,
+            "config_uploaded": True
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@scenario_router.post('/upload-yaml')
+async def upload_yaml_file(file: UploadFile = File(...)):
+    """
+    Upload a YAML configuration file to Supabase Storage.
+    
+    - **file**: YAML file to upload
+    
+    Returns the filename and upload status.
+    """
+    try:
+        # Validate file type
+        if not file.filename.endswith('.yaml') and not file.filename.endswith('.yml'):
+            raise HTTPException(status_code=400, detail="File must be a YAML file (.yaml or .yml)")
+        
+        # Read file content
+        content = await file.read()
+        yaml_content = content.decode('utf-8')
+        
+        # Upload to Supabase Storage
+        storage = SupabaseStorage()
+        upload_success = storage.upload_yaml(file.filename, yaml_content)
+        
+        if not upload_success:
+            raise HTTPException(status_code=500, detail="Failed to upload file to storage")
+        
+        return {
+            "success": True,
+            "message": "YAML file uploaded successfully",
+            "filename": file.filename,
+            "size": len(content)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
