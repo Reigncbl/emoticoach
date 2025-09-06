@@ -62,3 +62,23 @@ lib/firebase_options.dart
 
 # Windows artifacts
 nul
+
+# Python cache and temporary files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Test and temporary files
+test_*.py
+*_test.py
+temp.dart
+*temp*
+evaluation_*.json
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
