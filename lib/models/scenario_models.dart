@@ -8,7 +8,6 @@ class Scenario {
   final String difficulty;
   final String? configFile;
   final int? estimatedDuration;
-  final int? maxTurns;
   final bool isActive;
 
   Scenario({
@@ -19,7 +18,6 @@ class Scenario {
     required this.difficulty,
     this.configFile,
     this.estimatedDuration,
-    this.maxTurns,
     required this.isActive,
   });
 
@@ -32,7 +30,6 @@ class Scenario {
       difficulty: json['difficulty'] as String,
       configFile: json['config_file'] as String?,
       estimatedDuration: json['estimated_duration'] as int?,
-      maxTurns: json['max_turns'] as int?,
       isActive: json['is_active'] as bool? ?? true,
     );
   }
@@ -46,7 +43,6 @@ class Scenario {
       'difficulty': difficulty,
       'config_file': configFile,
       'estimated_duration': estimatedDuration,
-      'max_turns': maxTurns,
       'is_active': isActive,
     };
   }
@@ -307,6 +303,39 @@ class ConfigResponse {
       firstMessage: json['first_message'] as String?,
       conversationStarted: json['conversation_started'] as bool?,
       error: json['error'] as String?,
+    );
+  }
+}
+
+class ConversationFlowResponse {
+  final bool success;
+  final bool shouldEnd;
+  final double confidence;
+  final String reason;
+  final String? suggestedEndingMessage;
+  final Map<String, double> conversationQuality;
+
+  ConversationFlowResponse({
+    required this.success,
+    required this.shouldEnd,
+    required this.confidence,
+    required this.reason,
+    this.suggestedEndingMessage,
+    required this.conversationQuality,
+  });
+
+  factory ConversationFlowResponse.fromJson(Map<String, dynamic> json) {
+    return ConversationFlowResponse(
+      success: json['success'] as bool,
+      shouldEnd: json['should_end'] as bool,
+      confidence: (json['confidence'] as num).toDouble(),
+      reason: json['reason'] as String,
+      suggestedEndingMessage: json['suggested_ending_message'] as String?,
+      conversationQuality: Map<String, double>.from(
+        (json['conversation_quality'] as Map<String, dynamic>).map(
+          (key, value) => MapEntry(key, (value as num).toDouble()),
+        ),
+      ),
     );
   }
 }

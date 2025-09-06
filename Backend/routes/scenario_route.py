@@ -25,7 +25,6 @@ class CreateScenarioRequest(BaseModel):
     category: str
     difficulty: str = "beginner"
     estimated_duration: int = 10
-    max_turns: int = 10
     config_file: str
     yaml_content: str
 
@@ -62,6 +61,47 @@ async def chat(request: ChatRequest):
         if not response.success:
             raise HTTPException(status_code=500, detail=response.error)
         return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@scenario_router.post('/check-flow')
+async def check_conversation_flow(request: ChatRequest):
+    """
+    Check if conversation should naturally end based on flow analysis.
+    
+    - **conversation_history**: Current conversation to analyze
+    - **scenario_id**: ID of the current scenario
+    
+    Returns analysis of conversation flow and ending recommendations.
+    """
+    try:
+        from services.conversation_tracker import should_end_conversation
+        from services.scenario import load_config
+        
+        if not request.conversation_history:
+            raise HTTPException(status_code=400, detail="Conversation history required")
+        
+        # Convert to dict format for analysis
+        conversation_dict = [
+            {"role": msg.role, "content": msg.content} 
+            for msg in request.conversation_history
+        ]
+        
+        # Load scenario config
+        config = load_config(request.scenario_id) if request.scenario_id else {}
+        
+        # Analyze conversation flow
+        analysis = await should_end_conversation(conversation_dict, config)
+        
+        return {
+            "success": True,
+            "should_end": analysis.should_end,
+            "confidence": analysis.confidence,
+            "reason": analysis.reason,
+            "suggested_ending_message": analysis.suggested_ending_message,
+            "conversation_quality": analysis.conversation_quality
+        }
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -119,7 +159,6 @@ async def create_scenario(request: CreateScenarioRequest, session: SessionDep):
     - **category**: Category (workplace, family, friendship, social, etc.)
     - **difficulty**: beginner, intermediate, or advanced
     - **estimated_duration**: Estimated time in minutes
-    - **max_turns**: Maximum conversation turns
     - **config_file**: YAML filename (should end with .yaml)
     - **yaml_content**: Complete YAML configuration content
     """
@@ -149,7 +188,6 @@ async def create_scenario(request: CreateScenarioRequest, session: SessionDep):
             category=request.category,
             difficulty=request.difficulty,
             estimated_duration=request.estimated_duration,
-            max_turns=request.max_turns,
             character_config=yaml_config
         )
         

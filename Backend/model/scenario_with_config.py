@@ -15,7 +15,6 @@ class ScenarioWithConfig(SQLModel, table=True):
     category: str = Field(max_length=50)
     difficulty: str = Field(max_length=20)  # beginner, intermediate, advanced
     estimated_duration: int = Field(description="Estimated duration in minutes")
-    max_turns: int = Field(description="Maximum conversation turns")
     is_active: bool = Field(default=True)
     
     # Character configuration stored as JSON
@@ -48,7 +47,7 @@ class ScenarioWithConfig(SQLModel, table=True):
     
     @classmethod
     def from_yaml_config(cls, title: str, description: str, category: str, 
-                        difficulty: str, duration: int, max_turns: int, 
+                        difficulty: str, duration: int, 
                         yaml_config: Dict[str, Any]) -> "ScenarioWithConfig":
         """Create scenario from YAML config"""
         scenario = cls(
@@ -57,7 +56,6 @@ class ScenarioWithConfig(SQLModel, table=True):
             category=category,
             difficulty=difficulty,
             estimated_duration=duration,
-            max_turns=max_turns,
             character_config=yaml_config
         )
         return scenario

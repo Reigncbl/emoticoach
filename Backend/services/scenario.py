@@ -96,8 +96,7 @@ def get_all_scenarios() -> List[Dict[str, Any]]:
                 "category": scenario.category,
                 "difficulty": scenario.difficulty,
                 "character_name": scenario.character_name,
-                "estimated_duration": scenario.estimated_duration,
-                "max_turns": scenario.max_turns
+                "estimated_duration": scenario.estimated_duration
             }
             for scenario in scenarios
         ]
@@ -122,7 +121,6 @@ def get_scenario_details(scenario_id: int) -> Optional[Dict[str, Any]]:
             "character_description": scenario.character_description,
             "first_message": scenario.first_message,
             "estimated_duration": scenario.estimated_duration,
-            "max_turns": scenario.max_turns,
             "character_config": scenario.character_config
         }
 
@@ -507,7 +505,6 @@ def get_scenario_details(scenario_id: int) -> Dict[str, Any]:
                 "category": scenario.category,
                 "difficulty": scenario.difficulty,
                 "estimated_duration": scenario.estimated_duration,
-                "max_turns": scenario.max_turns,
                 "character_name": scenario.character_name,
                 "character_description": scenario.character_description,
             }

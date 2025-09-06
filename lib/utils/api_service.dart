@@ -189,6 +189,46 @@ class APIService {
     }
   }
 
+  Future<ConversationFlowResponse> checkConversationFlow({
+    required List<ConversationMessage> conversationHistory,
+    required int scenarioId,
+  }) async {
+    print(
+      'Checking conversation flow - calling: $baseUrl/scenarios/check-flow',
+    );
+
+    try {
+      final requestBody = {
+        'conversation_history': conversationHistory
+            .map((msg) => msg.toJson())
+            .toList(),
+        'scenario_id': scenarioId,
+      };
+
+      final response = await _client.post(
+        Uri.parse('$baseUrl/scenarios/check-flow'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(requestBody),
+      );
+
+      print('Check flow response status: ${response.statusCode}');
+      print('Check flow response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        return ConversationFlowResponse.fromJson(data);
+      } else {
+        print('Failed to check conversation flow: ${response.statusCode}');
+        throw Exception(
+          'Failed to check conversation flow: ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      print('Error during checkConversationFlow request: $e');
+      throw Exception('Failed to check conversation flow: $e');
+    }
+  }
+
   // Test connection method
   Future<bool> testConnection() async {
     try {
