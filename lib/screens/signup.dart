@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'login.dart';
 import '../utils/colors.dart';
 import 'otp_verification.dart';
+import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
 import 'package:iconify_flutter/icons/ic.dart';
@@ -19,14 +20,11 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignupScreen> {
-  // Add your API base URL here
-  static const String baseUrl = 'http://10.96.80.29:8000';
-  
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
-  
+
   // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
@@ -69,7 +67,9 @@ class _SignUpPageState extends State<SignupScreen> {
       try {
         // First check if user already exists in your backend
         final checkResponse = await http.get(
-          Uri.parse('$baseUrl/users/check-mobile?mobile_number=${_mobileController.text}'),
+          Uri.parse(
+            '${ApiConfig.baseUrl}/users/check-mobile?mobile_number=${_mobileController.text}',
+          ),
           headers: {'Content-Type': 'application/json'},
         );
 
@@ -107,11 +107,12 @@ class _SignUpPageState extends State<SignupScreen> {
           },
           codeAutoRetrievalTimeout: (String verificationId) {
             // Handle timeout
-            print('Auto retrieval timeout for verification ID: $verificationId');
+            print(
+              'Auto retrieval timeout for verification ID: $verificationId',
+            );
           },
           timeout: const Duration(seconds: 60),
         );
-
       } catch (e) {
         _showErrorSnackBar('Error: ${e.toString()}');
         print('Error sending SMS: $e');
@@ -127,18 +128,20 @@ class _SignUpPageState extends State<SignupScreen> {
 
   // Handle auto-verification (Android only)
   Future<void> _handleAutoVerification(
-    PhoneAuthCredential credential, 
-    String firstName, 
-    String lastName
+    PhoneAuthCredential credential,
+    String firstName,
+    String lastName,
   ) async {
     try {
       // Sign in with the credential
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
       if (userCredential.user != null) {
         // Get Firebase ID token
         String? idToken = await userCredential.user!.getIdToken();
-        
+
         if (idToken != null) {
           // Create user in your backend
           await _createUserInBackend(firstName, lastName, idToken);
@@ -150,17 +153,18 @@ class _SignUpPageState extends State<SignupScreen> {
   }
 
   // Create user in your backend using Firebase ID token
-  Future<void> _createUserInBackend(String firstName, String lastName, String idToken) async {
+  Future<void> _createUserInBackend(
+    String firstName,
+    String lastName,
+    String idToken,
+  ) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/users/create-firebase-user'),
+        Uri.parse(ApiConfig.createFirebaseUser),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'firebase_id_token': idToken,
-          'additional_info': {
-            'first_name': firstName,
-            'last_name': lastName,
-          }
+          'additional_info': {'first_name': firstName, 'last_name': lastName},
         }),
       );
 
@@ -215,7 +219,8 @@ class _SignUpPageState extends State<SignupScreen> {
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -224,18 +229,23 @@ class _SignUpPageState extends State<SignupScreen> {
       );
 
       // Sign in with Firebase
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
       if (userCredential.user != null) {
         // Get Firebase ID token
         String? idToken = await userCredential.user!.getIdToken();
-        
+
         if (idToken != null) {
           // Create user in your backend
-          await _createUserInBackend('', '', idToken); // Names will be extracted from Google profile
+          await _createUserInBackend(
+            '',
+            '',
+            idToken,
+          ); // Names will be extracted from Google profile
         }
       }
-
     } catch (e) {
       _showErrorSnackBar('Google sign-in failed: ${e.toString()}');
     } finally {
@@ -298,10 +308,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       // FIRST NAME SECTION
                       const Text(
                         'First Name',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.black87),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -456,7 +463,9 @@ class _SignUpPageState extends State<SignupScreen> {
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Text(

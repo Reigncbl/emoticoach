@@ -42,7 +42,9 @@ class _DebugConnectionScreenState extends State<DebugConnectionScreen> {
     });
 
     try {
-      final response = await _apiService.startConversation();
+      final response = await _apiService.startConversation(
+        1,
+      ); // Using scenario ID 1 for testing
       setState(() {
         _status =
             'Start endpoint: ${response.success ? 'Success' : 'Failed'}\n'
