@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:iconify_flutter/iconify_flutter.dart';
+import 'package:iconify_flutter/icons/ic.dart';
 import '../utils/colors.dart';
 import 'settings.dart';
-import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:iconify_flutter/icons/ic.dart'; // Material Icons
-import 'dart:ui'; // required for ImageFilter
+import 'dart:ui';
+import '../widgets/telegram_status_widget.dart';
+import '../widgets/telegram_verification_widget.dart';
 import '../utils/user_data_mixin.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
@@ -16,6 +18,11 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
+  // === TELEGRAM INTEGRATION STATE ===
+  bool _showTelegramVerification = false;
+  String? _userMobileNumber =
+      '+639762325664'; // This should come from your user session/storage
+
   // === NAVIGATION FUNCTIONS ===
   void _navigateToSettings() {
     Navigator.push(
@@ -27,6 +34,84 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   void _editProfile() {
     print("Edit Profile tapped");
     // Navigate to Edit Profile screen here
+  }
+
+  // === TELEGRAM INTEGRATION FUNCTIONS ===
+  void _showTelegramVerificationDialog() {
+    setState(() {
+      _showTelegramVerification = true;
+    });
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          child: TelegramVerificationWidget(
+            userMobileNumber: _userMobileNumber,
+            onVerificationSuccess: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _showTelegramVerification = false;
+              });
+              // Refresh the page or show success message
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Telegram connected successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            onCancel: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _showTelegramVerification = false;
+              });
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _disconnectTelegram() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disconnect Telegram'),
+        content: const Text(
+          'Are you sure you want to disconnect your Telegram account? You will lose access to enhanced features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // TODO: Implement actual disconnect logic
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Telegram disconnected'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text(
+              'Disconnect',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // == SPECIFIC FUNCTIONS ===
@@ -93,7 +178,9 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
     final now = DateTime.now();
     final difference = now.difference(date);
 
+
     final actionText = action != null ? '$action ' : '';
+
 
     if (difference.inDays >= 14) {
       final weeks = (difference.inDays / 7).floor();
@@ -244,6 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
             ],
           ),
           const SizedBox(height: 8),
+
 
           // Progress Bar
           Container(
@@ -719,6 +807,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
     );
   }
 
+
   // === MAIN UI ===
   @override
   Widget build(BuildContext context) {
@@ -773,10 +862,12 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
                 const SizedBox(height: 24),
 
-                // === PROGRESS DASHBOARD ===
-                _title(title: 'Progress Dashboard'),
-                // Progress Dashboard Widget
-                _progressDashboard(progressXp: '1820', totalXp: '3800'),                  // === STATS ROW 1 ===
+                  // === PROGRESS DASHBOARD ===
+                  _title(title: 'Progress Dashboard'),
+                  // Progress Dashboard Widget
+                  _progressDashboard(progressXp: '1820', totalXp: '3800'),
+
+                  // === STATS ROW 1 ===
                   Row(
                     children: [
                       Expanded(
@@ -818,6 +909,19 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                   const SizedBox(height: 12),
 
                   _skillsGraphWidget(),
+
+                  const SizedBox(height: 24),
+
+                  // === TELEGRAM INTEGRATION SECTION ===
+                  _title(title: 'Telegram Integration'),
+
+                  const SizedBox(height: 12),
+
+                  TelegramStatusWidget(
+                    userMobileNumber: _userMobileNumber,
+                    onConnectPressed: _showTelegramVerificationDialog,
+                    onDisconnectPressed: _disconnectTelegram,
+                  ),
 
                   const SizedBox(height: 24),
 

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import './models/reading_model.dart';
-import './widgets/reading_card.dart';
+import '../../models/reading_model.dart';
+import 'reading_card.dart';
 import './reading_detail_screen.dart';
-import '../../utils/temp_api_service.dart';
+import '../../utils/api_service.dart';
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});

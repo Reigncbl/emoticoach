@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import './reading_screen.dart';
 import './scenario.dart';
-import '../debug_connection.dart';
 import '../../utils/colors.dart';
 import '../../services/scenario_service.dart';
 import '../../models/scenario_models.dart';
+import '../../controllers/learning_navigation_controller.dart';
 
 class LearningScreen extends StatefulWidget {
   const LearningScreen({super.key});
@@ -16,43 +16,78 @@ class LearningScreen extends StatefulWidget {
 class _LearningScreenState extends State<LearningScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final LearningNavigationController _navController =
+      LearningNavigationController();
+  
+  // Missing state variables
+  bool _isLoading = false;
+  String? _errorMessage;
   List<Scenario> _scenarios = [];
   List<Scenario> _completedScenarios = [];
-  bool _isLoading = true;
-  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: _navController.currentTabIndex,
+    );
+
+    // Listen to navigation controller changes
+    _navController.addListener(_handleNavigationChange);
+    
+    // Load scenarios when screen initializes
+    _loadScenarios();
+  }
+
+  void _handleNavigationChange() {
+    if (_tabController.index != _navController.currentTabIndex) {
+      _tabController.animateTo(_navController.currentTabIndex);
+    }
     _loadScenarios();
   }
 
   @override
   void dispose() {
+    _navController.removeListener(_handleNavigationChange);
     _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _loadScenarios() async {
+    print('🔍 DEBUG: Starting to load scenarios...');
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
 
+      print('🔍 DEBUG: Calling ScenarioService.getScenarios()...');
       final scenarioData = await ScenarioService.getScenarios();
+      print('🔍 DEBUG: Received ${scenarioData.length} scenario records');
+
       final scenarios = scenarioData
-          .map((data) => Scenario.fromJson(data))
+          .map((data) {
+            print('🔍 DEBUG: Processing scenario data: $data');
+            return Scenario.fromJson(data);
+          })
           .toList();
+
+      print('🔍 DEBUG: Successfully parsed ${scenarios.length} scenarios');
 
       setState(() {
         _scenarios = scenarios.where((s) => s.isActive).toList();
+        print('🔍 DEBUG: Filtered to ${_scenarios.length} active scenarios');
         // For now, assume no completed scenarios - you can implement this with user progress tracking
         _completedScenarios = [];
         _isLoading = false;
       });
+      
+      print('🔍 DEBUG: Successfully loaded scenarios!');
     } catch (e) {
+      print('🔍 DEBUG: Error loading scenarios: $e');
+      print('🔍 DEBUG: Error type: ${e.runtimeType}');
       setState(() {
         _isLoading = false;
         _errorMessage = 'Failed to load scenarios: ${e.toString()}';
@@ -85,18 +120,6 @@ class _LearningScreenState extends State<LearningScreen>
                       color: Colors.black,
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.bug_report, color: Colors.black54),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const DebugConnectionScreen(),
-                      ),
-                    );
-                  },
-                  tooltip: 'Debug Connection',
                 ),
                 IconButton(
                   icon: const Icon(Icons.info_outline, color: Colors.black54),
@@ -213,40 +236,6 @@ class _LearningScreenState extends State<LearningScreen>
                 onPressed: _showScenarioFilterDialog,
               ),
             ],
-          ),
-          const SizedBox(height: 24),
-
-          // Debug Connection Card
-          Card(
-            color: Colors.orange[50],
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline, color: Colors.orange[700]),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Having connection issues?',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[700],
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Tap the debug icon above to test your backend connection.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
           const SizedBox(height: 24),
 

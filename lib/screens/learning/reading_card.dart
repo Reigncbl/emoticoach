@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/reading_model.dart';
-import '../../../utils/colors.dart';
+import '../../models/reading_model.dart';
+import '../../utils/colors.dart';
 
 class ReadingCard extends StatelessWidget {
   final Reading reading;

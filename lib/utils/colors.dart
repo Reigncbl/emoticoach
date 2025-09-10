@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+export 'package:flutter/material.dart';
+export 'package:iconify_flutter/iconify_flutter.dart';
+export 'package:iconify_flutter/icons/ic.dart';
+export 'package:iconify_flutter/icons/feather.dart';
 
 
 // Figma Colors

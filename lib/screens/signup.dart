@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login.dart';
@@ -7,9 +6,7 @@ import 'otp_verification.dart';
 import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
-import 'package:iconify_flutter/icons/ic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -329,7 +326,7 @@ class _SignUpPageState extends State<SignupScreen> {
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 16,
+                            vertical: 12,
                           ),
                         ),
                         validator: (value) {
@@ -366,7 +363,7 @@ class _SignUpPageState extends State<SignupScreen> {
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 16,
+                            vertical: 12,
                           ),
                         ),
                         validator: (value) {
@@ -386,7 +383,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        height: 56,
+                        height: 48,
                         decoration: BoxDecoration(
                           border: Border.all(
                             color: _isMobileFocused ? Colors.blue : Colors.grey,
@@ -405,9 +402,9 @@ class _SignUpPageState extends State<SignupScreen> {
                             ),
                             Container(
                               width: 1,
-                              height: 28,
+                              height: 24,
                               color: Colors.grey,
-                              margin: const EdgeInsets.symmetric(vertical: 14),
+                              margin: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             Expanded(
                               child: TextFormField(
@@ -434,7 +431,7 @@ class _SignUpPageState extends State<SignupScreen> {
                                   focusedBorder: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 16,
+                                    vertical: 12,
                                   ),
                                 ),
                               ),
@@ -443,41 +440,42 @@ class _SignUpPageState extends State<SignupScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const Spacer(),
 
                       // SEND SMS BUTTON
-                      ElevatedButton(
-                        onPressed: _isLoading ? null : _sendSMS,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kBrightBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _sendSMS,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kBrightBlue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
                           ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Send SMS',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                              )
-                            : const Text(
-                                'Send SMS',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                        ),
                       ),
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
 
                       // "OR" DIVIDER
                       const Text(
@@ -490,7 +488,7 @@ class _SignUpPageState extends State<SignupScreen> {
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 16),
 
                       // SOCIAL LOGIN BUTTONS SECTION
                       Row(
@@ -500,22 +498,18 @@ class _SignUpPageState extends State<SignupScreen> {
                           GestureDetector(
                             onTap: _isLoading ? null : _signInWithGoogle,
                             child: Container(
-                              width: 60,
-                              height: 60,
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 border: Border.all(color: kBrightBlue),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Center(
-                                child: Iconify(
-                                  Ri.google_fill,
-                                  size: 28,
-                                  color: kBrightBlue,
-                                ),
+                              child: const Iconify(
+                                Ri.google_fill,
+                                size: 28,
+                                color: kBrightBlue,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 20),
                         ],
                       ),
 

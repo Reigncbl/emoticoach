@@ -3,18 +3,15 @@ import 'package:flutter/services.dart';
 import '../utils/colors.dart';
 import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
-import 'package:iconify_flutter/icons/ri.dart'; // Google icon
-import 'package:iconify_flutter/icons/ic.dart'; // Email icon
+import 'package:iconify_flutter/icons/ri.dart';
+import 'package:iconify_flutter/icons/ic.dart'; 
 import 'signup.dart';
 import 'otp_verification.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
-
-// Firebase Auth UI imports
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 // Session management
@@ -60,6 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     });
 
+
     // Initialize device info
     _initializeDeviceInfo();
   }
@@ -75,6 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _initializeDeviceInfo() async {
     try {
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+
 
       if (Platform.isAndroid) {
         AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
@@ -104,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
         .replaceAll('(', '')
         .replaceAll(')', '');
 
+
     // Handle different input formats
     if (cleaned.startsWith('0') && cleaned.length == 11) {
       // 09955578757 -> +639955578757
@@ -115,6 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // Any 10-digit number -> +63 prefix
       return '+63$cleaned';
     }
+
 
     // If already has +63 or other format, return as is
     return phoneInput.startsWith('+') ? phoneInput : '+63$cleaned';
@@ -170,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 120),
 
+
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             // Auto-verification completed
@@ -179,6 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (result.user != null) {
               // Notify backend
               await _notifyBackendOfVerification(phoneNumber, result.user!.uid);
+
 
               // Navigate to OTP screen (or home if auto-verified)
               Navigator.push(
@@ -200,6 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         },
 
+
         verificationFailed: (FirebaseAuthException e) {
           print('Verification failed: ${e.code} - ${e.message}');
           setState(() {
@@ -217,13 +221,16 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         },
 
+
         codeSent: (String verificationId, int? resendToken) {
           print('SMS code sent successfully');
           _verificationId = verificationId;
 
+
           setState(() {
             _isPhoneAuthInProgress = false;
           });
+
 
           // Navigate to OTP verification screen
           Navigator.push(
@@ -237,6 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
 
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification code sent successfully!'),
@@ -244,6 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         },
+
 
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
@@ -263,13 +272,35 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       String phoneInput = _phoneController.text.trim();
 
-      // Format to +63 format for Firebase
+      // Format to +63 format for backend
       String formattedMobile = _formatPhoneNumber(phoneInput);
 
-      print("Send SMS to: $formattedMobile (Formatted with +63)");
-      print("Using Firebase Auth for verification");
 
-      // For simple client session, always proceed to Firebase auth
+      print("Send SMS to: $formattedMobile (Formatted with +63)");
+      print("Using Firebase Auth instead of custom backend SMS");
+
+      // Check if user exists first
+      bool userExists = await _checkUserExists(formattedMobile);
+
+      if (!userExists) {
+        // User doesn't exist - show error and suggest signup
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Mobile number not registered. Please sign up first.',
+            ),
+            backgroundColor: Colors.orange,
+            action: SnackBarAction(
+              label: 'Sign Up',
+              textColor: Colors.white,
+              onPressed: _goToSignup,
+            ),
+          ),
+        );
+        return;
+      }
+
+      // Use Firebase Phone Auth (handles reCAPTCHA automatically)
       _handleFirebasePhoneAuth(formattedMobile);
     }
   }
@@ -587,230 +618,256 @@ class _LoginScreenState extends State<LoginScreen> {
 
             // Foreground Login Form
             SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 120),
-
-                      // Login Title
-                      const Text(
-                        "Login",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: kBlack,
-                        ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      const SizedBox(height: 8),
-
-                      // Subtitle
-                      const Text(
-                        "Good to have you back!",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 50),
-
-                      // Error Message Display
-                      if (_errorMessage.isNotEmpty)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          margin: const EdgeInsets.only(bottom: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            border: Border.all(color: Colors.red.shade300),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _errorMessage,
-                            style: TextStyle(color: Colors.red.shade700),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-
-                      // Phone Number Input Field
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Mobile Number",
-                            style: TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(height: 8),
-                          Container(
-                            height: 48,
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: _isMobileFocused
-                                    ? Colors.blue
-                                    : Colors.grey,
-                                width: _isMobileFocused ? 2.0 : 1.0,
-                              ),
-                              borderRadius: BorderRadius.circular(8.0),
-                              color: Colors.white,
-                            ),
-                            child: Row(
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: Form(
+                            key: _formKey,
+                            child: Column(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                  ),
-                                  child: const Center(child: Text('+63')),
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 24,
-                                  color: Colors.grey,
-                                  margin: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller: _phoneController,
-                                    focusNode: _mobileFocusNode,
-                                    keyboardType: TextInputType.number,
-                                    maxLength: 10,
-                                    enabled:
-                                        !_isLoading && !_isPhoneAuthInProgress,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly,
-                                    ],
-                                    validator: (value) {
-                                      if (value == null ||
-                                          value.trim().isEmpty) {
-                                        return 'Enter your mobile number';
-                                      }
-                                      if (value.length != 10) {
-                                        return 'Enter exactly 10 digits';
-                                      }
-                                      if (!value.startsWith('9')) {
-                                        return 'Mobile number should start with 9';
-                                      }
-                                      return null;
-                                    },
-                                    decoration: const InputDecoration(
-                                      counterText: '',
-                                      hintText: '9123456789',
-                                      hintStyle: TextStyle(color: Colors.grey),
-                                      border: InputBorder.none,
-                                      enabledBorder: InputBorder.none,
-                                      focusedBorder: InputBorder.none,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 12,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                                const SizedBox(height: 60),
 
-                      const SizedBox(height: 24),
+                                // Login Title
+                                const Text(
+                                  "Login",
+                                  style: TextStyle(
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold,
+                                    color: kBlack,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
 
-                      // Send SMS Button - now using Firebase Auth
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLoading || _isPhoneAuthInProgress
-                              ? null
-                              : _handleSendSms,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                _isLoading || _isPhoneAuthInProgress
-                                ? Colors.grey
-                                : Colors.blueAccent,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          child: _isLoading || _isPhoneAuthInProgress
-                              ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
+                                // Subtitle
+                                const Text(
+                                  "Good to have you back!",
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                                const SizedBox(height: 50),
+
+                                // Error Message Display
+                                if (_errorMessage.isNotEmpty)
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      border: Border.all(
+                                        color: Colors.red.shade300,
                                       ),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      _isPhoneAuthInProgress
-                                          ? "Sending SMS..."
-                                          : "Processing...",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.sms,
-                                      size: 20,
-                                      color: Colors.white,
-                                    ),
-                                    SizedBox(width: 8),
-                                    Text(
-                                      "Send SMS",
+                                    child: Text(
+                                      _errorMessage,
                                       style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red.shade700,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+
+                                // Phone Number Input Field
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      "Mobile Number",
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: _isMobileFocused
+                                              ? Colors.blue
+                                              : Colors.grey,
+                                          width: _isMobileFocused ? 2.0 : 1.0,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          8.0,
+                                        ),
                                         color: Colors.white,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
+                                            child: const Center(
+                                              child: Text('+63'),
+                                            ),
+                                          ),
+                                          Container(
+                                            width: 1,
+                                            height: 24,
+                                            color: Colors.grey,
+                                            margin: const EdgeInsets.symmetric(
+                                              vertical: 12,
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: _phoneController,
+                                              focusNode: _mobileFocusNode,
+                                              keyboardType:
+                                                  TextInputType.number,
+                                              maxLength: 10,
+                                              enabled:
+                                                  !_isLoading &&
+                                                  !_isPhoneAuthInProgress,
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter
+                                                    .digitsOnly,
+                                              ],
+                                              validator: (value) {
+                                                if (value == null ||
+                                                    value.trim().isEmpty) {
+                                                  return 'Enter your mobile number';
+                                                }
+                                                if (value.length != 10) {
+                                                  return 'Enter exactly 10 digits';
+                                                }
+                                                if (!value.startsWith('9')) {
+                                                  return 'Mobile number should start with 9';
+                                                }
+                                                return null;
+                                              },
+                                              decoration: const InputDecoration(
+                                                counterText: '',
+                                                hintText: '9123456789',
+                                                hintStyle: TextStyle(
+                                                  color: Colors.grey,
+                                                ),
+                                                border: InputBorder.none,
+                                                enabledBorder: InputBorder.none,
+                                                focusedBorder: InputBorder.none,
+                                                contentPadding:
+                                                    EdgeInsets.symmetric(
+                                                      horizontal: 16,
+                                                      vertical: 12,
+                                                    ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ],
                                 ),
-                        ),
-                      ),
 
-                      const SizedBox(height: 20),
+                                const SizedBox(height: 5),
 
-                      // Security Notice - Updated for Firebase
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade50,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.verified_user,
-                              color: Colors.green.shade700,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Secured by Firebase Authentication',
-                                style: TextStyle(
-                                  color: Colors.green.shade700,
-                                  fontSize: 12,
+                                // Security Notice - Updated for Firebase
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.verified_user,
+                                          color: Colors.green.shade700,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Secured by Firebase Authentication',
+                                          style: TextStyle(
+                                            color: Colors.green.shade700,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
 
-                      const SizedBox(height: 20),
+                                const SizedBox(height: 100),
+
+                                // Send SMS Button - now using Firebase Auth
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    onPressed:
+                                        _isLoading || _isPhoneAuthInProgress
+                                        ? null
+                                        : _handleSendSms,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          _isLoading || _isPhoneAuthInProgress
+                                          ? Colors.grey
+                                          : Colors.blueAccent,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          8.0,
+                                        ),
+                                      ),
+                                    ),
+                                    child: _isLoading || _isPhoneAuthInProgress
+                                        ? Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              const SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Text(
+                                                _isPhoneAuthInProgress
+                                                    ? "Sending SMS..."
+                                                    : "Processing...",
+                                                style: const TextStyle(
+                                                  fontSize: 16,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : const Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.center,
+                                            children: [
+                                              Icon(
+                                                Icons.sms,
+                                                size: 20,
+                                                color: Colors.white,
+                                              ),
+                                              SizedBox(width: 8),
+                                              Text(
+                                                "Send SMS",
+                                                style: TextStyle(
+                                                  fontSize: 16,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 20),
 
                       // Divider Text
                       const Text(
@@ -854,77 +911,95 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 50),
+                                const Spacer(),
 
-                      // Signup Redirect
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Text("Don't have an account yet? "),
-                          GestureDetector(
-                            onTap: _isLoading || _isPhoneAuthInProgress
-                                ? null
-                                : _goToSignup,
-                            child: Text(
-                              "Signup",
-                              style: TextStyle(
-                                color: _isLoading || _isPhoneAuthInProgress
-                                    ? Colors.grey
-                                    : Colors.deepOrange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                                // Signup Redirect
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Text("Don't have an account yet? "),
+                                    GestureDetector(
+                                      onTap:
+                                          _isLoading || _isPhoneAuthInProgress
+                                          ? null
+                                          : _goToSignup,
+                                      child: Text(
+                                        "Signup",
+                                        style: TextStyle(
+                                          color:
+                                              _isLoading ||
+                                                  _isPhoneAuthInProgress
+                                              ? Colors.grey
+                                              : Colors.deepOrange,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
-                      // Debug Info (remove in production)
-                      if (_errorMessage.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 20),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Debug Info:',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                                // Debug Info (remove in production)
+                                if (_errorMessage.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 20),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Debug Info:',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Backend URL: ${ApiConfig.baseUrl}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Platform: ${Platform.isAndroid ? "Android" : "iOS"}',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Device: $_deviceInfo',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          Text(
+                                            'User Agent: $_userAgent',
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                          ),
+                                          const Text(
+                                            'Auth: Firebase Native',
+                                            style: TextStyle(fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'Backend URL: ${ApiConfig.baseUrl}',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                Text(
-                                  'Platform: ${Platform.isAndroid ? "Android" : "iOS"}',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                Text(
-                                  'Device: $_deviceInfo',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                Text(
-                                  'User Agent: $_userAgent',
-                                  style: const TextStyle(fontSize: 10),
-                                ),
-                                const Text(
-                                  'Auth: Firebase Native',
-                                  style: TextStyle(fontSize: 10),
-                                ),
+                                const SizedBox(height: 30),
                               ],
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
 
@@ -940,3 +1015,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

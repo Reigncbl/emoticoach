@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'models/reading_model.dart';
+import '../../models/reading_model.dart';
 import 'reading_content_screen.dart';
 
 class ReadingDetailScreen extends StatelessWidget {

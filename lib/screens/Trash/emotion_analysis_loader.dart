@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import './analysis.dart';
+import 'analysis.dart';
 
 // DATA MODEL
 class EmotionAnalysis {

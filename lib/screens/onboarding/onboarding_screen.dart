@@ -74,7 +74,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: const Text(
                 "Skip",
                 style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: kDarkBlue,
                   ),
@@ -129,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   isLastPage ? "Get Started" : "Next",
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../signup.dart';
+import '../login.dart';
 
 class DataPrivacyScreen extends StatefulWidget {
   const DataPrivacyScreen({super.key});
@@ -43,7 +43,9 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         title: const Text(
           "Terms & Condition",
@@ -61,7 +63,7 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
             child: Container(
               color: Colors.white,
               child: DefaultTextStyle(
-                style: const TextStyle(fontSize: 20, color: Colors.black),
+                style: const TextStyle(fontSize: 16, color: Colors.black),
                 child: SingleChildScrollView(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -99,7 +101,7 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
                       "We may update this Terms & Conditions periodically. Changes will be notified through the app or email.",
                     ),
 
-                    const SizedBox(height: 100), // space above the buttons
+                    const SizedBox(height: 16),
                     ],
                   ),
                 ),
@@ -109,7 +111,7 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
 
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20.0, 15.0, 20.0, 5.0),
+            padding: const EdgeInsets.fromLTRB(20.0, 15.0, 20.0, 0),
             child: Row(
               children: [
                 Checkbox(
@@ -155,7 +157,7 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
           ),
 
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             margin: const EdgeInsets.symmetric(horizontal: 16),
             color: Colors.white,
             child: Column(
@@ -184,7 +186,7 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
                     onPressed: _isAgreed ? () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SignupScreen()),
+                        MaterialPageRoute(builder: (context) => const LoginScreen()),
                       );
                     } : null,
                     style: ElevatedButton.styleFrom(
@@ -209,7 +211,6 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
     );
   }
 
-  // The 1. 2. 3.
   Widget sectionTitle(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 16, bottom: 8),
@@ -220,14 +221,13 @@ class _DataPrivacyScreenState extends State<DataPrivacyScreen> {
     );
   }
 
-  // The 1.1 2.1 3.1
   Widget bullet(int section, int number, String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 8, left: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("$section.$number ", style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text("$section.$number ", style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           Expanded(
             child: Text(text),
           ),
