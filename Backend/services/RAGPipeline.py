@@ -1,65 +1,84 @@
-from pathlib import Path
-import qdrant_client
-from llama_index.core import VectorStoreIndex, StorageContext, Settings
-from llama_index.embeddings.ollama import OllamaEmbedding 
-from llama_index.llms.ollama import Ollama
-from llama_index.readers.json import JSONReader
-from llama_index.vector_stores.qdrant import QdrantVectorStore
-import json  # Added for output parsing
-import asyncio
+import os
+from typing import List, Dict, Any
+from groq import Groq
+from dotenv import load_dotenv
 
-prompt = """
-You are Carlo in the metadata. Generate the appropriate response to the receiver.
-Analyze the metadata provided.
-Generate 5 reply suggestions for how the user should respond to the last message based on the context of the data.
+# Load environment variables
+load_dotenv()
 
-For analysis, USE ONE WORD.
-
-Use the following format for your response:
-
-[
-    {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
-    {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
-    {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
-    {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"},
-    {"analysis": "<ANALYSIS>", "suggestion": "<SUGGESTION>"}
-]
-
-RULES:
-1. Use only the context provided in the metadata, use its specific behavior.
-2. USE THE CONTEXT OF ALL MESSAGES BEFORE GENERATING.
-3. Analyze which language the user is using, and reply using that language.
-4. You can combine languages, like Tagalog and English, if present.
-5. USE EMOJI IF IT IS PRESENT; IF THERE IS NONE, DON'T USE EMOJI.
-6. ALWAYS REPLY TO THE LAST MESSAGE.
-7. Use the language switching behavior of the data.
-"""
-
-async def suggestionGeneration(file_path: str):  # Modified signature
-    Settings.llm = Ollama(model="gemma3:4b", request_timeout=1000)
-    Settings.embed_model = OllamaEmbedding(model_name='nomic-embed-text:latest')
-
-    loader = JSONReader()
-    documents = loader.load_data(Path(file_path))  # Use file_path argument
-
-    client = qdrant_client.QdrantClient(path="./qdrant_data")
-    vector_store = QdrantVectorStore(client=client, collection_name="analysis")
-    storage_context = StorageContext.from_defaults(vector_store=vector_store)
-
-    index = VectorStoreIndex.from_documents(documents, storage_context=storage_context)
-
-    query_engine = index.as_query_engine()
-    response = query_engine.query(prompt)
-
-    # Ensure the response is parsed as JSON and return as dict
-    try:
-        raw = response.response.strip()
-        # Remove triple backticks and optional 'json' language marker
-        if raw.startswith("```"):
-            raw = raw.lstrip("`").lstrip("json").strip()
-            raw = raw.rstrip("`").strip()
-        return json.loads(raw)
-    except Exception as e:
-        return {"error": "Failed to parse LLM response as JSON", "detail": response.response, "exception": str(e)}
+class SimpleRAG:
+    """Simple RAG Pipeline using Groq"""
     
-    asynchio.run(suggestiionGeneration())
+    def __init__(self):
+        self.client = Groq(api_key=os.getenv("api_key"))
+        self.model = os.getenv("model") or "llama3-8b-8192"  # Default model if not specified
+        self.documents = []  # Simple in-memory storage
+    
+    def add_document(self, content: str, metadata: Dict = None):
+        """Add document to knowledge base"""
+        self.documents.append({
+            "content": content,
+            "metadata": metadata or {}
+        })
+    
+    def search(self, query: str, top_k: int = 3) -> List[Dict]:
+        """Simple keyword search"""
+        query_words = query.lower().split()
+        results = []
+        
+        for doc in self.documents:
+            content_lower = doc["content"].lower()
+            score = sum(1 for word in query_words if word in content_lower)
+            
+            if score > 0:
+                results.append({
+                    "content": doc["content"],
+                    "score": score,
+                    "metadata": doc["metadata"]
+                })
+        
+        # Sort by score and return top results
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:top_k]
+    
+    def generate_response(self, query: str) -> str:
+        """Generate response using retrieved context"""
+        # Get relevant documents
+        relevant_docs = self.search(query)
+        
+        # Build context from documents
+        context = "\n".join([doc["content"] for doc in relevant_docs])
+        
+        # Create prompt for Groq
+        prompt = f"""Context: {context}
+
+Question: {query}
+
+Please answer the question based on the provided context. If the context doesn't contain enough information, say so and provide general guidance."""
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI assistant."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=500
+            )
+            return response.choices[0].message.content
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+# Create global instance
+rag = SimpleRAG()
+
+# Example usage
+if __name__ == "__main__":
+    # Add some sample documents
+    rag.add_document("Emotional intelligence is the ability to understand and manage your emotions.")
+    rag.add_document("Mindfulness helps improve emotional awareness and regulation.")
+    
+    # Ask a question
+    answer = rag.generate_response("How can I improve my emotional intelligence?")
+    print(answer)

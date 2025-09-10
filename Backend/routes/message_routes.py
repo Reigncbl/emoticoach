@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 # Import the service functions
 from services import messages_services as telegram_svc
+from services.emotion_pipeline import analyze_emotion, get_pipeline
 
 message_router = APIRouter()
 
@@ -17,10 +18,13 @@ class ContactRequest(BaseModel):
     last_name: str = ""
 
 class AuthRequest(BaseModel):
-    phone_number: str
+    phone_number: str = "639063450469"
+
+# Default phone number from AuthRequest
+DEFAULT_PHONE = AuthRequest().phone_number
     
 class CodeRequest(BaseModel):
-    phone_number: str
+    phone_number: str = DEFAULT_PHONE
     code: str
     password: Optional[str] = None
 
@@ -52,7 +56,7 @@ async def verify_code(data: CodeRequest):
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 @message_router.get("/status")
-async def get_status(phone_number: str):
+async def get_status(phone_number: str = DEFAULT_PHONE):
     """Checks the user's authentication status."""
     try:
         return await telegram_svc.is_user_authenticated(phone_number)
@@ -60,7 +64,7 @@ async def get_status(phone_number: str):
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 @message_router.get("/contacts")
-async def get_contacts(phone_number: str):
+async def get_contacts(phone_number: str = DEFAULT_PHONE):
     """Gets the list of user contacts."""
     try:
         contacts = await telegram_svc.get_user_contacts(phone_number)
@@ -71,7 +75,7 @@ async def get_contacts(phone_number: str):
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 @message_router.post("/messages")
-async def get_messages(phone_number: str, data: ContactRequest):
+async def get_messages(data: ContactRequest, phone_number: str = DEFAULT_PHONE):
     """Gets the last 10 messages from a contact."""
     try:
         messages = await telegram_svc.get_contact_messages(

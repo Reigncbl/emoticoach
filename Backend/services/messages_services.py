@@ -1,6 +1,7 @@
 # backend/services/telegram_service.py
 import os
 import re
+import json
 from typing import Dict
 from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest, GetContactsRequest
@@ -22,22 +23,24 @@ active_clients: Dict[str, TelegramClient] = {}
 
 def get_client(phone: str) -> TelegramClient:
     """Returns a TelegramClient for the given phone."""
-    # Normalize phone number for session file lookup (remove +, -, spaces)
+    # Use the specific session file
+    specific_session_path = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\sessions\639063450469"
+    
     normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
-    print(f"DEBUG: get_client called with phone: {phone}, normalized: {normalized_phone}")
+    print(f"DEBUG: get_client called with phone: {phone}, using specific session: {specific_session_path}")
     
     if normalized_phone in active_clients:
         print(f"DEBUG: Using existing client for {normalized_phone}")
         return active_clients[normalized_phone]
     
-    # Use normalized phone for session file path
-    session_path = os.path.join(SESSION_DIR, normalized_phone)
+    # Use the specific session path instead of generating one
+    session_path = specific_session_path
     print(f"DEBUG: Creating new client with session path: {session_path}")
     client = TelegramClient(session_path, API_ID, API_HASH)
     active_clients[normalized_phone] = client
     return client
 
-async def start_auth_session(phone_number: str):
+async def start_auth_session(phone_number: str = "639063450469"):
     """Sends a verification code to the user's Telegram."""
     try:
         # Use the original phone number for Telegram API (with +)
@@ -47,7 +50,7 @@ async def start_auth_session(phone_number: str):
     except PhoneNumberBannedError:
         raise ValueError("Phone number is banned.")
 
-async def verify_auth_code(phone_number: str, code: str, password: str = None):
+async def verify_auth_code(phone_number: str = "639063450469", code: str = None, password: str = None):
     """Verifies the code and signs the user in."""
     client = get_client(phone_number)
     await client.connect()
@@ -60,7 +63,7 @@ async def verify_auth_code(phone_number: str, code: str, password: str = None):
     except PhoneCodeInvalidError:
         raise ValueError("Invalid code.")
 
-async def is_user_authenticated(phone_number: str) -> dict:
+async def is_user_authenticated(phone_number: str = "639063450469") -> dict:
     """Checks if the user is authenticated."""
     # Normalize phone number for consistent lookup
     normalized_phone = phone_number.replace('+', '').replace('-', '').replace(' ', '')
@@ -81,7 +84,7 @@ async def is_user_authenticated(phone_number: str) -> dict:
     print(f"DEBUG: User not authorized")
     return {"authenticated": False}
 
-async def get_user_contacts(phone_number: str) -> list:
+async def get_user_contacts(phone_number: str = "639063450469") -> list:
     """Fetches the list of user contacts."""
     client = get_client(phone_number)
     await client.connect()
@@ -100,7 +103,7 @@ async def get_user_contacts(phone_number: str) -> list:
             })
     return contacts
 
-async def get_contact_messages(phone_number: str, contact_data: dict) -> dict:
+async def get_contact_messages(phone_number: str = "639063450469", contact_data: dict = None) -> dict:
     """Fetches the last 10 messages from a specific contact."""
     client = get_client(phone_number)
     await client.connect()
@@ -135,8 +138,8 @@ async def get_contact_messages(phone_number: str, contact_data: dict) -> dict:
         "messages": messages
     }
     
-    # In a real app, you might use a database instead of a file
-    # with open(filename, "w", encoding="utf-8") as f:
-    #     json.dump(response, f, indent=2)
+ 
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump(response, f, indent=2)
 
     return response

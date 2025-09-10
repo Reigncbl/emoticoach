@@ -14,26 +14,29 @@ import numpy as np
 # -------------------------------
 # 1. Load classifier
 # -------------------------------
-MODEL_PATH = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel\emotion_model"
-try:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
-    emotion_labels = list(model.config.id2label.values())
-except FileNotFoundError:
-    print(f"Error: Model files not found at {MODEL_PATH}")
-    sys.exit(1)
+# MODEL_PATH = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel\emotion_model"
+# try:
+#     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+#     model = AutoModelForSequenceClassification.from_pretrained(MODEL_PATH)
+#     emotion_labels = list(model.config.id2label.values())
+# except FileNotFoundError:
+#     print(f"Error: Model files not found at {MODEL_PATH}")
+#     sys.exit(1)
 
 
 def classify_emotions(texts: List[str]) -> List[Dict[str, Any]]:
     """Classify a list of texts and return predicted emotion with confidence."""
+    # This function is now handled by the EmotionPipeline, 
+    # but we keep it here to avoid breaking other parts of the code.
+    # In a real-world scenario, you would refactor this to use the pipeline.
+    from .emotion_pipeline import analyze_emotion
     results = []
     for text in texts:
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
-        with torch.no_grad():
-            outputs = model(**inputs)
-            probs = F.softmax(outputs.logits, dim=1).squeeze()
-        top_idx = probs.argmax().item()
-        results.append({"emotion": emotion_labels[top_idx], "confidence": float(probs[top_idx])})
+        analysis = analyze_emotion(text)
+        results.append({
+            "emotion": analysis.get("emotion", "neutral"),
+            "confidence": analysis.get("confidence", 0.5)
+        })
     return results
 
 
