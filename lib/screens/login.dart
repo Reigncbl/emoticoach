@@ -1,6 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/colors.dart';
+import '../config/api_config.dart';
+import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
+import 'package:iconify_flutter/icons/ic.dart'; 
 import 'signup.dart';
 import 'otp_verification.dart';
 import 'package:http/http.dart' as http;
@@ -9,6 +13,9 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+// Session management
+import '../services/authenticated_api_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,17 +47,6 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _verificationId;
   bool _isPhoneAuthInProgress = false;
 
-  // Fixed base URL - Use your computer's IP address or emulator mapping
-  String get _baseUrl {
-    if (Platform.isAndroid) {
-      // For Android emulator, use special localhost mapping
-      return 'http://192.168.100.195:8000';
-    } else {
-      // For iOS simulator or physical devices, use your computer's IP
-      return 'http://10.0.2.2:8000'; // Replace with YOUR actual IP
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -60,6 +56,7 @@ class _LoginScreenState extends State<LoginScreen> {
         _isMobileFocused = _mobileFocusNode.hasFocus;
       });
     });
+
 
     // Initialize device info
     _initializeDeviceInfo();
@@ -76,6 +73,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _initializeDeviceInfo() async {
     try {
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+
 
       if (Platform.isAndroid) {
         AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
@@ -105,6 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
         .replaceAll('(', '')
         .replaceAll(')', '');
 
+
     // Handle different input formats
     if (cleaned.startsWith('0') && cleaned.length == 11) {
       // 09955578757 -> +639955578757
@@ -117,45 +116,15 @@ class _LoginScreenState extends State<LoginScreen> {
       return '+63$cleaned';
     }
 
+
     // If already has +63 or other format, return as is
     return phoneInput.startsWith('+') ? phoneInput : '+63$cleaned';
   }
 
-  // Enhanced user existence check
+  // Enhanced user existence check - simplified (always return true)
   Future<bool> _checkUserExists(String mobileNumber) async {
-    try {
-      print('Checking if user exists: $mobileNumber');
-
-      // URL encode the mobile number to handle the + character
-      final encodedNumber = Uri.encodeComponent(mobileNumber);
-
-      final response = await http
-          .get(
-            Uri.parse(
-              '$_baseUrl/users/check-mobile?mobile_number=$encodedNumber',
-            ),
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': _userAgent ?? 'Flutter App',
-            },
-          )
-          .timeout(const Duration(seconds: 15));
-
-      print('Check user response: ${response.statusCode}');
-      print('Check user body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        return responseData['exists'] ?? false;
-      }
-      return false;
-    } on http.ClientException catch (e) {
-      print('Connection error checking user: $e');
-      return false;
-    } catch (e) {
-      print('Error checking user: $e');
-      return false;
-    }
+    // For simple client-side session, always allow login
+    return true;
   }
 
   // Send verification data to backend after Firebase Auth success
@@ -166,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final response = await http
           .post(
-            Uri.parse('$_baseUrl/users/firebase-phone-verified'),
+            Uri.parse('${ApiConfig.baseUrl}/users/firebase-phone-verified'),
             headers: {
               'Content-Type': 'application/json',
               'User-Agent': _userAgent ?? 'Flutter App',
@@ -202,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 120),
 
+
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             // Auto-verification completed
@@ -211,6 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
             if (result.user != null) {
               // Notify backend
               await _notifyBackendOfVerification(phoneNumber, result.user!.uid);
+
 
               // Navigate to OTP screen (or home if auto-verified)
               Navigator.push(
@@ -232,6 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         },
 
+
         verificationFailed: (FirebaseAuthException e) {
           print('Verification failed: ${e.code} - ${e.message}');
           setState(() {
@@ -249,13 +221,16 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         },
 
+
         codeSent: (String verificationId, int? resendToken) {
           print('SMS code sent successfully');
           _verificationId = verificationId;
 
+
           setState(() {
             _isPhoneAuthInProgress = false;
           });
+
 
           // Navigate to OTP verification screen
           Navigator.push(
@@ -269,6 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
 
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification code sent successfully!'),
@@ -276,6 +252,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         },
+
 
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
@@ -290,13 +267,14 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Updated SMS handling using Firebase Auth
+  // Updated SMS handling using Firebase Auth - simplified
   void _handleSendSms() async {
     if (_formKey.currentState!.validate()) {
       String phoneInput = _phoneController.text.trim();
 
       // Format to +63 format for backend
       String formattedMobile = _formatPhoneNumber(phoneInput);
+
 
       print("Send SMS to: $formattedMobile (Formatted with +63)");
       print("Using Firebase Auth instead of custom backend SMS");
@@ -380,7 +358,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Send ONLY the Firebase ID token to your backend
         final response = await http
             .post(
-              Uri.parse('$_baseUrl/auth/google-login'),
+              Uri.parse('${ApiConfig.baseUrl}/auth/google-login'),
               headers: {
                 'Content-Type': 'application/json',
                 'User-Agent': _userAgent ?? 'Flutter App',
@@ -392,6 +370,24 @@ class _LoginScreenState extends State<LoginScreen> {
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
           print('Google login successful: $responseData');
+
+          // Save Google login session
+          final displayNameParts = user.displayName?.split(' ') ?? [];
+          await SimpleApiService.saveGoogleSession(
+            email: user.email!,
+            firebaseUid: user.uid,
+            firstName: displayNameParts.isNotEmpty
+                ? displayNameParts.first
+                : null,
+            lastName: displayNameParts.length > 1
+                ? displayNameParts.sublist(1).join(' ')
+                : null,
+            additionalData: {
+              'photoUrl': user.photoURL,
+              'emailVerified': user.emailVerified,
+              'loginTimestamp': DateTime.now().toIso8601String(),
+            },
+          );
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -437,6 +433,151 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('An unexpected error occurred during Google login.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Email login with better error handling
+  void _handleEmailLogin() async {
+    print("Email login pressed");
+    _showEmailLoginDialog();
+  }
+
+  // Email Login Dialog
+  void _showEmailLoginDialog() {
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Email Login'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await _loginWithEmail(
+                  emailController.text.trim(),
+                  passwordController.text,
+                );
+                Navigator.of(context).pop();
+              },
+              child: const Text('Login'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Enhanced email login
+  Future<void> _loginWithEmail(String email, String password) async {
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter both email and password'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse(ApiConfig.loginEmail),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': _userAgent ?? 'Flutter App',
+            },
+            body: json.encode({'email': email, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final responseData = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        // Email login successful
+        print('Email login successful: $responseData');
+
+        // Save email login session
+        await SimpleApiService.saveEmailSession(
+          email: email,
+          firstName: responseData['first_name'],
+          lastName: responseData['last_name'],
+          phoneNumber: responseData['phone_number'],
+          firebaseUid: responseData['firebase_uid'],
+          additionalData: {
+            'loginTimestamp': DateTime.now().toIso8601String(),
+            'userLevel': responseData['level'],
+            'accountType': responseData['account_type'],
+          },
+        );
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Login successful!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Navigate to home screen
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(responseData['detail'] ?? 'Email login failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } on http.ClientException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Connection error: ${e.message}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Network error during email login.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -728,53 +869,47 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 const SizedBox(height: 20),
 
-                                // Divider Text
-                                const Text(
-                                  "or",
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
+                      // Divider Text
+                      const Text(
+                        "or",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
 
-                                // Social Login Buttons
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    // Google Login
-                                    GestureDetector(
-                                      onTap:
-                                          _isLoading || _isPhoneAuthInProgress
-                                          ? null
-                                          : _handleGoogleLogin,
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          border: Border.all(
-                                            color:
-                                                _isLoading ||
-                                                    _isPhoneAuthInProgress
-                                                ? Colors.grey
-                                                : Colors.blueAccent,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                        ),
-                                        child: Iconify(
-                                          Ri.google_fill,
-                                          size: 28,
-                                          color:
-                                              _isLoading ||
-                                                  _isPhoneAuthInProgress
-                                              ? Colors.grey
-                                              : Colors.blueAccent,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                      // Social Login Buttons
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          // Google Login
+                          GestureDetector(
+                            onTap: _isLoading || _isPhoneAuthInProgress
+                                ? null
+                                : _handleGoogleLogin,
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: _isLoading || _isPhoneAuthInProgress
+                                      ? Colors.grey
+                                      : Colors.blueAccent,
                                 ),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Iconify(
+                                Ri.google_fill,
+                                size: 28,
+                                color: _isLoading || _isPhoneAuthInProgress
+                                    ? Colors.grey
+                                    : Colors.blueAccent,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                        ],
+                      ),
 
                                 const Spacer(),
 
@@ -825,7 +960,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                             ),
                                           ),
                                           Text(
-                                            'Backend URL: $_baseUrl',
+                                            'Backend URL: ${ApiConfig.baseUrl}',
                                             style: const TextStyle(
                                               fontSize: 10,
                                             ),
@@ -880,3 +1015,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

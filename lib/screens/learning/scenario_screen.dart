@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import './reading_screen.dart';
 import './scenario.dart';
 import '../../utils/colors.dart';
+import '../../services/scenario_service.dart';
+import '../../models/scenario_models.dart';
 import '../../controllers/learning_navigation_controller.dart';
 
 class LearningScreen extends StatefulWidget {
@@ -16,6 +18,12 @@ class _LearningScreenState extends State<LearningScreen>
   late TabController _tabController;
   final LearningNavigationController _navController =
       LearningNavigationController();
+  
+  // Missing state variables
+  bool _isLoading = false;
+  String? _errorMessage;
+  List<Scenario> _scenarios = [];
+  List<Scenario> _completedScenarios = [];
 
   @override
   void initState() {
@@ -28,12 +36,16 @@ class _LearningScreenState extends State<LearningScreen>
 
     // Listen to navigation controller changes
     _navController.addListener(_handleNavigationChange);
+    
+    // Load scenarios when screen initializes
+    _loadScenarios();
   }
 
   void _handleNavigationChange() {
     if (_tabController.index != _navController.currentTabIndex) {
       _tabController.animateTo(_navController.currentTabIndex);
     }
+    _loadScenarios();
   }
 
   @override
@@ -41,6 +53,47 @@ class _LearningScreenState extends State<LearningScreen>
     _navController.removeListener(_handleNavigationChange);
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadScenarios() async {
+    print('🔍 DEBUG: Starting to load scenarios...');
+    try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      print('🔍 DEBUG: Calling ScenarioService.getScenarios()...');
+      final scenarioData = await ScenarioService.getScenarios();
+      print('🔍 DEBUG: Received ${scenarioData.length} scenario records');
+
+      final scenarios = scenarioData
+          .map((data) {
+            print('🔍 DEBUG: Processing scenario data: $data');
+            return Scenario.fromJson(data);
+          })
+          .toList();
+
+      print('🔍 DEBUG: Successfully parsed ${scenarios.length} scenarios');
+
+      setState(() {
+        _scenarios = scenarios.where((s) => s.isActive).toList();
+        print('🔍 DEBUG: Filtered to ${_scenarios.length} active scenarios');
+        // For now, assume no completed scenarios - you can implement this with user progress tracking
+        _completedScenarios = [];
+        _isLoading = false;
+      });
+      
+      print('🔍 DEBUG: Successfully loaded scenarios!');
+    } catch (e) {
+      print('🔍 DEBUG: Error loading scenarios: $e');
+      print('🔍 DEBUG: Error type: ${e.runtimeType}');
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Failed to load scenarios: ${e.toString()}';
+      });
+      print('Error loading scenarios: $e');
+    }
   }
 
   @override
@@ -108,6 +161,49 @@ class _LearningScreenState extends State<LearningScreen>
   }
 
   Widget _buildScenariosTab() {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading scenarios...'),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red[400]),
+            const SizedBox(height: 16),
+            Text(
+              'Error loading scenarios',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadScenarios,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -144,182 +240,31 @@ class _LearningScreenState extends State<LearningScreen>
           const SizedBox(height: 24),
 
           // Scenarios Done Section
-          _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
-          const SizedBox(height: 12),
-          ScenarioCard(
-            title: 'Ask for Extension',
-            description:
-                'Request a deadline extension from your professor for your final project.',
-            persona: 'Professor John Doe',
-            difficulty: 'Hard',
-            isReplay: true,
-            scenarioRuns: 2,
-            rating: 4.2,
-            totalRatings: 300,
-            duration: '12-15 min',
-            icon: Icons.school,
-            color: kScenarioBlue,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Ask for Extension',
-                    aiPersona: 'Professor John Doe',
-                    initialMessage:
-                        'I see you wanted to discuss your final project. What can I help you with?',
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
+          if (_completedScenarios.isNotEmpty) ...[
+            _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
+            const SizedBox(height: 12),
+            ..._completedScenarios.map(
+              (scenario) => _buildScenarioCard(scenario, isCompleted: true),
+            ),
+            const SizedBox(height: 24),
+          ],
 
           // Explore Section
           _buildSectionHeader('Explore', Icons.explore),
           const SizedBox(height: 12),
 
-          ScenarioCard(
-            title: 'Difficult Academic Feedback',
-            description:
-                'Practice receiving and responding to challenging feedback from a professor about your academic performance.',
-            persona: 'Prof. Cedric',
-            difficulty: 'Medium',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.3,
-            totalRatings: 180,
-            duration: '10-15 min',
-            icon: Icons.school,
-            color: kScenarioBlue,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Difficult Academic Feedback',
-                    aiPersona: 'Prof. Cedric',
-                    initialMessage: 'Loading conversation...',
-                  ),
+          if (_scenarios.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Text(
+                  'No scenarios available at the moment.',
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          ScenarioCard(
-            title: 'Console a Friend',
-            description: 'Be there for a friend who failed their exam.',
-            persona: 'A student who failed their exam',
-            difficulty: 'Easy',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.5,
-            totalRatings: 150,
-            duration: '8-12 min',
-            icon: Icons.people,
-            color: Colors.pink[600]!,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Console a Friend',
-                    aiPersona: 'A student who failed their exam',
-                    initialMessage:
-                        'Hey... I just got my exam results back and I failed. I don\'t know what to do.',
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          ScenarioCard(
-            title: 'Workplace Conflict Resolution',
-            description:
-                'Navigate a challenging conversation with a colleague about a work disagreement.',
-            persona: 'Manager Sarah',
-            difficulty: 'Hard',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.1,
-            totalRatings: 220,
-            duration: '15-20 min',
-            icon: Icons.business,
-            color: kArticleOrange,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Workplace Conflict Resolution',
-                    aiPersona: 'Manager Sarah',
-                    initialMessage:
-                        'Hi there, I think we need to talk about what happened in yesterday\'s meeting. I noticed some tension and I\'d like to work through it together.',
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          ScenarioCard(
-            title: 'Giving Constructive Feedback',
-            description:
-                'Practice delivering feedback to a team member in a supportive and effective way.',
-            persona: 'Team Member Alex',
-            difficulty: 'Medium',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.4,
-            totalRatings: 195,
-            duration: '10-15 min',
-            icon: Icons.feedback,
-            color: Colors.green[600]!,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Giving Constructive Feedback',
-                    aiPersona: 'Team Member Alex',
-                    initialMessage:
-                        'Hey! Thanks for setting up this meeting. I\'m ready to hear your thoughts on my recent project work.',
-                  ),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          ScenarioCard(
-            title: 'Difficult Customer Service',
-            description:
-                'Handle a frustrated customer complaint with empathy and professionalism.',
-            persona: 'Customer Jamie',
-            difficulty: 'Easy',
-            isReplay: false,
-            scenarioRuns: 0,
-            rating: 4.0,
-            totalRatings: 200,
-            duration: '8-12 min',
-            icon: Icons.support_agent,
-            color: Colors.purple[600]!,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ScenarioScreen(
-                    scenarioTitle: 'Difficult Customer Service',
-                    aiPersona: 'Customer Jamie',
-                    initialMessage:
-                        'I am extremely frustrated! I\'ve been trying to resolve this issue for weeks and no one seems to be able to help me. This is completely unacceptable!',
-                  ),
-                ),
-              );
-            },
-          ),
+              ),
+            )
+          else
+            ..._scenarios.map((scenario) => _buildScenarioCard(scenario)),
         ],
       ),
     );
@@ -335,6 +280,128 @@ class _LearningScreenState extends State<LearningScreen>
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
       ],
+    );
+  }
+
+  Widget _buildScenarioCard(Scenario scenario, {bool isCompleted = false}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      child: ScenarioCard(
+        title: scenario.title,
+        description: scenario.description,
+        persona: _getPersonaFromCategory(scenario.category),
+        difficulty: _capitalizeFirst(scenario.difficulty),
+        isReplay: isCompleted,
+        scenarioRuns: isCompleted ? 1 : 0,
+        rating: 4.2, // Default rating - can be enhanced with user ratings
+        totalRatings: 150, // Default - can be enhanced with actual data
+        duration: scenario.formattedDuration,
+        icon: _getIconFromCategory(scenario.category),
+        color: _getColorFromCategory(scenario.category),
+        onTap: () => _startScenario(scenario),
+      ),
+    );
+  }
+
+  void _startScenario(Scenario scenario) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final result = await ScenarioService.startScenario(scenario.id);
+
+      // Close loading indicator
+      if (mounted) Navigator.pop(context);
+
+      if (result['success'] == true) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ScenarioScreen(
+              scenarioId: scenario.id,
+              scenarioTitle: scenario.title,
+              aiPersona: result['character_name'] ?? 'AI Assistant',
+              initialMessage:
+                  result['first_message'] ?? 'Loading conversation...',
+            ),
+          ),
+        );
+      } else {
+        _showErrorSnackBar(
+          'Failed to start scenario: ${result['error'] ?? 'Unknown error'}',
+        );
+      }
+    } catch (e) {
+      // Close loading indicator if still open
+      if (mounted) Navigator.pop(context);
+      _showErrorSnackBar('Failed to start scenario: $e');
+    }
+  }
+
+  String _getPersonaFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'workplace':
+      case 'professional':
+        return 'Manager';
+      case 'friendship':
+        return 'Friend';
+      case 'family':
+        return 'Family Member';
+      case 'social':
+        return 'Classmate';
+      default:
+        return 'AI Assistant';
+    }
+  }
+
+  IconData _getIconFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'workplace':
+      case 'professional':
+        return Icons.business;
+      case 'friendship':
+        return Icons.people;
+      case 'family':
+        return Icons.family_restroom;
+      case 'social':
+        return Icons.school;
+      default:
+        return Icons.chat;
+    }
+  }
+
+  Color _getColorFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'workplace':
+      case 'professional':
+        return kArticleOrange;
+      case 'friendship':
+        return Colors.pink[600]!;
+      case 'family':
+        return Colors.purple[600]!;
+      case 'social':
+        return kScenarioBlue;
+      default:
+        return kBrightBlue;
+    }
+  }
+
+  String _capitalizeFirst(String text) {
+    if (text.isEmpty) return text;
+    return text[0].toUpperCase() + text.substring(1).toLowerCase();
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 

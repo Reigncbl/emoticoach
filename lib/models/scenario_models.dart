@@ -1,5 +1,58 @@
 import 'dart:convert';
 
+class Scenario {
+  final int id;
+  final String title;
+  final String description;
+  final String category;
+  final String difficulty;
+  final String? configFile;
+  final int? estimatedDuration;
+  final bool isActive;
+
+  Scenario({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.difficulty,
+    this.configFile,
+    this.estimatedDuration,
+    required this.isActive,
+  });
+
+  factory Scenario.fromJson(Map<String, dynamic> json) {
+    return Scenario(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      category: json['category'] as String,
+      difficulty: json['difficulty'] as String,
+      configFile: json['config_file'] as String?,
+      estimatedDuration: json['estimated_duration'] as int?,
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'category': category,
+      'difficulty': difficulty,
+      'config_file': configFile,
+      'estimated_duration': estimatedDuration,
+      'is_active': isActive,
+    };
+  }
+
+  String get formattedDuration {
+    if (estimatedDuration == null) return '10-15 min';
+    return '${estimatedDuration! - 2}-${estimatedDuration! + 3} min';
+  }
+}
+
 class ConversationMessage {
   final String role;
   final String content;
@@ -250,6 +303,39 @@ class ConfigResponse {
       firstMessage: json['first_message'] as String?,
       conversationStarted: json['conversation_started'] as bool?,
       error: json['error'] as String?,
+    );
+  }
+}
+
+class ConversationFlowResponse {
+  final bool success;
+  final bool shouldEnd;
+  final double confidence;
+  final String reason;
+  final String? suggestedEndingMessage;
+  final Map<String, double> conversationQuality;
+
+  ConversationFlowResponse({
+    required this.success,
+    required this.shouldEnd,
+    required this.confidence,
+    required this.reason,
+    this.suggestedEndingMessage,
+    required this.conversationQuality,
+  });
+
+  factory ConversationFlowResponse.fromJson(Map<String, dynamic> json) {
+    return ConversationFlowResponse(
+      success: json['success'] as bool,
+      shouldEnd: json['should_end'] as bool,
+      confidence: (json['confidence'] as num).toDouble(),
+      reason: json['reason'] as String,
+      suggestedEndingMessage: json['suggested_ending_message'] as String?,
+      conversationQuality: Map<String, double>.from(
+        (json['conversation_quality'] as Map<String, dynamic>).map(
+          (key, value) => MapEntry(key, (value as num).toDouble()),
+        ),
+      ),
     );
   }
 }

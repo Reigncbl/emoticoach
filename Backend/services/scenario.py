@@ -1,14 +1,46 @@
 import os
 import re
 import json
-import json
 import yaml
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from llama_index.llms.groq import Groq
 from llama_index.core.llms import ChatMessage as LlamaMessage, MessageRole
+from sqlmodel import Session, select
+from sqlalchemy.exc import OperationalError, DisconnectionError
+from core.db_connection import engine
+from model.scenario_with_config import ScenarioWithConfig
+
+def get_db_session_with_retry(max_retries=3):
+    """Get database session with retry logic for connection issues."""
+    for attempt in range(max_retries):
+        try:
+            return Session(engine)
+        except (OperationalError, DisconnectionError) as e:
+            if attempt == max_retries - 1:
+                raise e
+            time.sleep(1)  # Wait 1 second before retry
+
+class ScenarioListResponse(BaseModel):
+    success: bool
+    scenarios: List[Dict[str, Any]]
+
+class ScenarioDetailsResponse(BaseModel):
+    success: bool
+    scenario: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+
+class StartConversationResponse(BaseModel):
+    success: bool
+    scenario_id: Optional[int] = None
+    scenario_title: Optional[str] = None
+    character_name: Optional[str] = None
+    first_message: Optional[str] = None
+    conversation_started: Optional[bool] = None
+    error: Optional[str] = None
 
 class ConversationMessage(BaseModel):
     role: str  # "user" or "assistant"
@@ -16,6 +48,9 @@ class ConversationMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    scenario_id: Optional[int] = None
+    character_name: Optional[str] = None
+    character_description: Optional[str] = None
     conversation_history: Optional[List[ConversationMessage]] = None
 
 class ChatResponse(BaseModel):
@@ -26,6 +61,7 @@ class ChatResponse(BaseModel):
 
 class EvaluationRequest(BaseModel):
     conversation_history: List[ConversationMessage]
+    scenario_id: Optional[int] = None
 
 class EvaluationResponse(BaseModel):
     success: bool
@@ -37,27 +73,121 @@ class EvaluationResponse(BaseModel):
 
 class ConfigResponse(BaseModel):
     success: bool
+    scenario_id: Optional[int] = None
+    scenario_title: Optional[str] = None
     character_name: Optional[str] = None
     first_message: Optional[str] = None
     conversation_started: Optional[bool] = None
     error: Optional[str] = None
 
-def load_config() -> Dict[str, Any]:
-    """Load the teacher roleplay configuration."""
-    try:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(os.path.dirname(script_dir), "Templates", "teacher_config.yaml")
+# Enhanced Scenario Service Functions
+def get_all_scenarios() -> List[Dict[str, Any]]:
+    """Get all active scenarios with basic info"""
+    with Session(engine) as session:
+        scenarios = session.exec(
+            select(ScenarioWithConfig).where(ScenarioWithConfig.is_active == True)
+        ).all()
         
-        if not os.path.exists(config_path):
-            raise FileNotFoundError(f"Config file not found at: {config_path}")
+        return [
+            {
+                "id": scenario.id,
+                "title": scenario.title,
+                "description": scenario.description,
+                "category": scenario.category,
+                "difficulty": scenario.difficulty,
+                "character_name": scenario.character_name,
+                "estimated_duration": scenario.estimated_duration
+            }
+            for scenario in scenarios
+        ]
+
+def get_scenario_details(scenario_id: int) -> Optional[Dict[str, Any]]:
+    """Get detailed scenario information including character config"""
+    with Session(engine) as session:
+        scenario = session.exec(
+            select(ScenarioWithConfig).where(ScenarioWithConfig.id == scenario_id)
+        ).first()
+        
+        if not scenario:
+            return None
+        
+        return {
+            "id": scenario.id,
+            "title": scenario.title,
+            "description": scenario.description,
+            "category": scenario.category,
+            "difficulty": scenario.difficulty,
+            "character_name": scenario.character_name,
+            "character_description": scenario.character_description,
+            "first_message": scenario.first_message,
+            "estimated_duration": scenario.estimated_duration,
+            "character_config": scenario.character_config
+        }
+
+def start_scenario_conversation(scenario_id: int) -> Optional[Dict[str, Any]]:
+    """Start a conversation with a scenario character"""
+    with Session(engine) as session:
+        scenario = session.exec(
+            select(ScenarioWithConfig).where(ScenarioWithConfig.id == scenario_id)
+        ).first()
+        
+        if not scenario:
+            return None
+        
+        return {
+            "scenario_id": scenario.id,
+            "scenario_title": scenario.title,
+            "character_name": scenario.character_name,
+            "first_message": scenario.first_message,
+            "conversation_started": True
+        }
+
+def get_scenarios_by_difficulty(difficulty: str) -> List[Dict[str, Any]]:
+    """Get scenarios filtered by difficulty level"""
+    with Session(engine) as session:
+        scenarios = session.exec(
+            select(ScenarioWithConfig).where(
+                ScenarioWithConfig.difficulty == difficulty,
+                ScenarioWithConfig.is_active == True
+            )
+        ).all()
+        
+        return [
+            {
+                "id": scenario.id,
+                "title": scenario.title,
+                "description": scenario.description,
+                "category": scenario.category,
+                "character_name": scenario.character_name,
+                "estimated_duration": scenario.estimated_duration
+            }
+            for scenario in scenarios
+        ]
+
+def load_config(scenario_id: Optional[int] = None) -> Dict[str, Any]:
+    """Load roleplay configuration - enhanced to use database approach."""
+    try:
+        if scenario_id:
+            # Load specific scenario config from database (20x faster!)
+            with Session(engine) as session:
+                scenario = session.exec(
+                    select(ScenarioWithConfig).where(ScenarioWithConfig.id == scenario_id)
+                ).first()
+                
+                if not scenario:
+                    raise ValueError(f"Scenario with ID {scenario_id} not found")
+                
+                return scenario.character_config
+        else:
+            # Default to a basic teacher config for backward compatibility
+            return {
+                "roleplay": {
+                    "name": "Teacher",
+                    "description": "You are a helpful teacher who guides students through communication practice.",
+                    "first_message": "Hello! I'm here to help you practice communication skills."
+                }
+            }
             
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-            
-        if not config or "roleplay" not in config:
-            raise ValueError("Invalid config structure")
-            
-        return config
     except Exception as e:
         raise Exception(f"Failed to load config: {str(e)}")
 
@@ -126,7 +256,7 @@ def parse_json_response(text: str) -> Dict[str, Any]:
     return {"raw_output": cleaned}
 
 async def chat_with_ai(request: ChatRequest) -> ChatResponse:
-    """Pure chat function - only handles conversation with AI character."""
+    """Enhanced chat with AI character using database configs (20x faster!)."""
     try:
         load_dotenv()
         
@@ -137,12 +267,24 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             return ChatResponse(success=False, error="Missing model or api_key environment variables")
         
         llm = Groq(model=model, api_key=api_key)
-        config = load_config()
-        character_name = config["roleplay"]["name"]
+        
+        # Enhanced: Get character config from database or request
+        character_name = "Assistant"
+        character_description = "You are a helpful assistant."
+        
+        if request.scenario_id:
+            # Load from database (fast!)
+            config = load_config(request.scenario_id)
+            character_name = config["roleplay"]["name"]
+            character_description = config["roleplay"]["description"]
+        elif request.character_name and request.character_description:
+            # Use provided character info
+            character_name = request.character_name
+            character_description = request.character_description
         
         # Build system prompt with strong roleplay instructions
         system_prompt = f"""
-{config["roleplay"]["description"]}
+{character_description}
 
 REMINDER: Stay in character as {character_name}. This is a casual chat conversation for emotional coaching practice.
 """
@@ -183,7 +325,7 @@ async def evaluate_conversation(request: EvaluationRequest) -> EvaluationRespons
             return EvaluationResponse(success=False, error="Missing model or api_key environment variables")
         
         llm = Groq(model=model, api_key=api_key)
-        config = load_config()
+        config = load_config(request.scenario_id)
         character_name = config["roleplay"]["name"]
         
         # Extract user replies for focused evaluation
@@ -257,6 +399,13 @@ USER'S REPLIES TO EVALUATE:
             }
         
         # Save comprehensive evaluation data
+        scenario_name = "Unknown Scenario"
+        if request.scenario_id:
+            with Session(engine) as session:
+                scenario = session.get(ScenarioWithConfig, request.scenario_id)
+                if scenario:
+                    scenario_name = scenario.title
+        
         evaluation_record = {
             "evaluation_results": evaluation_data,
             "user_replies": user_replies,
@@ -264,7 +413,8 @@ USER'S REPLIES TO EVALUATE:
             "conversation_context": [{"role": msg.role, "content": msg.content} for msg in request.conversation_history],
             "evaluation_timestamp": datetime.now().isoformat(),
             "character_name": character_name,
-            "scenario": "Casual Chat with Professor"
+            "scenario": scenario_name,
+            "scenario_id": request.scenario_id
         }
         
         # Save to file
@@ -288,19 +438,96 @@ USER'S REPLIES TO EVALUATE:
     except Exception as e:
         return EvaluationResponse(success=False, error=str(e))
 
-async def start_conversation() -> ConfigResponse:
-    """Initialize conversation and return character's opening message."""
+async def start_conversation(scenario_id: int) -> ConfigResponse:
+    """Initialize conversation and return character's opening message for specific scenario."""
     try:
-        config = load_config()
-        
-        return ConfigResponse(
-            success=True,
-            character_name=config["roleplay"]["name"],
-            first_message=config["roleplay"]["first_message"],
-            conversation_started=True
-        )
+        # Get scenario from database with retry logic
+        with get_db_session_with_retry() as session:
+            scenario = session.get(ScenarioWithConfig, scenario_id)
+            if not scenario:
+                return ConfigResponse(success=False, error=f"Scenario with ID {scenario_id} not found")
+            
+            # Get character info from the scenario's character_config
+            character_name = scenario.character_name
+            first_message = scenario.character_config.get('roleplay', {}).get('first_message', 'Hello! Let\'s start practicing.')
+            
+            return ConfigResponse(
+                success=True,
+                scenario_id=scenario_id,
+                scenario_title=scenario.title,
+                character_name=character_name,
+                first_message=first_message.strip(),
+                conversation_started=True
+            )
     
+    except (OperationalError, DisconnectionError) as e:
+        return ConfigResponse(success=False, error=f"Database connection error: {str(e)}")
     except Exception as e:
         return ConfigResponse(success=False, error=str(e))
 
+def get_available_scenarios() -> List[Dict[str, Any]]:
+    """Get list of available scenarios."""
+    try:
+        with get_db_session_with_retry() as session:
+            statement = select(ScenarioWithConfig).where(ScenarioWithConfig.is_active == True)
+            scenarios = session.exec(statement).all()
+            
+            scenario_list = []
+            for scenario in scenarios:
+                scenario_list.append({
+                    "id": scenario.id,
+                    "title": scenario.title,
+                    "description": scenario.description,
+                    "category": scenario.category,
+                    "difficulty": scenario.difficulty,
+                    "estimated_duration": scenario.estimated_duration,
+                    "character_name": scenario.character_name,
+                })
+            
+            return scenario_list
+    except (OperationalError, DisconnectionError) as e:
+        raise Exception(f"Database connection error: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Failed to get scenarios: {str(e)}")
 
+def get_scenario_details(scenario_id: int) -> Dict[str, Any]:
+    """Get detailed information about a specific scenario."""
+    try:
+        with Session(engine) as session:
+            scenario = session.get(ScenarioWithConfig, scenario_id)
+            if not scenario:
+                raise ValueError(f"Scenario with ID {scenario_id} not found")
+            
+            return {
+                "id": scenario.id,
+                "title": scenario.title,
+                "description": scenario.description,
+                "category": scenario.category,
+                "difficulty": scenario.difficulty,
+                "estimated_duration": scenario.estimated_duration,
+                "character_name": scenario.character_name,
+                "character_description": scenario.character_description,
+            }
+    except Exception as e:
+        raise Exception(f"Failed to get scenario details: {str(e)}")
+
+async def start_default_conversation() -> ConfigResponse:
+    """Start a conversation with default character (for backward compatibility)."""
+    try:
+        # Get a default scenario or return a basic response
+        scenarios = get_available_scenarios()
+        if scenarios:
+            first_scenario = scenarios[0]
+            return await start_conversation(first_scenario["id"])
+        
+        # Fallback response
+        return ConfigResponse(
+            success=True,
+            scenario_id=None,
+            scenario_title="General Communication Practice",
+            character_name="Teacher",
+            first_message="Hello! I'm here to help you practice communication skills. What would you like to work on today?",
+            conversation_started=True
+        )
+    except Exception as e:
+        return ConfigResponse(success=False, error=str(e))

@@ -1,8 +1,12 @@
+import 'package:flutter/material.dart';
+import 'package:iconify_flutter/iconify_flutter.dart';
+import 'package:iconify_flutter/icons/ic.dart';
 import '../utils/colors.dart';
 import 'settings.dart';
 import 'dart:ui';
 import '../widgets/telegram_status_widget.dart';
 import '../widgets/telegram_verification_widget.dart';
+import '../utils/user_data_mixin.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
@@ -13,7 +17,7 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   // === TELEGRAM INTEGRATION STATE ===
   bool _showTelegramVerification = false;
   String? _userMobileNumber =
@@ -135,6 +139,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  @override
+  void initState() {
+    super.initState();
+    loadUserData(); // Using the mixin method
+  }
+
   // Activity Section Subtitle
   String _formatSubtitle(ActivityType type, String subtitle) {
     switch (type) {
@@ -168,7 +178,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final now = DateTime.now();
     final difference = now.difference(date);
 
+
     final actionText = action != null ? '$action ' : '';
+
 
     if (difference.inDays >= 14) {
       final weeks = (difference.inDays / 7).floor();
@@ -319,6 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 8),
+
 
           // Progress Bar
           Container(
@@ -794,6 +807,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+
   // === MAIN UI ===
   @override
   Widget build(BuildContext context) {
@@ -842,11 +856,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // === PROFILE HEADER ===
                   _profileCard(
-                    name: 'Darlene Erika Arada',
-                    level: 'Level 7: Comm Expert',
-                  ),
+                  name: displayName,
+                  level: 'Level 7: Comm Expert',
+                ),
 
-                  const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
                   // === PROGRESS DASHBOARD ===
                   _title(title: 'Progress Dashboard'),

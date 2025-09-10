@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../../services/scenario_service.dart';
 import '../../models/scenario_models.dart';
 import '../../utils/api_service.dart';
+import '../../widgets/conversation_ending_widgets.dart';
 import 'evaluation.dart';
 
+// NOTE: To call ScenarioScreen include 3 parameters ScenarioScreen(scenarioTitle, aiPersona, initialMessage)
+
 class ScenarioScreen extends StatefulWidget {
-  final int scenarioId;
   final String scenarioTitle;
   final String aiPersona;
   final String initialMessage;
 
   const ScenarioScreen({
     super.key,
-    required this.scenarioId,
     required this.scenarioTitle,
     required this.aiPersona,
     required this.initialMessage,
@@ -28,16 +28,21 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
   final List<ChatMessage> _messages = [];
   final ScrollController _scrollController = ScrollController();
   final APIService _apiService = APIService();
+  final ConversationEndingService _endingService = ConversationEndingService();
 
-  bool _isLoading = false;
-  bool _isInitialized = false;
-  String? _characterName;
-  List<ConversationMessage> _conversationHistory = [];
+  bool _isTyping = false;
+  int get _userMessageCount => _messages.where((m) => m.isUser).length;
 
   @override
   void initState() {
     super.initState();
-    _initializeConversation();
+    _messages.add(
+      ChatMessage(
+        text: widget.initialMessage,
+        isUser: false,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
 
   @override
@@ -47,148 +52,139 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     super.dispose();
   }
 
-  Future<void> _initializeConversation() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final response = await _apiService.startConversation(widget.scenarioId);
-
-      if (response.success && response.firstMessage != null) {
-        setState(() {
-          _characterName = response.characterName ?? widget.aiPersona;
-          _messages.add(
-            ChatMessage(
-              text: response.firstMessage!,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(
-              role: 'assistant',
-              content: response.firstMessage!,
-            ),
-          );
-          _isInitialized = true;
-        });
-      } else {
-        // Fallback to provided initial message
-        setState(() {
-          _characterName = widget.aiPersona;
-          _messages.add(
-            ChatMessage(
-              text: widget.initialMessage,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(
-              role: 'assistant',
-              content: widget.initialMessage,
-            ),
-          );
-          _isInitialized = true;
-        });
-      }
-    } catch (e) {
-      print('Error initializing conversation: $e');
-      // Fallback to provided initial message
-      setState(() {
-        _characterName = widget.aiPersona;
-        _messages.add(
-          ChatMessage(
-            text: widget.initialMessage,
-            isUser: false,
-            timestamp: DateTime.now(),
-          ),
-        );
-        _conversationHistory.add(
-          ConversationMessage(
-            role: 'assistant',
-            content: widget.initialMessage,
-          ),
-        );
-        _isInitialized = true;
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty || _isLoading) return;
+  void _sendMessage() {
+    if (_messageController.text.trim().isEmpty) return;
 
     final userMessage = _messageController.text.trim();
-
     setState(() {
       _messages.add(
         ChatMessage(text: userMessage, isUser: true, timestamp: DateTime.now()),
       );
-      _conversationHistory.add(
-        ConversationMessage(role: 'user', content: userMessage),
-      );
-      _isLoading = true;
+      _isTyping = true;
     });
 
+    _simulateBackendResponse();
     _messageController.clear();
     _scrollToBottom();
 
+    // Check if conversation should end after user sends message
+    _checkForNaturalEnding();
+  }
+
+  void _simulateBackendResponse() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) {
+        setState(() {
+          _messages.add(
+            ChatMessage(
+              text:
+                  "This is a simulated response from the backend based on your message.",
+              isUser: false,
+              timestamp: DateTime.now(),
+            ),
+          );
+          _isTyping = false;
+        });
+        _scrollToBottom();
+      }
+    });
+  }
+
+  Future<void> _checkForNaturalEnding() async {
+    final userMessageCount = _messages.where((m) => m.isUser).length;
+
+    // Only check after minimum conversation length
+    if (userMessageCount < 5) return;
+
     try {
-      final request = ChatRequest(
-        message: userMessage,
-        conversationHistory: _conversationHistory,
+      // Convert messages to conversation format
+      final conversationHistory = _messages
+          .map(
+            (msg) => ConversationMessage(
+              role: msg.isUser ? 'user' : 'assistant',
+              content: msg.text,
+            ),
+          )
+          .toList();
+
+      final suggestion = await _endingService.checkForNaturalEnding(
+        conversationHistory,
+        1, // scenario ID would come from widget parameters
       );
 
-      final response = await _apiService.sendMessage(request);
-
-      if (response.success && response.response != null) {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              text: response.response!,
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-          _conversationHistory.add(
-            ConversationMessage(role: 'assistant', content: response.response!),
-          );
-          if (response.characterName != null) {
-            _characterName = response.characterName;
-          }
-        });
-      } else {
-        setState(() {
-          _messages.add(
-            ChatMessage(
-              text: "Sorry, I encountered an error. Please try again.",
-              isUser: false,
-              timestamp: DateTime.now(),
-            ),
-          );
-        });
+      if (suggestion != null && suggestion.shouldEnd && mounted) {
+        _showEndingSuggestionDialog(suggestion);
       }
     } catch (e) {
-      print('Error sending message: $e');
-      setState(() {
-        _messages.add(
-          ChatMessage(
-            text: "Sorry, I'm having trouble connecting. Please try again.",
-            isUser: false,
-            timestamp: DateTime.now(),
+      print('Error checking for natural ending: $e');
+    }
+  }
+
+  void _showEndingSuggestionDialog(ConversationEndingSuggestion suggestion) {
+    final conversationHistory = _messages
+        .map(
+          (msg) => ConversationMessage(
+            role: msg.isUser ? 'user' : 'assistant',
+            content: msg.text,
           ),
-        );
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-      _scrollToBottom();
+        )
+        .toList();
+
+    showDialog(
+      context: context,
+      builder: (context) => ConversationEndingDialog(
+        aiSuggestion: suggestion.suggestedMessage ?? suggestion.reason,
+        characterName: widget.aiPersona,
+        conversationHistory: conversationHistory,
+        onContinue: () {
+          Navigator.of(context).pop();
+        },
+        onEnd: () {
+          Navigator.of(context).pop();
+          _endConversation();
+        },
+      ),
+    );
+  }
+
+  Future<void> _endConversation() async {
+    final conversationHistory = _messages
+        .map(
+          (msg) => ConversationMessage(
+            role: msg.isUser ? 'user' : 'assistant',
+            content: msg.text,
+          ),
+        )
+        .toList();
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => EvaluationScreen(
+          conversationHistory: conversationHistory,
+          characterName: widget.aiPersona,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showManualEndDialog() async {
+    final conversationHistory = _messages
+        .map(
+          (msg) => ConversationMessage(
+            role: msg.isUser ? 'user' : 'assistant',
+            content: msg.text,
+          ),
+        )
+        .toList();
+
+    final shouldEnd = await _endingService.showEndingConfirmation(
+      context,
+      widget.aiPersona,
+      conversationHistory,
+    );
+
+    if (shouldEnd) {
+      _endConversation();
     }
   }
 
@@ -204,18 +200,12 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     });
   }
 
-  void _navigateToEvaluation() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => EvaluationScreen(
-          conversationHistory: _conversationHistory,
-          characterName: _characterName ?? widget.aiPersona,
-        ),
-      ),
-    );
+  // Navigate to the next screen
+  void _navigateToNextScreen() {
+    showEvaluationOverlay(context);
   }
 
+  // Navigate to previous screen
   void _navigateToPreviousScreen() {
     Navigator.pop(context);
   }
@@ -236,7 +226,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
-              'AI Persona: ${_characterName ?? widget.aiPersona}',
+              'AI Persona: ${widget.aiPersona}',
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.normal,
@@ -247,36 +237,35 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
         ),
         elevation: 1,
         actions: [
+          // Manual end conversation button
+          EndConversationButton(
+            onPressed: _showManualEndDialog,
+            isEnabled: _userMessageCount >= 3,
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
-            child: CustomContinueButtonSmall(
-              onPressed: _conversationHistory.length > 1
-                  ? _navigateToEvaluation
-                  : null,
-            ),
+            child: CustomContinueButtonSmall(onPressed: _navigateToNextScreen),
           ),
         ],
       ),
       body: Column(
         children: [
-          if (_isLoading && !_isInitialized) const LinearProgressIndicator(),
-          Expanded(
-            child: _isInitialized
-                ? ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16.0),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      return ChatBubble(message: _messages[index]);
-                    },
-                  )
-                : const Center(child: CircularProgressIndicator()),
+          // Conversation progress indicator
+          ConversationProgressIndicator(
+            messageCount: _userMessageCount,
+            suggestedMinimum: 5,
+            suggestedMaximum: 15,
           ),
-          if (_isLoading && _isInitialized)
-            const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: LinearProgressIndicator(),
+          Expanded(
+            child: ListView.builder(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16.0),
+              itemCount: _messages.length,
+              itemBuilder: (context, index) {
+                return ChatBubble(message: _messages[index]);
+              },
             ),
+          ),
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
@@ -293,7 +282,6 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    enabled: _isInitialized && !_isLoading,
                     decoration: const InputDecoration(
                       hintText: 'Type your message...',
                       border: OutlineInputBorder(
@@ -309,11 +297,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
                   ),
                 ),
                 const SizedBox(width: 8.0),
-                CustomSendButton(
-                  onPressed: _isInitialized && !_isLoading
-                      ? _sendMessage
-                      : null,
-                ),
+                CustomSendButton(onPressed: _sendMessage),
               ],
             ),
           ),
@@ -325,7 +309,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
 
 // Send Button Widget
 class CustomSendButton extends StatelessWidget {
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
 
   const CustomSendButton({super.key, required this.onPressed});
 
@@ -333,7 +317,7 @@ class CustomSendButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: onPressed != null ? Theme.of(context).primaryColor : Colors.grey,
+        color: Theme.of(context).primaryColor,
         shape: BoxShape.circle,
       ),
       child: IconButton(
@@ -347,7 +331,7 @@ class CustomSendButton extends StatelessWidget {
 
 // Evaluate Button for AppBar
 class CustomContinueButtonSmall extends StatelessWidget {
-  final VoidCallback? onPressed;
+  final VoidCallback onPressed;
 
   const CustomContinueButtonSmall({super.key, required this.onPressed});
 
@@ -360,10 +344,10 @@ class CustomContinueButtonSmall extends StatelessWidget {
         style: TextStyle(fontWeight: FontWeight.bold),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: onPressed != null ? kDarkOrange : Colors.grey,
+        backgroundColor: kDarkOrange,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 9),
-        minimumSize: Size.zero,
+        minimumSize: Size.zero, // shrink to fit AppBar
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
@@ -429,7 +413,7 @@ class ChatBubble extends StatelessWidget {
   }
 }
 
-// Chat message model
+// Temporary inline model
 class ChatMessage {
   final String text;
   final bool isUser;
