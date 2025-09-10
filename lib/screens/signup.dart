@@ -1,14 +1,12 @@
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'login.dart';
 import '../utils/colors.dart';
 import 'otp_verification.dart';
+import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
-import 'package:iconify_flutter/icons/ic.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -19,14 +17,11 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignupScreen> {
-  // Add your API base URL here
-  static const String baseUrl = 'http://10.96.80.29:8000';
-  
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _mobileController = TextEditingController();
-  
+
   // FocusNode to track mobile input focus state
   final _mobileFocusNode = FocusNode();
   bool _isMobileFocused = false;
@@ -69,7 +64,9 @@ class _SignUpPageState extends State<SignupScreen> {
       try {
         // First check if user already exists in your backend
         final checkResponse = await http.get(
-          Uri.parse('$baseUrl/users/check-mobile?mobile_number=${_mobileController.text}'),
+          Uri.parse(
+            '${ApiConfig.baseUrl}/users/check-mobile?mobile_number=${_mobileController.text}',
+          ),
           headers: {'Content-Type': 'application/json'},
         );
 
@@ -107,11 +104,12 @@ class _SignUpPageState extends State<SignupScreen> {
           },
           codeAutoRetrievalTimeout: (String verificationId) {
             // Handle timeout
-            print('Auto retrieval timeout for verification ID: $verificationId');
+            print(
+              'Auto retrieval timeout for verification ID: $verificationId',
+            );
           },
           timeout: const Duration(seconds: 60),
         );
-
       } catch (e) {
         _showErrorSnackBar('Error: ${e.toString()}');
         print('Error sending SMS: $e');
@@ -127,18 +125,20 @@ class _SignUpPageState extends State<SignupScreen> {
 
   // Handle auto-verification (Android only)
   Future<void> _handleAutoVerification(
-    PhoneAuthCredential credential, 
-    String firstName, 
-    String lastName
+    PhoneAuthCredential credential,
+    String firstName,
+    String lastName,
   ) async {
     try {
       // Sign in with the credential
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
       if (userCredential.user != null) {
         // Get Firebase ID token
         String? idToken = await userCredential.user!.getIdToken();
-        
+
         if (idToken != null) {
           // Create user in your backend
           await _createUserInBackend(firstName, lastName, idToken);
@@ -150,17 +150,18 @@ class _SignUpPageState extends State<SignupScreen> {
   }
 
   // Create user in your backend using Firebase ID token
-  Future<void> _createUserInBackend(String firstName, String lastName, String idToken) async {
+  Future<void> _createUserInBackend(
+    String firstName,
+    String lastName,
+    String idToken,
+  ) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/users/create-firebase-user'),
+        Uri.parse(ApiConfig.createFirebaseUser),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'firebase_id_token': idToken,
-          'additional_info': {
-            'first_name': firstName,
-            'last_name': lastName,
-          }
+          'additional_info': {'first_name': firstName, 'last_name': lastName},
         }),
       );
 
@@ -215,7 +216,8 @@ class _SignUpPageState extends State<SignupScreen> {
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -224,18 +226,23 @@ class _SignUpPageState extends State<SignupScreen> {
       );
 
       // Sign in with Firebase
-      UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
+      UserCredential userCredential = await _auth.signInWithCredential(
+        credential,
+      );
+
       if (userCredential.user != null) {
         // Get Firebase ID token
         String? idToken = await userCredential.user!.getIdToken();
-        
+
         if (idToken != null) {
           // Create user in your backend
-          await _createUserInBackend('', '', idToken); // Names will be extracted from Google profile
+          await _createUserInBackend(
+            '',
+            '',
+            idToken,
+          ); // Names will be extracted from Google profile
         }
       }
-
     } catch (e) {
       _showErrorSnackBar('Google sign-in failed: ${e.toString()}');
     } finally {
@@ -298,10 +305,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       // FIRST NAME SECTION
                       const Text(
                         'First Name',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black87,
-                        ),
+                        style: TextStyle(fontSize: 16, color: Colors.black87),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
@@ -322,7 +326,7 @@ class _SignUpPageState extends State<SignupScreen> {
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 16,
+                            vertical: 12,
                           ),
                         ),
                         validator: (value) {
@@ -359,7 +363,7 @@ class _SignUpPageState extends State<SignupScreen> {
                           ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
-                            vertical: 16,
+                            vertical: 12,
                           ),
                         ),
                         validator: (value) {
@@ -379,7 +383,7 @@ class _SignUpPageState extends State<SignupScreen> {
                       ),
                       const SizedBox(height: 8),
                       Container(
-                        height: 56,
+                        height: 48,
                         decoration: BoxDecoration(
                           border: Border.all(
                             color: _isMobileFocused ? Colors.blue : Colors.grey,
@@ -398,9 +402,9 @@ class _SignUpPageState extends State<SignupScreen> {
                             ),
                             Container(
                               width: 1,
-                              height: 28,
+                              height: 24,
                               color: Colors.grey,
-                              margin: const EdgeInsets.symmetric(vertical: 14),
+                              margin: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             Expanded(
                               child: TextFormField(
@@ -427,7 +431,7 @@ class _SignUpPageState extends State<SignupScreen> {
                                   focusedBorder: InputBorder.none,
                                   contentPadding: EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 16,
+                                    vertical: 12,
                                   ),
                                 ),
                               ),
@@ -436,39 +440,42 @@ class _SignUpPageState extends State<SignupScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 40),
+                      const Spacer(),
 
                       // SEND SMS BUTTON
-                      ElevatedButton(
-                        onPressed: _isLoading ? null : _sendSMS,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: kBrightBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _sendSMS,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kBrightBlue,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
                           ),
-                          elevation: 0,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              : const Text(
+                                  'Send SMS',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Send SMS',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
                       ),
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
 
                       // "OR" DIVIDER
                       const Text(
@@ -481,7 +488,7 @@ class _SignUpPageState extends State<SignupScreen> {
                         textAlign: TextAlign.center,
                       ),
 
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 16),
 
                       // SOCIAL LOGIN BUTTONS SECTION
                       Row(
@@ -491,22 +498,18 @@ class _SignUpPageState extends State<SignupScreen> {
                           GestureDetector(
                             onTap: _isLoading ? null : _signInWithGoogle,
                             child: Container(
-                              width: 60,
-                              height: 60,
+                              padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 border: Border.all(color: kBrightBlue),
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Center(
-                                child: Iconify(
-                                  Ri.google_fill,
-                                  size: 28,
-                                  color: kBrightBlue,
-                                ),
+                              child: const Iconify(
+                                Ri.google_fill,
+                                size: 28,
+                                color: kBrightBlue,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 20),
                         ],
                       ),
 

@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../../utils/temp_api_service.dart';
+import '../../services/scenario_service.dart';
 import '../../models/scenario_models.dart';
+import '../../utils/api_service.dart';
 import 'evaluation.dart';
 
 class ScenarioScreen extends StatefulWidget {
+  final int scenarioId;
   final String scenarioTitle;
   final String aiPersona;
   final String initialMessage;
 
   const ScenarioScreen({
     super.key,
+    required this.scenarioId,
     required this.scenarioTitle,
     required this.aiPersona,
     required this.initialMessage,
@@ -50,7 +53,7 @@ class _ScenarioScreenState extends State<ScenarioScreen> {
     });
 
     try {
-      final response = await _apiService.startConversation();
+      final response = await _apiService.startConversation(widget.scenarioId);
 
       if (response.success && response.firstMessage != null) {
         setState(() {

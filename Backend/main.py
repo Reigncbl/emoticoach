@@ -10,17 +10,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-print("Import user routes...")
 
-#from routes import message_routes
+from routes import book_routes, userinfo_routes,scenario_routes,message_routes
 
-from routes import userinfo_routes
-
-print("Import scenario routes...")
-
-from routes import scenario_routes
-
-print("Import book routes...")
 
 from routes import book_routes
 
@@ -44,7 +36,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(book_routes)
-#app.include_router(message_routes)
+app.include_router(message_routes)
 app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
 
