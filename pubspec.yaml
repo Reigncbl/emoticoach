@@ -32,6 +32,7 @@ dependencies:
   iconify_flutter: ^0.0.7
   smooth_page_indicator: ^1.2.1
   flutter_native_splash: ^2.4.6
+  visibility_detector: ^0.4.0+2
   shared_preferences: ^2.3.3
 
 dev_dependencies:
