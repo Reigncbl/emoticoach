@@ -2,16 +2,30 @@ import os
 from dotenv import load_dotenv
 
 # Load .env variables before anything else
+
+print("Loading environment variables...")
 load_dotenv()
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import book_routes, message_routes, userinfo_routes,scenario_routes
+print("Import user routes...")
+
+#from routes import message_routes
+
+from routes import userinfo_routes
+
+print("Import scenario routes...")
+
+from routes import scenario_routes
+
+print("Import book routes...")
+
+from routes import book_routes
 
 
-
+print("Done importing routes...")
 # Create FastAPI app
 app = FastAPI(
     title="EmotiCoach API",

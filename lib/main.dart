@@ -94,7 +94,8 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Emoticoach',
       theme: ThemeData(primarySwatch: Colors.blue, fontFamily: 'OpenSans'),
-      home: OnboardingScreen(),
+      home: MainScreen(),
+      //home: OnboardingScreen(),
     );
   }
 }

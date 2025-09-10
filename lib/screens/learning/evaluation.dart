@@ -63,19 +63,26 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Conversation Evaluation'),
+        backgroundColor: kWhite,
+        title: const Text(
+          'Conversation Evaluation',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         leading: IconButton(
           icon: const Icon(Icons.chevron_left),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-          ? _buildErrorView()
-          : _evaluationResponse != null
-          ? _buildEvaluationView()
-          : const Center(child: Text('No evaluation data available')),
+      body: Container(
+        color: kWhite,
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? _buildErrorView()
+            : _evaluationResponse != null
+            ? _buildEvaluationView()
+            : const Center(child: Text('No evaluation data available')),
+      ),
     );
   }
 
@@ -120,6 +127,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
         children: [
           // Header Card
           Card(
+            color: kWhite,
             child: Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
@@ -130,9 +138,10 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                       Icon(Icons.assessment, color: kDarkOrange),
                       const SizedBox(width: 8),
                       Text(
-                        'Communication Skills Assessment',
+                        'Assessment',
                         style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                            ?.copyWith(fontWeight: FontWeight.bold,
+                            fontSize: 22),
                       ),
                     ],
                   ),
@@ -160,10 +169,13 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           // Evaluation Scores
           if (evaluation != null) ...[
             Text(
-              'Your Scores',
+              'Performance Rating',
               style: Theme.of(
                 context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                ),
             ),
             const SizedBox(height: 12),
 
@@ -237,11 +249,15 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
               'Your Messages',
               style: Theme.of(
                 context,
-              ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+              ).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+              ),
             ),
             const SizedBox(height: 12),
 
             Card(
+              color: kWhite,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -258,24 +274,27 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                       final index = entry.key;
                       final message = entry.value;
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: 8.0),
+                        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: kDarkOrange,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '${index + 1}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                            Padding (
+                              padding: const EdgeInsets.only(top: 16.0),
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: kDarkOrange,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '${index + 1}',
+                                    style: const TextStyle(
+                                      color: kWhite,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -354,48 +373,60 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
     }
 
     return Card(
+      color: kWhite,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    description,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: scoreColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-                border: Border.all(color: scoreColor, width: 3),
-              ),
-              child: Center(
-                child: Text(
-                  '$score/10',
-                  style: TextStyle(
-                    color: scoreColor,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        description,
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ),
+                const SizedBox(width: 16),
+                Container(
+                  width: 60,
+                  height: 60,
+                  child: Center(
+                    child: Text(
+                      '$score/10',
+                      style: TextStyle(
+                        color: scoreColor,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: score / 10.0,
+                minHeight: 8,
+                backgroundColor: Colors.grey[200],
+                valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
               ),
             ),
           ],
