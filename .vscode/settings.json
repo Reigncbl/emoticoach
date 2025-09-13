@@ -1,7 +1,7 @@
 {
     "python-envs.defaultEnvManager": "ms-python.python:system",
     "python-envs.pythonProjects": [],
-    "codium.codeCompletion.enable": false,
+    "codium.codeCompletion.enable": true,
     "dart.flutterHotReloadOnSave": "all",
     "dart.hotReloadOnSave": "all",
     "codium.codeCompletion.enable": false

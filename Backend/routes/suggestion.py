@@ -14,6 +14,7 @@ suggestion_router = APIRouter()
 # Pydantic models for request/response
 class TextAnalysisRequest(BaseModel):
     text: str
+    user_name: str = None  # Optional user name for personalized coaching
 
 @suggestion_router.post("/analyze")
 async def analyze_emotion_endpoint(request: TextAnalysisRequest):
@@ -35,8 +36,8 @@ async def analyze_emotion_endpoint(request: TextAnalysisRequest):
         if not text:
             raise HTTPException(status_code=400, detail="Text cannot be empty")
         
-        # Process through the complete emotion pipeline
-        result = analyze_emotion(text)
+        # Process through the complete emotion pipeline with user context
+        result = analyze_emotion(text, request.user_name)
         
         if result.get("pipeline_success", False):
             return {
@@ -94,8 +95,8 @@ async def analyze_json_messages():
             date = message.get('date', 'Unknown date')
             
             if text:
-                # Analyze the message
-                result = analyze_emotion(text)
+                # Analyze the message with sender as user context
+                result = analyze_emotion(text, sender)
                 
                 message_analysis = {
                     "message_index": i + 1,

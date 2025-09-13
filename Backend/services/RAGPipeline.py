@@ -1,84 +1,50 @@
+# backend/services/rag_service.py
 import os
-from typing import List, Dict, Any
+import numpy as np
+from huggingface_hub import InferenceClient
 from groq import Groq
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
+GROQ_API_KEY = os.getenv("api_key")
+HF_API_KEY = os.getenv("HF_API_KEY")
+HF_MODEL = "BAAI/bge-m3"
 
 class SimpleRAG:
-    """Simple RAG Pipeline using Groq"""
-    
     def __init__(self):
-        self.client = Groq(api_key=os.getenv("api_key"))
-        self.model = os.getenv("model") or "llama3-8b-8192"  # Default model if not specified
-        self.documents = []  # Simple in-memory storage
-    
-    def add_document(self, content: str, metadata: Dict = None):
-        """Add document to knowledge base"""
-        self.documents.append({
-            "content": content,
-            "metadata": metadata or {}
-        })
-    
-    def search(self, query: str, top_k: int = 3) -> List[Dict]:
-        """Simple keyword search"""
-        query_words = query.lower().split()
-        results = []
-        
-        for doc in self.documents:
-            content_lower = doc["content"].lower()
-            score = sum(1 for word in query_words if word in content_lower)
-            
-            if score > 0:
-                results.append({
-                    "content": doc["content"],
-                    "score": score,
-                    "metadata": doc["metadata"]
-                })
-        
-        # Sort by score and return top results
-        results.sort(key=lambda x: x["score"], reverse=True)
-        return results[:top_k]
-    
-    def generate_response(self, query: str) -> str:
-        """Generate response using retrieved context"""
-        # Get relevant documents
-        relevant_docs = self.search(query)
-        
-        # Build context from documents
-        context = "\n".join([doc["content"] for doc in relevant_docs])
-        
-        # Create prompt for Groq
-        prompt = f"""Context: {context}
+        self.client = Groq(api_key=GROQ_API_KEY)
+        self.model = os.getenv("model")
+        self.hf_client = InferenceClient(token=HF_API_KEY)
+        self.documents = []
 
-Question: {query}
-
-Please answer the question based on the provided context. If the context doesn't contain enough information, say so and provide general guidance."""
-        
+    def _embed(self, text):
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful AI assistant."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=500
-            )
-            return response.choices[0].message.content
+            return np.array(self.hf_client.feature_extraction(text, model=HF_MODEL)).flatten()
+        except:
+            return np.zeros(384)
+
+    def add_document(self, text, metadata=None):
+        self.documents.append({"content": text, "embedding": self._embed(text), "metadata": metadata or {}})
+
+    def search(self, query, top_k=3):
+        q_vec = self._embed(query)
+        results = [
+            {"content": doc["content"], "score": float(np.dot(q_vec, doc["embedding"]) / (np.linalg.norm(q_vec)*np.linalg.norm(doc["embedding"]))), "metadata": doc["metadata"]}
+            for doc in self.documents
+        ]
+        return sorted(results, key=lambda x: x["score"], reverse=True)[:top_k]
+
+    def generate_response(self, query):
+        context = "\n".join([doc["content"] for doc in self.search(query)])
+        prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer based on context."
+        try:
+            resp = self.client.chat.completions.create(model=self.model, messages=[
+                {"role": "system", "content": "You are a helpful emotional AI coach."},
+                {"role": "user", "content": prompt}
+            ], temperature=0.7, max_tokens=500)
+            return resp.choices[0].message.content
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Error: {e}"
 
-# Create global instance
+# singleton RAG instance
 rag = SimpleRAG()
-
-# Example usage
-if __name__ == "__main__":
-    # Add some sample documents
-    rag.add_document("Emotional intelligence is the ability to understand and manage your emotions.")
-    rag.add_document("Mindfulness helps improve emotional awareness and regulation.")
-    
-    # Ask a question
-    answer = rag.generate_response("How can I improve my emotional intelligence?")
-    print(answer)

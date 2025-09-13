@@ -110,14 +110,7 @@ class EmotionPipeline:
         for knowledge in coaching_knowledge:
             self.rag.add_document(knowledge, {"type": "emotion_coaching"})
     
-    def detect_language(self, text: str) -> str:
-        """Simple language detection (can be enhanced)"""
-        # Basic Tagalog word detection
-        tagalog_words = ['ako', 'ikaw', 'siya', 'tayo', 'kayo', 'sila', 'ang', 'ng', 'sa', 'kay', 'para', 'dahil', 'kasi', 'pero', 'at', 'o', 'kung', 'kapag', 'na', 'pa', 'ba', 'kaya', 'naman', 'lang', 'din', 'rin']
-        text_lower = text.lower()
-        tagalog_count = sum(1 for word in tagalog_words if word in text_lower)
-        
-        return "tagalog" if tagalog_count >= 2 else "english"
+    
     
     def translate_if_needed(self, text: str, detected_emotion: str = "neutral") -> str:
         """Translate text if it's in Tagalog"""
@@ -177,7 +170,7 @@ class EmotionPipeline:
         
         return metadata
     
-    def get_rag_insights(self, metadata: Dict[str, Any], message_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def get_rag_insights(self, metadata: Dict[str, Any], message_history: List[Dict[str, Any]], user_name: str = None) -> Dict[str, Any]:
         """Get emotion insights, tone analysis, and suggestions from RAG using few-shot prompting."""
         emotion = metadata["emotion"]
         confidence = metadata["confidence"]
@@ -190,10 +183,15 @@ class EmotionPipeline:
             recent_emotions = [msg.get("emotion", "unknown") for msg in message_history[-5:]]
             history_summary = f"Recent emotional patterns: {', '.join(recent_emotions)}"
 
-        # Few-shot prompt
-        prompt = f"""You are EmotiCoach, an expert AI emotional wellness coach. Your goal is to provide insightful, empathetic, and actionable advice based on the user's message. Always respond in valid JSON format.
+        # Determine user context for personalized coaching
+        user_context = ""
+        if user_name:
+            user_context = f"You are providing personalized coaching for {user_name}. "
 
-### Example 1:
+        # Few-shot prompt optimized for Taglish/Filipino context with flexible user support
+        prompt = f"""You are EmotiCoach, an expert AI emotional wellness coach specializing in Filipino culture and Taglish communication. {user_context}Your goal is to provide culturally sensitive, empathetic, and actionable advice. Always respond in valid JSON format.
+
+### Example 1 (English):
 **User Message:** "I'm so angry at my boss! He's always undermining me."
 **Emotion:** anger 🤬 (98.1% confidence)
 **History:** "Recent emotional patterns: sadness, anger, sadness"
@@ -202,49 +200,20 @@ class EmotionPipeline:
 {{
   "analysis": {{
     "primary_emotion": "Anger",
-    "secondary_emotion": "Frustration",
     "interpretation": "The user is feeling intense anger and frustration, likely due to a perceived injustice or lack of respect at work. The recurring pattern of sadness and anger suggests an ongoing issue that is causing significant distress.",
     "keywords": ["angry", "boss", "undermining"]
   }},
   "coaching": {{
-    "empathetic_statement": "It sounds incredibly frustrating to feel undermined by your boss, especially when it's a recurring issue. It's completely valid to feel angry in this situation.",
+    "empathetic_statement": "It sounds incredibly frustrating to feel undermined by your boss, especially when it's a recurring issue. Your feelings are completely valid.",
     "suggestions": [
-      "Take a few deep breaths to calm your immediate anger before reacting.",
-      "Consider writing down specific examples of the undermining behavior to clarify your thoughts.",
-      "When you're calm, you could consider having a private, professional conversation with your boss about how their actions are impacting you.",
-      "Focus on what you can control, such as your own excellent work and professional responses."
+      "Take deep breaths to calm your immediate anger before reacting",
+      "Document specific examples of the undermining behavior",
+      "Consider having a calm, professional conversation with your boss about the impact",
+      "Focus on what you can control - your excellent work and professional responses"
     ],
-    "suggested_response": "I'm feeling really frustrated and angry about this situation at work. I need some time to think before I respond."
+    "suggested_response": "I'm feeling really frustrated about this situation at work. I need some time to think before I respond."
   }}
 }}
-```
-
-### Example 2:
-**User Message:** "I can't believe I got the promotion! I'm so happy!"
-**Emotion:** joy 😀 (99.5% confidence)
-**History:** "Recent emotional patterns: neutral, joy, surprise"
-**Your JSON Response:**
-```json
-{{
-  "analysis": {{
-    "primary_emotion": "Joy",
-    "secondary_emotion": "Surprise",
-    "interpretation": "The user is experiencing a high level of joy and excitement from a significant positive event. The recent surprise and joy emotions indicate a period of positive developments.",
-    "keywords": ["promotion", "happy", "believe"]
-  }},
-  "coaching": {{
-    "empathetic_statement": "That's fantastic news! Congratulations on the promotion! It's wonderful to feel that sense of accomplishment and joy.",
-    "suggestions": [
-      "Take a moment to truly savor this feeling of success. You've earned it!",
-      "Share the good news with friends or family to amplify the joy.",
-      "Reflect on the hard work that led to this achievement to build your confidence for the future."
-    ],
-    "suggested_response": "Thank you so much! I'm absolutely thrilled about this and can't wait to start the new role."
-  }}
-}}
-```
-
----
 
 ### User's Current Situation:
 **User Message:** "{text}"
@@ -329,7 +298,7 @@ class EmotionPipeline:
             "recent_messages": saved_messages[-5:] if len(saved_messages) >= 5 else saved_messages
         }
     
-    def process_message(self, text: str) -> Dict[str, Any]:
+    def process_message(self, text: str, user_name: str = None) -> Dict[str, Any]:
         """
         Complete pipeline: Input → Translation → Classification → Metadata → RAG Analysis
         """
@@ -349,8 +318,8 @@ class EmotionPipeline:
             # Step 5: Get message history for RAG context
             message_history = self.load_saved_messages()
             
-            # Step 6: RAG analysis for insights and suggestions
-            rag_insights = self.get_rag_insights(metadata, message_history)
+            # Step 6: RAG analysis for insights and suggestions (with user context)
+            rag_insights = self.get_rag_insights(metadata, message_history, user_name)
             
             # Step 7: Combine everything into final output
             result = {
@@ -386,10 +355,10 @@ def get_pipeline() -> EmotionPipeline:
     return _pipeline
 
 # Convenience function
-def analyze_emotion(text: str) -> Dict[str, Any]:
+def analyze_emotion(text: str, user_name: str = None) -> Dict[str, Any]:
     """Quick function to analyze emotion in text"""
     pipeline = get_pipeline()
-    return pipeline.process_message(text)
+    return pipeline.process_message(text, user_name)
 
 # Example usage
 if __name__ == "__main__":
