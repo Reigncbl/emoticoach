@@ -126,6 +126,17 @@ async def save_message_to_db(message_data: dict, phone_number: str, msg_date: da
         if not firebase_user_id:
             print(f"No Firebase user found for phone {phone_number}, skipping database save")
             return None
+        
+        # Format embedding for PostgreSQL vector storage if provided
+        formatted_embedding = embedding
+        if embedding is not None:
+            # Ensure embedding is in the correct format for PostgreSQL vector
+            if not isinstance(embedding, list):
+                try:
+                    formatted_embedding = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+                except Exception as e:
+                    print(f"Error converting embedding to list: {e}")
+                    formatted_embedding = None
             
         with Session(engine) as session:
             message_id = str(uuid.uuid4())
@@ -136,7 +147,7 @@ async def save_message_to_db(message_data: dict, phone_number: str, msg_date: da
                 Receiver=message_data['to'],  # Fixed receiver logic
                 DateSent=msg_date,  # Use actual message timestamp
                 MessageContent=message_data['text'],
-                Embedding=embedding
+                Embedding=formatted_embedding
             )
             session.add(message)
             session.commit()
@@ -195,6 +206,15 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
             # Create embedding
             embedding_vector = rag._embed(msg.text)
             
+            # Add to RAG system with metadata
+            metadata = {
+                "sender": sender,
+                "receiver": receiver,
+                "date": str(msg.date),
+                "message_id": str(uuid.uuid4())
+            }
+            rag.add_document(msg.text, metadata=metadata)
+            
             # Save to database with proper timestamp and embedding
             saved_message_id = await save_message_to_db(
                 message_data=message_data,
@@ -226,8 +246,18 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
     return response
 
 async def embed_messages(messages: list, metadata: dict = None):
-    """Legacy function - now handled in save_message_to_db"""
-    pass
+    """Add messages to the RAG system with embeddings"""
+    for message in messages:
+        if isinstance(message, dict) and 'text' in message and message['text']:
+            # Create embedding and add to RAG system
+            msg_metadata = metadata.copy() if metadata else {}
+            msg_metadata.update({
+                "sender": message.get('from', 'Unknown'),
+                "receiver": message.get('to', 'Unknown'),
+                "date": message.get('date', str(datetime.now())),
+                "message_id": str(uuid.uuid4())
+            })
+            rag.add_document(message['text'], metadata=msg_metadata)
 
 def search_similar_messages(query: str, top_k: int = 5):
     return rag.search(query, top_k)

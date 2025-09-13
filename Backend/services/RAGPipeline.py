@@ -19,9 +19,13 @@ class SimpleRAG:
 
     def _embed(self, text):
         try:
-            return np.array(self.hf_client.feature_extraction(text, model=HF_MODEL)).flatten()
-        except:
-            return np.zeros(384)
+            # Get embedding as numpy array
+            embedding = np.array(self.hf_client.feature_extraction(text, model=HF_MODEL)).flatten()
+            # Format for PostgreSQL vector storage
+            return embedding.tolist()
+        except Exception as e:
+            print(f"Embedding error: {e}")
+            return np.zeros(384).tolist()
 
     def add_document(self, text, metadata=None):
         self.documents.append({"content": text, "embedding": self._embed(text), "metadata": metadata or {}})
