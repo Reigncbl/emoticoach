@@ -11,11 +11,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 
-from routes import book_routes, userinfo_routes,scenario_routes,message_routes
-from routes.suggestion import suggestion_router
+from routes import book_routes, userinfo_routes,scenario_routes,message_routes,rag_routes
 
 
-from routes import book_routes
+
+
 
 
 print("Done importing routes...")
@@ -40,7 +40,7 @@ app.include_router(book_routes)
 app.include_router(message_routes)
 app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
-app.include_router(suggestion_router, prefix="/suggestions", tags=["emotions"])
+app.include_router(rag_routes)
 
 
 # Health check endpoint

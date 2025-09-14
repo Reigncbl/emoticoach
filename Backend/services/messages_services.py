@@ -3,6 +3,7 @@ import os
 import re
 import json
 import uuid
+import asyncio
 from typing import Dict
 from datetime import datetime, date
 from telethon import TelegramClient
@@ -25,6 +26,7 @@ SESSION_DIR = "sessions"
 os.makedirs(SESSION_DIR, exist_ok=True)
 
 active_clients: Dict[str, TelegramClient] = {}
+user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
 
 def get_client(phone: str) -> TelegramClient:
     specific_session_path = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\sessions\639063450469"
@@ -109,52 +111,62 @@ async def get_user_contacts(phone_number: str = "639063450469") -> list:
     return contacts
 
 async def find_firebase_user_by_phone(phone_number: str) -> str:
+    # Check cache first
+    if phone_number in user_cache:
+        return user_cache[phone_number]
+        
     try:
         with Session(engine) as session:
             from model.userinfo import UserInfo
             
             stmt = select(UserInfo).where(UserInfo.MobileNumber == phone_number)
             user = session.exec(stmt).first()
-            return user.UserId if user else None
+            if user and user.UserId:
+                # Cache the result before returning
+                user_cache[phone_number] = user.UserId
+                return user.UserId
+            return None
     except Exception as e:
         print(f"Error finding user: {e}")
         return None
 
-async def save_message_to_db(message_data: dict, phone_number: str, msg_date: datetime, embedding: list = None):
+async def save_messages_to_db(messages: list, phone_number: str, embeddings: list):
     try:
         firebase_user_id = await find_firebase_user_by_phone(phone_number)
         if not firebase_user_id:
             print(f"No Firebase user found for phone {phone_number}, skipping database save")
-            return None
+            return []
         
-        # Format embedding for PostgreSQL vector storage if provided
-        formatted_embedding = embedding
-        if embedding is not None:
-            # Ensure embedding is in the correct format for PostgreSQL vector
-            if not isinstance(embedding, list):
-                try:
-                    formatted_embedding = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
-                except Exception as e:
-                    print(f"Error converting embedding to list: {e}")
-                    formatted_embedding = None
-            
+        message_ids = []
         with Session(engine) as session:
-            message_id = str(uuid.uuid4())
-            message = Message(
-                MessageId=message_id,
-                UserId=firebase_user_id,
-                Sender=message_data['from'],
-                Receiver=message_data['to'],  # Fixed receiver logic
-                DateSent=msg_date,  # Use actual message timestamp
-                MessageContent=message_data['text'],
-                Embedding=formatted_embedding
-            )
-            session.add(message)
+            for msg_data, embedding in zip(messages, embeddings):
+                # Format embedding for PostgreSQL vector storage
+                formatted_embedding = None
+                if embedding is not None:
+                    try:
+                        formatted_embedding = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+                    except Exception as e:
+                        print(f"Error converting embedding to list: {e}")
+                
+                message_id = str(uuid.uuid4())
+                message = Message(
+                    MessageId=message_id,
+                    UserId=firebase_user_id,
+                    Sender=msg_data['from'],
+                    Receiver=msg_data['to'],
+                    DateSent=datetime.fromisoformat(msg_data['date'].replace('Z', '+00:00')),
+                    MessageContent=msg_data['text'],
+                    Embedding=formatted_embedding
+                )
+                session.add(message)
+                message_ids.append(message_id)
+            
+            # Commit all messages in one transaction
             session.commit()
-            return message_id
+            return message_ids
     except Exception as e:
-        print(f"Error saving to database: {e}")
-        return None
+        print(f"Error saving messages to database: {e}")
+        return []
 
 def get_conversation_context(sender: str, receiver: str, limit: int = 10) -> str:
     try:
@@ -189,10 +201,15 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
     
     messages = []
     message_ids = []
+    message_texts = []
     
+    # First, collect all messages
     async for msg in client.iter_messages(user.id, limit=10):
+        if not msg.text:
+            continue
+            
         sender = me.first_name if msg.out else user.first_name
-        receiver = user.first_name if msg.out else me.first_name  # Fixed receiver logic
+        receiver = user.first_name if msg.out else me.first_name
         
         message_data = {
             "from": sender,
@@ -201,29 +218,53 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
             "text": msg.text
         }
         messages.append(message_data)
+        message_texts.append(msg.text)
         
-        if msg.text:
-            # Create embedding
-            embedding_vector = rag._embed(msg.text)
-            
-            # Add to RAG system with metadata
+    # Batch process embeddings
+    if message_texts:
+        # Create embeddings in batch
+        embedding_vectors = [rag._embed(text) for text in message_texts]
+        
+        # Add to RAG system in batch
+        rag_documents = []
+        for i, (msg, embedding) in enumerate(zip(messages, embedding_vectors)):
+            msg_id = str(uuid.uuid4())
             metadata = {
-                "sender": sender,
-                "receiver": receiver,
-                "date": str(msg.date),
-                "message_id": str(uuid.uuid4())
+                "sender": msg["from"],
+                "receiver": msg["to"],
+                "date": msg["date"],
+                "message_id": msg_id
             }
-            rag.add_document(msg.text, metadata=metadata)
+            rag_documents.append((message_texts[i], metadata))
             
-            # Save to database with proper timestamp and embedding
-            saved_message_id = await save_message_to_db(
-                message_data=message_data,
-                phone_number=phone_number,
-                msg_date=msg.date,  # Use actual message timestamp
-                embedding=embedding_vector.tolist() if hasattr(embedding_vector, 'tolist') else embedding_vector
-            )
-            if saved_message_id:
-                message_ids.append(saved_message_id)
+        # Bulk add to RAG system
+        for doc, metadata in rag_documents:
+            rag.add_document(doc, metadata=metadata)
+            
+        # Bulk save to database
+        message_ids = await save_messages_to_db(messages, phone_number, embedding_vectors)
+        
+    # Get conversation context for RAG
+    conversation_context = get_conversation_context(me.first_name, user.first_name)
+    
+    response = {
+        "sender": me.first_name,
+        "receiver": user.first_name,
+        "messages": messages,
+        "conversation_context": conversation_context,
+        "saved_message_ids": message_ids
+    }
+    
+    # Save to file in background (don't await)
+    async def save_to_file():
+        os.makedirs("saved_messages", exist_ok=True)
+        filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(response, f, indent=2)
+            
+    asyncio.create_task(save_to_file())
+    
+    return response
     
     # Get conversation context for RAG
     conversation_context = get_conversation_context(me.first_name, user.first_name)
@@ -258,14 +299,3 @@ async def embed_messages(messages: list, metadata: dict = None):
                 "message_id": str(uuid.uuid4())
             })
             rag.add_document(message['text'], metadata=msg_metadata)
-
-def search_similar_messages(query: str, top_k: int = 5):
-    return rag.search(query, top_k)
-
-def generate_response_with_context(query: str, sender: str = None, receiver: str = None):
-    if sender and receiver:
-        context = get_conversation_context(sender, receiver)
-        enhanced_query = f"Conversation context:\n{context}\n\nQuery: {query}"
-        return rag.generate_response(enhanced_query)
-    else:
-        return rag.generate_response(query)
