@@ -1,31 +1,51 @@
 # backend/services/rag_service.py
 import os
+import time
 import numpy as np
-from huggingface_hub import InferenceClient
+from sentence_transformers import SentenceTransformer
 from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("api_key")
 HF_API_KEY = os.getenv("HF_API_KEY")
-HF_MODEL = "BAAI/bge-m3"
+HF_MODEL = "BAAI/bge-m3"  # Specific embedding model for RAG
+MODEL_PATH = os.path.join(r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel", "bge-m3")
 
 class SimpleRAG:
     def __init__(self):
         self.client = Groq(api_key=GROQ_API_KEY)
         self.model = os.getenv("model")
-        self.hf_client = InferenceClient(token=HF_API_KEY)
         self.documents = []
+        self.max_retries = 3
+        self.base_delay = 1  # Initial delay in seconds
+        
+        # Check for HF token
+        if not HF_API_KEY:
+            raise ValueError("HF_API_KEY not found in environment variables")
+        
+        print(f"Initializing BGE-M3 embedding model...")
+        
+        # Create directory if it doesn't exist
+        os.makedirs(MODEL_PATH, exist_ok=True)
+        
+        # Initialize the SentenceTransformer model with token
+        self.encoder = SentenceTransformer(
+            HF_MODEL, 
+            cache_folder=MODEL_PATH,
+            token=HF_API_KEY
+        )
+        print(f"Model loaded and cached in {MODEL_PATH}")
 
     def _embed(self, text):
         try:
-            # Get embedding as numpy array
-            embedding = np.array(self.hf_client.feature_extraction(text, model=HF_MODEL)).flatten()
-            # Format for PostgreSQL vector storage
+            # Get embeddings using SentenceTransformer
+            embedding = self.encoder.encode(text, convert_to_numpy=True)
             return embedding.tolist()
         except Exception as e:
             print(f"Embedding error: {e}")
-            return np.zeros(384).tolist()
+            # Return zero vector as fallback
+            return np.zeros(self.encoder.get_sentence_embedding_dimension()).tolist()
 
     def add_document(self, text, metadata=None):
         self.documents.append({"content": text, "embedding": self._embed(text), "metadata": metadata or {}})

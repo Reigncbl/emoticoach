@@ -265,26 +265,6 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
     asyncio.create_task(save_to_file())
     
     return response
-    
-    # Get conversation context for RAG
-    conversation_context = get_conversation_context(me.first_name, user.first_name)
-    
-    # Save to file
-    os.makedirs("saved_messages", exist_ok=True)
-    filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
-    
-    response = {
-        "sender": me.first_name,
-        "receiver": user.first_name,
-        "messages": messages,
-        "conversation_context": conversation_context,
-        "saved_message_ids": message_ids
-    }
-    
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(response, f, indent=2)
-
-    return response
 
 async def embed_messages(messages: list, metadata: dict = None):
     """Add messages to the RAG system with embeddings"""

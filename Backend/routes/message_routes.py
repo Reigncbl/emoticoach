@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 # Import the service functions
 from services import messages_services as telegram_svc
-from services.emotion_pipeline import analyze_emotion, get_pipeline
+
 
 message_router = APIRouter()
 

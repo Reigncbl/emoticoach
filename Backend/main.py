@@ -2,21 +2,12 @@ import os
 from dotenv import load_dotenv
 
 # Load .env variables before anything else
-
 print("Loading environment variables...")
 load_dotenv()
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-
 from routes import book_routes, userinfo_routes,scenario_routes,message_routes,rag_routes
-
-
-
-
-
 
 print("Done importing routes...")
 # Create FastAPI app
