@@ -1,4 +1,3 @@
-# backend/services/telegram_service.py
 import os
 import re
 import json
@@ -39,7 +38,7 @@ def get_client(phone: str) -> TelegramClient:
     active_clients[normalized_phone] = client
     return client
 
-async def start_auth_session(phone_number: str = "639063450469"):
+async def start_auth_session(phone_number: str ):
     client = get_client(phone_number)
     await client.connect()
     try:
@@ -47,7 +46,7 @@ async def start_auth_session(phone_number: str = "639063450469"):
     except PhoneNumberBannedError:
         raise ValueError("Phone number is banned.")
 
-async def verify_auth_code(phone_number: str = "639063450469", code: str = None, password: str = None, firebase_user_id: str = None):
+async def verify_auth_code(phone_number: str, code: str = None, password: str = None, firebase_user_id: str = None):
     client = get_client(phone_number)
     await client.connect()
     try:
@@ -62,7 +61,7 @@ async def verify_auth_code(phone_number: str = "639063450469", code: str = None,
     except PhoneCodeInvalidError:
         raise ValueError("Invalid code.")
 
-async def save_phone_user_mapping(firebase_uid: str, phone_number: str, first_name: str):
+async def save_phone_user_mapping(firebase_uid:str, phone_number: str, first_name: str):
     try:
         with Session(engine) as session:
             from model.userinfo import UserInfo
@@ -82,7 +81,7 @@ async def save_phone_user_mapping(firebase_uid: str, phone_number: str, first_na
     except Exception as e:
         print(f"Error saving user mapping: {e}")
 
-async def is_user_authenticated(phone_number: str = "639063450469") -> dict:
+async def is_user_authenticated(phone_number: str) -> dict:
     client = get_client(phone_number)
     await client.connect()
     
@@ -92,7 +91,7 @@ async def is_user_authenticated(phone_number: str = "639063450469") -> dict:
     
     return {"authenticated": False}
 
-async def get_user_contacts(phone_number: str = "639063450469") -> list:
+async def get_user_contacts(phone_number: str ) -> list:
     client = get_client(phone_number)
     await client.connect()
     if not await client.is_user_authorized():
@@ -130,45 +129,81 @@ async def find_firebase_user_by_phone(phone_number: str) -> str:
         print(f"Error finding user: {e}")
         return None
 
-async def save_messages_to_db(messages: list, phone_number: str, embeddings: list):
+async def save_messages_to_db(messages: list, phone_number: str, embeddings: list, emotion_outputs: list):
+    """
+    Save messages to DB with semantic + emotion embeddings.
+    - embeddings: semantic embeddings (np.array, dim=1024)
+    - emotion_outputs: list of dicts {"vector": [...], "labels": {...}, "top": "joy"}
+    """
     try:
         firebase_user_id = await find_firebase_user_by_phone(phone_number)
         if not firebase_user_id:
             print(f"No Firebase user found for phone {phone_number}, skipping database save")
             return []
-        
+
         message_ids = []
         with Session(engine) as session:
-            for msg_data, embedding in zip(messages, embeddings):
-                # Format embedding for PostgreSQL vector storage
-                formatted_embedding = None
-                if embedding is not None:
-                    try:
-                        formatted_embedding = embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
-                    except Exception as e:
-                        print(f"Error converting embedding to list: {e}")
+            for msg_data, sem_embed, emo_out in zip(messages, embeddings, emotion_outputs):
+                # ✅ Debug print to check what we're getting
+                print(f"DEBUG - sem_embed type: {type(sem_embed)}, value: {sem_embed}")
+                print(f"DEBUG - emo_out type: {type(emo_out)}, value: {emo_out}")
                 
+                # ✅ Ensure we have valid numeric embeddings
+                if isinstance(sem_embed, (list, tuple)) and all(isinstance(x, str) for x in sem_embed):
+                    print(f"ERROR - Semantic embedding contains strings: {sem_embed}")
+                    # Skip this message or create a default embedding
+                    sem_vector = [0.0] * 1024  # Default embedding
+                else:
+                    # Convert embeddings to lists for pgvector
+                    sem_vector = sem_embed.tolist() if hasattr(sem_embed, "tolist") else list(sem_embed)
+                
+                # Validate emotion output structure
+                if not isinstance(emo_out, dict) or "vector" not in emo_out:
+                    print(f"ERROR - Invalid emotion output: {emo_out}")
+                    emo_vector = [0.0] * 7
+                    emo_labels = {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0, "neutral": 1.0}
+                    top_emotion = "neutral"
+                else:
+                    emo_vector = emo_out["vector"]
+                    emo_labels = emo_out["labels"]
+                    top_emotion = emo_out["top"]
+                    
+                    # Log translation info if available
+                    if emo_out.get("processed_text") and emo_out["processed_text"] != emo_out["original_text"]:
+                        print(f"Message translated: '{emo_out['original_text']}' -> '{emo_out['processed_text']}'")
+
+                # Parse the ISO format string back to datetime
+                try:
+                    sent_time = datetime.fromisoformat(msg_data["date"])
+                except Exception as e:
+                    print(f"Error parsing date: {e}, using current time")
+                    sent_time = datetime.utcnow()
+
                 message_id = str(uuid.uuid4())
                 message = Message(
                     MessageId=message_id,
                     UserId=firebase_user_id,
-                    Sender=msg_data['from'],
-                    Receiver=msg_data['to'],
-                    DateSent=datetime.fromisoformat(msg_data['date'].replace('Z', '+00:00')),
-                    MessageContent=msg_data['text'],
-                    Embedding=formatted_embedding
+                    Sender=msg_data["from"],
+                    Receiver=msg_data["to"],
+                    DateSent=sent_time,
+                    MessageContent=msg_data["text"],
+                    Semantic_Embedding=sem_vector,
+                    Emotion_Embedding=emo_vector,
+                    Emotion_labels=emo_labels,
+                    Detected_emotion=top_emotion,
                 )
                 session.add(message)
                 message_ids.append(message_id)
-            
-            # Commit all messages in one transaction
+
+            # ✅ Commit once for efficiency
             session.commit()
             return message_ids
+
     except Exception as e:
         print(f"Error saving messages to database: {e}")
         return []
 
-def get_conversation_context(sender: str, receiver: str, limit: int = 10) -> str:
+def get_conversation_context(sender: str, receiver: str, limit: int ) -> str:
     try:
         with Session(engine) as session:
             messages = session.exec(
@@ -184,7 +219,7 @@ def get_conversation_context(sender: str, receiver: str, limit: int = 10) -> str
         print(f"Error getting conversation context: {e}")
         return ""
 
-async def get_contact_messages(phone_number: str = "639063450469", contact_data: dict = None) -> dict:
+async def get_contact_messages(phone_number: str , contact_data: dict = None) -> dict:
     client = get_client(phone_number)
     await client.connect()
     if not await client.is_user_authorized():
@@ -200,7 +235,6 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
     me = await client.get_me()
     
     messages = []
-    message_ids = []
     message_texts = []
     
     # First, collect all messages
@@ -211,38 +245,82 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
         sender = me.first_name if msg.out else user.first_name
         receiver = user.first_name if msg.out else me.first_name
         
+        # Telethon msg.date is already a datetime object with timezone info
         message_data = {
             "from": sender,
             "to": receiver,
-            "date": str(msg.date),
+            "date": msg.date.isoformat(),  # Convert to ISO format string for JSON
             "text": msg.text
         }
         messages.append(message_data)
         message_texts.append(msg.text)
         
     # Batch process embeddings
+    message_ids = []
     if message_texts:
-        # Create embeddings in batch
-        embedding_vectors = [rag._embed(text) for text in message_texts]
-        
-        # Add to RAG system in batch
-        rag_documents = []
-        for i, (msg, embedding) in enumerate(zip(messages, embedding_vectors)):
-            msg_id = str(uuid.uuid4())
-            metadata = {
-                "sender": msg["from"],
-                "receiver": msg["to"],
-                "date": msg["date"],
-                "message_id": msg_id
-            }
-            rag_documents.append((message_texts[i], metadata))
+        try:
+            # ✅ Create embeddings in batch - FIXED: Ensure this returns actual numeric vectors
+            print(f"DEBUG - Creating embeddings for {len(message_texts)} messages")
+            embedding_vectors = []
+            for text in message_texts:
+                try:
+                    embed = rag._embed(text)  # This now returns numpy array
+                    print(f"DEBUG - Embedding type for '{text[:50]}...': {type(embed)}")
+                    embedding_vectors.append(embed)
+                except Exception as e:
+                    print(f"ERROR - Failed to create embedding for text '{text[:50]}...': {e}")
+                    # Create a default embedding vector
+                    embedding_vectors.append([0.0] * 1024)
             
-        # Bulk add to RAG system
-        for doc, metadata in rag_documents:
-            rag.add_document(doc, metadata=metadata)
+            # ✅ Create emotion outputs using the new method
+            emotion_outputs = []
+            for text in message_texts:
+                try:
+                    emotion_data = rag.get_emotion_data(text)
+                    emotion_outputs.append(emotion_data)
+                except Exception as e:
+                    print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")
+                    emotion_result = {
+                        "vector": [0.0] * 7,  # 7-dimensional emotion vector
+                        "labels": {
+                            "joy": 0.0, "sadness": 0.0, "anger": 0.0,
+                            "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
+                            "neutral": 1.0
+                        },
+                        "top": "neutral"
+                    }
+                    emotion_outputs.append(emotion_result)
             
-        # Bulk save to database
-        message_ids = await save_messages_to_db(messages, phone_number, embedding_vectors)
+            print(f"DEBUG - Created {len(embedding_vectors)} embeddings and {len(emotion_outputs)} emotion outputs")
+            
+            # Save messages with embeddings and emotion data
+            message_ids = await save_messages_to_db(messages, phone_number, embedding_vectors, emotion_outputs)
+            print(f"DEBUG - Saved {len(message_ids)} messages to database")
+            
+            # Add to RAG system in batch only if save was successful
+            if message_ids:
+                rag_documents = []
+                for i, (msg, embedding) in enumerate(zip(messages, embedding_vectors)):
+                    try:
+                        msg_id = message_ids[i]  # Use the actual saved message ID
+                        metadata = {
+                            "sender": msg["from"],
+                            "receiver": msg["to"],
+                            "date": msg["date"],
+                            "message_id": msg_id
+                        }
+                        rag_documents.append((message_texts[i], metadata))
+                    except IndexError:
+                        print(f"Warning: No message_id for index {i}")
+                        continue
+                        
+                # Bulk add to RAG system
+                for doc, metadata in rag_documents:
+                    rag.add_document(doc, metadata=metadata)
+                    
+        except Exception as e:
+            print(f"ERROR - Failed to process embeddings: {e}")
+            # Continue without embeddings if there's an error
         
     # Get conversation context for RAG
     conversation_context = get_conversation_context(me.first_name, user.first_name)
@@ -257,10 +335,13 @@ async def get_contact_messages(phone_number: str = "639063450469", contact_data:
     
     # Save to file in background (don't await)
     async def save_to_file():
-        os.makedirs("saved_messages", exist_ok=True)
-        filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
-        with open(filename, "w", encoding="utf-8") as f:
-            json.dump(response, f, indent=2)
+        try:
+            os.makedirs("saved_messages", exist_ok=True)
+            filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
+            with open(filename, "w", encoding="utf-8") as f:
+                json.dump(response, f, indent=2)
+        except Exception as e:
+            print(f"Error saving to file: {e}")
             
     asyncio.create_task(save_to_file())
     

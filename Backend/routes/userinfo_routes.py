@@ -24,7 +24,7 @@ from firebase_admin import auth
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-userinfo_router = APIRouter(prefix="/users", tags=["users"])
+userinfo_router = APIRouter(prefix="/users", tags=["Users"])
 
 # Password hashing (you might not need this for mobile-only registration)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

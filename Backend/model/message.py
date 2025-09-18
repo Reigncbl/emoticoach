@@ -1,32 +1,30 @@
-from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Text
-from typing import Optional, List, Any
-from datetime import date
-from sqlmodel import Relationship
-import sqlalchemy.types as types
-
-# Custom PostgreSQL vector type for SQLAlchemy
-class Vector(types.TypeDecorator):
-    impl = Text
-    
-    def process_bind_param(self, value, dialect):
-        if value is None:
-            return None
-        return str(value)  # Convert list to string representation for PostgreSQL vector
-    
-    def process_result_value(self, value, dialect):
-        if value is None:
-            return None
-        return eval(value)  # Convert string back to list when retrieving
+from sqlmodel import SQLModel, Field, Column, JSON
+from typing import Optional, Dict, List
+from datetime import datetime
+from pgvector.sqlalchemy import Vector 
 
 class Message(SQLModel, table=True):
     __tablename__ = "messages"
-    
-    MessageId: str = Field(primary_key=True)  # Firebase UID as primary key (varchar)
-    UserId: str = Field(foreign_key="userinfo.TelegramUserId", max_length=100)  # Foreign key to UserInfo
-    Sender: str = Field(max_length=100)  # Sender of the message (varchar)
-    Receiver: str = Field(max_length=100)  # Receiver of the message (varchar)
-    DateSent: date = Field(default=date.today())  # Date the message was sent (date)
-    MessageContent: str = Field(max_length=500)  # Content of the message (varchar)
-    Embedding: Optional[List[float]] = Field(sa_column=Column(Vector), default=None)  # Vector embedding for RAG
-    
+
+    MessageId: str = Field(primary_key=True, max_length=100)  # UUID
+    UserId: str = Field(foreign_key="userinfo.UserId", max_length=100)
+    Sender: str = Field(max_length=100)
+    Receiver: str = Field(max_length=100)
+    DateSent: datetime = Field(default_factory=datetime.utcnow)
+    MessageContent: str = Field()
+
+    # 🔹 Separate embeddings
+    Semantic_Embedding: Optional[List[float]] = Field(
+        sa_column=Column(Vector(1024)), default=None  # BGE-M3 is 1024-dim
+    )
+    Emotion_Embedding: Optional[List[float]] = Field(
+        sa_column=Column(Vector(7)), default=None     # 7 emotion classes
+    )
+
+    # 🔹 Store full emotion distribution for readability/analytics
+    Emotion_labels: Optional[Dict[str, float]] = Field(
+        sa_column=Column(JSON), default=None
+    )
+
+    # 🔹 Store top emotion label for fast filtering
+    Detected_emotion: Optional[str] = Field(max_length=100, default=None)

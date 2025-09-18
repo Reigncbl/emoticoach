@@ -6,7 +6,7 @@ from model.readingblock import ReadingBlock
 from core.db_connection import SessionDep
 
 # Create router instead of FastAPI app
-book_router = APIRouter()
+book_router = APIRouter(prefix="/books",tags=["Books"])
 
 @book_router.get("/resources/all")
 async def get_all_resources(session: SessionDep) -> list[ReadingsInfo]:

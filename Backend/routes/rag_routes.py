@@ -5,7 +5,7 @@ from sqlmodel import Session, select, or_
 from core.db_connection import engine
 from model.message import Message
 
-rag_router = APIRouter(prefix="/messages", tags=["Messages"])
+rag_router = APIRouter(prefix="/rag", tags=["RAG"])
 
 def get_messages_for_conversation(user_id: str, contact_name: str, limit: int = 10, start_time=None, end_time=None) -> str:
     """Fetch last N messages between this user and a specific contact."""

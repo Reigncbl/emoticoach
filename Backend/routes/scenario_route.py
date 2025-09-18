@@ -29,7 +29,7 @@ class CreateScenarioRequest(BaseModel):
     yaml_content: str
 
 
-scenario_router = APIRouter(prefix="/scenarios",tags=["Messages"])
+scenario_router = APIRouter(prefix="/scenarios",tags=["Scenarios"])
 
 @scenario_router.get('/start/{scenario_id}', response_model=ConfigResponse)
 async def start(scenario_id: int):

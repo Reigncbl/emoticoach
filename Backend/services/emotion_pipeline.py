@@ -2,33 +2,278 @@ import os
 import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from torch.nn.functional import softmax
+from typing import Dict, List, Tuple, Optional
+from groq import Groq
+from dotenv import load_dotenv
 
-model_name = "j-hartmann/emotion-english-distilroberta-base"
+load_dotenv()
 
-# Load model & tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSequenceClassification.from_pretrained(model_name)
+class EmotionEmbedder:
+    """A class to generate emotion embeddings for text using a pre-trained model with translation support."""
+    
+    def __init__(self, model_name: str = "j-hartmann/emotion-english-distilroberta-base", cache_dir: Optional[str] = None):
+        """Initialize the emotion embedder with a pre-trained model and translation capability.
+        
+        Args:
+            model_name: Name of the pre-trained model to use
+            cache_dir: Directory to cache the model files (optional)
+        """
+        self.model_name = model_name
+        self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "..", "AIModel", "emotion_model")
+        
+        # Create cache directory if it doesn't exist
+        os.makedirs(self.cache_dir, exist_ok=True)
+        
+        print(f"Loading emotion model from {self.model_name}...")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=self.cache_dir)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=self.cache_dir)
+        self.labels = self.model.config.id2label
+        print("Emotion model loaded successfully!")
+        
+        # Initialize Groq client for translation
+        self.groq_client = None
+        self.groq_model = None
+        groq_api_key = os.getenv("api_key")  # Using your existing env variable
+        groq_model_name = os.getenv("model")  # Using your existing env variable
+        
+        if groq_api_key and groq_model_name:
+            try:
+                self.groq_client = Groq(api_key=groq_api_key)
+                self.groq_model = groq_model_name
+                print("Groq client initialized for translation support")
+            except Exception as e:
+                print(f"Warning: Could not initialize Groq client: {e}")
+                print("Translation will be skipped for non-English text")
 
-# Input text
-text = "I like you. I love you"
 
-# Encode input
-inputs = tokenizer(text, return_tensors="pt")
+    def _get_translation_prompt(self, tagalog_text: str) -> str:
+        """Creates a translation prompt for Tagalog to English."""
+        return f"""You are a professional translator specializing in emotional and culturally-aware translations from Tagalog to English. Your goal is to not just translate the words, but to convey the true meaning and feeling of the original text.
 
-# Forward pass (no grad needed)
-with torch.no_grad():
-    outputs = model(**inputs)
-    logits = outputs.logits
-    probs = softmax(logits, dim=-1).squeeze()  # probabilities per class
+Here are a few examples to guide you:
 
-# Convert to list
-emotional_embedding = probs.tolist()
+Example 1:
+Tagalog Text: "Kumusta na kayo? Matagal na tayong hindi nagkikita! Miss na miss ko na kayo."
+Correct English Translation: "Hey there, how's it going? It's been forever since we saw each other! I miss you guys so, so much."
+(Note: The translation uses casual language like "Hey there" and "forever" to match the friendly, emotional tone of the original.)
 
-# Get labels
-labels = model.config.id2label
+Example 2:
+Tagalog Text: "Grabe! Ang init dito sa Pinas!"
+Correct English Translation: "Whoa, it's so incredibly hot here in the Philippines!"
+(Note: "Grabe" is a difficult word to translate directly. "Whoa" or "Wow" captures the exclamatory and emotional tone.)
 
-# Print embedding
-print("Emotional embedding vector:", emotional_embedding)
-print("\nWith labels:")
-for label, score in zip(labels.values(), emotional_embedding):
-    print(f"{label}: {score:.4f}")
+Now, please provide only the translation for the following text. Do not add any extra commentary or explanations.
+
+Tagalog Text: {tagalog_text}
+
+English Translation:"""
+
+    def _clean_translation_output(self, text: str) -> str:
+        """Clean translation output from LLM."""
+        if not text:
+            return ""
+        text = text.strip().strip('"\'')
+        
+        # Remove common prefixes that the model might add
+        prefixes_to_remove = [
+            'english translation:', 'translation:', 'english:', 'translated:',
+            'the english translation is:', 'in english:'
+        ]
+        
+        text_lower = text.lower()
+        for prefix in prefixes_to_remove:
+            if text_lower.startswith(prefix):
+                text = text[len(prefix):].strip()
+                break
+                
+        return text
+
+    def _translate_text(self, text: str) -> str:
+        """Always translate text to English using Groq, regardless of language."""
+        if not self.groq_client or not self.groq_model:
+            print("Warning: Translation not available, using original text")
+            return text
+        try:
+            prompt = self._get_translation_prompt(text)
+            response = self.groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.groq_model,
+                temperature=0.2,
+                max_tokens=200
+            )
+            translated = self._clean_translation_output(response.choices[0].message.content)
+            print(f"Translated: '{text}' -> '{translated}'")
+            return translated if translated else text
+        except Exception as e:
+            print(f"Translation error: {e}, using original text")
+            return text
+
+    def get_embedding(self, text: str, translate_if_needed: bool = True) -> List[float]:
+        """Generate emotion embedding for the input text.
+        
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
+            
+        Returns:
+            List of emotion probabilities corresponding to different emotions
+        """
+        # Translate if needed and translation is available
+        processed_text = text
+        if translate_if_needed:
+            processed_text = self._translate_text(text)
+        
+        # Encode input
+        inputs = self.tokenizer(processed_text, return_tensors="pt", truncation=True, max_length=512)
+        
+        # Forward pass
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+            logits = outputs.logits
+            
+            # Apply a small penalty to neutral class to reduce bias
+            neutral_idx = list(self.labels.keys())[list(self.labels.values()).index('neutral')]
+            logits[0][neutral_idx] -= 0.5  # Reduce neutral confidence
+            
+            probs = softmax(logits, dim=-1).squeeze()
+        
+        return probs.tolist()
+
+    def get_emotion_scores(self, text: str, translate_if_needed: bool = True) -> Dict[str, float]:
+        """Get emotion scores with their labels.
+        
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
+            
+        Returns:
+            Dictionary mapping emotion labels to their probabilities
+        """
+        embedding = self.get_embedding(text, translate_if_needed)
+        return {label: score for label, score in zip(self.labels.values(), embedding)}
+
+    def get_dominant_emotion(self, text: str, translate_if_needed: bool = True) -> Tuple[str, float]:
+        """Get the most probable emotion for the input text.
+        
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
+            
+        Returns:
+            Tuple of (emotion_label, probability_score)
+        """
+        scores = self.get_emotion_scores(text, translate_if_needed)
+        dominant_emotion = max(scores.items(), key=lambda x: x[1])
+        return dominant_emotion
+
+    def analyze_text_full(self, text: str, translate_if_needed: bool = True) -> Dict:
+        """Get complete emotion analysis for text, using LLM fallback for dominant emotion if needed."""
+        processed_text = text
+        if translate_if_needed:
+            processed_text = self._translate_text(text)
+
+        embedding = self.get_embedding(text, translate_if_needed=False)  # Already processed
+        scores = {label: score for label, score in zip(self.labels.values(), embedding)}
+        # Use get_final_emotion for robust dominant emotion (LLM fallback)
+        dominant_emotion = self.get_final_emotion(text)
+        dominant_score = scores.get(dominant_emotion, 0.0)
+
+        return {
+            "original_text": text,
+            "processed_text": processed_text if processed_text != text else None,
+            "embedding": embedding,
+            "emotion_scores": scores,
+            "dominant_emotion": dominant_emotion,
+            "dominant_score": dominant_score
+        }
+
+    def get_final_emotion(self, text: str, threshold: float = 0.6) -> str:
+        """
+        Get final single-label emotion.
+        Uses classifier by default, but calls LLM if confidence < threshold.
+        """
+        scores = self.get_emotion_scores(text, translate_if_needed=False)
+        dominant_emotion, dominant_score = max(scores.items(), key=lambda x: x[1])
+        
+        # If confident enough, return classifier result
+        if dominant_score >= threshold:
+            return dominant_emotion
+
+        # Otherwise, double-check with LLM
+        if not self.groq_client or not self.groq_model:
+            print("Warning: Groq not available, falling back to classifier output")
+            return dominant_emotion
+
+        check_prompt = f"""
+        You are an emotion classification checker.
+        You must ONLY answer with one of these 7 labels:
+        [joy, sadness, anger, fear, surprise, disgust, neutral].
+
+        Message: "{text}"
+        Classifier Prediction: {dominant_emotion}
+
+        If the classifier prediction matches the true emotion, repeat it.
+        If it is wrong, replace it with the correct one.
+        Answer with ONLY the label.
+        """
+        
+        try:
+            response = self.groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": check_prompt}],
+                model=self.groq_model,
+                temperature=0,
+                max_tokens=10
+            )
+            llm_label = response.choices[0].message.content.strip().lower()
+            return llm_label
+        except Exception as e:
+            print(f"LLM check failed: {e}, falling back to classifier")
+            return dominant_emotion
+
+
+# Global instance for backward compatibility
+_emotion_pipeline = None
+
+def get_pipeline() -> EmotionEmbedder:
+    """Get or create the global emotion pipeline instance."""
+    global _emotion_pipeline
+    if _emotion_pipeline is None:
+        _emotion_pipeline = EmotionEmbedder()
+    return _emotion_pipeline
+
+def analyze_emotion(text: str, user_name: str = None) -> Dict:
+    """
+    Analyze emotion using the complete pipeline with LLM fallback.
+    
+    Args:
+        text: Text to analyze
+        user_name: Optional user name for context
+        
+    Returns:
+        Dictionary with analysis results
+    """
+    try:
+        pipeline = get_pipeline()
+        
+        # Use the full analysis method which includes get_final_emotion
+        analysis = pipeline.analyze_text_full(text, translate_if_needed=True)
+        
+        return {
+            "pipeline_success": True,
+            "original_text": analysis["original_text"],
+            "processed_text": analysis["processed_text"],
+            "emotion_scores": analysis["emotion_scores"],
+            "dominant_emotion": analysis["dominant_emotion"],
+            "dominant_score": analysis["dominant_score"],
+            "embedding": analysis["embedding"],
+            "user_context": user_name,
+            "analysis_method": "classifier_with_llm_fallback"
+        }
+        
+    except Exception as e:
+        return {
+            "pipeline_success": False,
+            "error": str(e),
+            "user_context": user_name
+        }
+

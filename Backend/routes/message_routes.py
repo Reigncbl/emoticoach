@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from services import messages_services as telegram_svc
 
 
-message_router = APIRouter()
+message_router = APIRouter(prefix="/messages",tags=["Messages"])
 
 
 class ContactRequest(BaseModel):
