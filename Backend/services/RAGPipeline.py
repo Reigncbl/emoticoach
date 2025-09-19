@@ -2,7 +2,7 @@
 import os
 import time
 import numpy as np
-from sentence_transformers import SentenceTransformer
+from huggingface_hub import InferenceClient
 from groq import Groq
 from dotenv import load_dotenv
 from .emotion_pipeline import EmotionEmbedder
@@ -11,7 +11,6 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("api_key")
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = "BAAI/bge-m3"  # Specific embedding model for RAG
-MODEL_PATH = os.path.join(r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel", "bge-m3")
 
 # Weight for combining semantic and emotional similarity
 EMOTION_WEIGHT = 0.3  # Adjust this to control the importance of emotional similarity
@@ -28,18 +27,14 @@ class SimpleRAG:
         if not HF_API_KEY:
             raise ValueError("HF_API_KEY not found in environment variables")
         
-        print(f"Initializing BGE-M3 embedding model...")
+        print(f"Initializing Hugging Face Inference client for {HF_MODEL}...")
         
-        # Create directory if it doesn't exist
-        os.makedirs(MODEL_PATH, exist_ok=True)
-        
-        # Initialize the SentenceTransformer model with token
-        self.encoder = SentenceTransformer(
-            HF_MODEL, 
-            cache_folder=MODEL_PATH,
+        # Initialize the InferenceClient with token
+        self.embedding_client = InferenceClient(
+            provider="hf-inference",
             token=HF_API_KEY
         )
-        print(f"Model loaded and cached in {MODEL_PATH}")
+        print(f"Inference client initialized for {HF_MODEL}")
         
         # Initialize emotion embedder
         self.emotion_embedder = EmotionEmbedder()
@@ -50,13 +45,13 @@ class SimpleRAG:
         Returns numpy array that can be converted to list for pgvector.
         """
         try:
-            # Get semantic embeddings using SentenceTransformer
-            semantic_embedding = self.encoder.encode(text, convert_to_numpy=True)
-            return semantic_embedding
+            # Get semantic embeddings using Hugging Face Inference
+            embedding = self.embedding_client.feature_extraction(text, model=HF_MODEL)
+            return np.array(embedding)
         except Exception as e:
             print(f"Embedding error: {e}")
-            # Return zero vector as fallback
-            return np.zeros(self.encoder.get_sentence_embedding_dimension())
+            # Return zero vector as fallback (BGE-M3 has 1024 dimensions)
+            return np.zeros(1024)
 
     def _embed_with_emotion(self, text):
         """
@@ -64,21 +59,21 @@ class SimpleRAG:
         Returns dictionary with both embeddings.
         """
         try:
-            # Get semantic embeddings using SentenceTransformer
-            semantic_embedding = self.encoder.encode(text, convert_to_numpy=True)
+            # Get semantic embeddings using Hugging Face Inference
+            semantic_embedding = self.embedding_client.feature_extraction(text, model=HF_MODEL)
             
             # Get emotion embeddings
             emotion_embedding = self.emotion_embedder.get_embedding(text)
             
             return {
-                "semantic": semantic_embedding.tolist(),
+                "semantic": semantic_embedding,
                 "emotion": emotion_embedding
             }
         except Exception as e:
             print(f"Embedding error: {e}")
             # Return zero vectors as fallback
             return {
-                "semantic": np.zeros(self.encoder.get_sentence_embedding_dimension()).tolist(),
+                "semantic": [0.0] * 1024,  # BGE-M3 dimension
                 "emotion": [0] * 7  # 7 emotion classes
             }
 

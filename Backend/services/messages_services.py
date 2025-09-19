@@ -28,7 +28,7 @@ active_clients: Dict[str, TelegramClient] = {}
 user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
 
 def get_client(phone: str) -> TelegramClient:
-    specific_session_path = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\sessions\639063450469"
+    specific_session_path = r"Backend\sessions\639063450469"
     normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
     
     if normalized_phone in active_clients:
@@ -323,7 +323,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
             # Continue without embeddings if there's an error
         
     # Get conversation context for RAG
-    conversation_context = get_conversation_context(me.first_name, user.first_name)
+    conversation_context = get_conversation_context(me.first_name, user.first_name, 50)
     
     response = {
         "sender": me.first_name,

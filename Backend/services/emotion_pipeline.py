@@ -1,7 +1,5 @@
 import os
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from torch.nn.functional import softmax
+from huggingface_hub import InferenceClient
 from typing import Dict, List, Tuple, Optional
 from groq import Groq
 from dotenv import load_dotenv
@@ -16,19 +14,15 @@ class EmotionEmbedder:
         
         Args:
             model_name: Name of the pre-trained model to use
-            cache_dir: Directory to cache the model files (optional)
+            cache_dir: Directory to cache the model files (optional, not used with inference)
         """
         self.model_name = model_name
-        self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "..", "AIModel", "emotion_model")
+        self.cache_dir = cache_dir  # Keep for compatibility, but not used
         
-        # Create cache directory if it doesn't exist
-        os.makedirs(self.cache_dir, exist_ok=True)
-        
-        print(f"Loading emotion model from {self.model_name}...")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=self.cache_dir)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=self.cache_dir)
-        self.labels = self.model.config.id2label
-        print("Emotion model loaded successfully!")
+        print(f"Initializing Hugging Face Inference client for {self.model_name}...")
+        self.client = InferenceClient(model=model_name)
+        self.labels = {0: 'anger', 1: 'disgust', 2: 'fear', 3: 'joy', 4: 'neutral', 5: 'sadness', 6: 'surprise'}
+        print("Hugging Face Inference client initialized successfully!")
         
         # Initialize Groq client for translation
         self.groq_client = None
@@ -123,21 +117,23 @@ English Translation:"""
         if translate_if_needed:
             processed_text = self._translate_text(text)
         
-        # Encode input
-        inputs = self.tokenizer(processed_text, return_tensors="pt", truncation=True, max_length=512)
+        # Use Hugging Face Inference
+        result = self.client.text_classification(processed_text, top_k=7)
         
-        # Forward pass
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            logits = outputs.logits
-            
-            # Apply a small penalty to neutral class to reduce bias
-            neutral_idx = list(self.labels.keys())[list(self.labels.values()).index('neutral')]
-            logits[0][neutral_idx] -= 0.5  # Reduce neutral confidence
-            
-            probs = softmax(logits, dim=-1).squeeze()
+        # Create dict from label to score
+        scores_dict = {item['label']: item['score'] for item in result}
         
-        return probs.tolist()
+        # Apply a small penalty to neutral class to reduce bias
+        if 'neutral' in scores_dict:
+            scores_dict['neutral'] = max(0, scores_dict['neutral'] - 0.1)  # Reduce by 0.1 since it's probability
+        
+        # Renormalize
+        total = sum(scores_dict.values())
+        if total > 0:
+            scores_dict = {k: v / total for k, v in scores_dict.items()}
+        
+        # Return in order
+        return [scores_dict.get(label, 0.0) for label in self.labels.values()]
 
     def get_emotion_scores(self, text: str, translate_if_needed: bool = True) -> Dict[str, float]:
         """Get emotion scores with their labels.
