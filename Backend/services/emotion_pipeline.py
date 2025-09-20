@@ -273,3 +273,48 @@ def analyze_emotion(text: str, user_name: str = None) -> Dict:
             "user_context": user_name
         }
 
+def interpretation(metadata: Dict) -> str:
+    """
+    Generate an interpretation explaining why the dominant emotion was chosen based on the analysis metadata.
+    
+    Args:
+        metadata: Dictionary containing the emotion analysis results from analyze_emotion.
+        
+    Returns:
+        A string description explaining the dominant emotion.
+    """
+    if not metadata.get("pipeline_success", False):
+        return "Analysis failed, cannot provide interpretation."
+    
+    dominant_emotion = metadata.get("dominant_emotion", "unknown")
+    dominant_score = metadata.get("dominant_score", 0.0)
+    original_text = metadata.get("original_text", "")
+    emotion_scores = metadata.get("emotion_scores", {})
+    
+    pipeline = get_pipeline()
+    if not pipeline.groq_client or not pipeline.groq_model:
+        return f"The dominant emotion is '{dominant_emotion}' with a confidence score of {dominant_score:.2f}. (LLM not available for detailed interpretation.)"
+    
+    # Optimized prompt for the LLM to generate an interpretation
+    prompt = f"""
+    You are an expert emotion analyst. Given the following analysis of the text: "{original_text}", explain in 2-3 empathetic sentences why the dominant emotion was identified.
+
+    Dominant Emotion: {dominant_emotion} (Confidence: {dominant_score:.2f})
+    All Emotion Scores: {emotion_scores}
+
+    Focus on the most relevant words or phrases in the text that support this emotion. Make your explanation clear, simple, and supportive, as if speaking to the person who wrote the text.
+    """
+    
+    try:
+        response = pipeline.groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=pipeline.groq_model,
+            temperature=0.3,
+            max_tokens=150
+        )
+        interpretation_text = response.choices[0].message.content.strip()
+        return interpretation_text
+    except Exception as e:
+        print(f"Interpretation generation failed: {e}")
+        return f"The dominant emotion is '{dominant_emotion}' with a confidence score of {dominant_score:.2f}. (Error generating detailed interpretation.)"
+ 

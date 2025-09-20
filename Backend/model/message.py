@@ -28,3 +28,4 @@ class Message(SQLModel, table=True):
 
     # 🔹 Store top emotion label for fast filtering
     Detected_emotion: Optional[str] = Field(max_length=100, default=None)
+    Interpretation : Optional[str] = Field(default=None)

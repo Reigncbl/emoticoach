@@ -131,9 +131,9 @@ async def find_firebase_user_by_phone(phone_number: str) -> str:
 
 async def save_messages_to_db(messages: list, phone_number: str, embeddings: list, emotion_outputs: list):
     """
-    Save messages to DB with semantic + emotion embeddings.
+    Save messages to DB with semantic + emotion embeddings and interpretations.
     - embeddings: semantic embeddings (np.array, dim=1024)
-    - emotion_outputs: list of dicts {"vector": [...], "labels": {...}, "top": "joy"}
+    - emotion_outputs: list of dicts {"vector": [...], "labels": {...}, "top": "joy", "interpretation": "..."}
     """
     try:
         firebase_user_id = await find_firebase_user_by_phone(phone_number)
@@ -144,11 +144,11 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
         message_ids = []
         with Session(engine) as session:
             for msg_data, sem_embed, emo_out in zip(messages, embeddings, emotion_outputs):
-                # ✅ Debug print to check what we're getting
+                # Debug print to check what we're getting
                 print(f"DEBUG - sem_embed type: {type(sem_embed)}, value: {sem_embed}")
                 print(f"DEBUG - emo_out type: {type(emo_out)}, value: {emo_out}")
                 
-                # ✅ Ensure we have valid numeric embeddings
+                # Ensure we have valid numeric embeddings
                 if isinstance(sem_embed, (list, tuple)) and all(isinstance(x, str) for x in sem_embed):
                     print(f"ERROR - Semantic embedding contains strings: {sem_embed}")
                     # Skip this message or create a default embedding
@@ -163,10 +163,12 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                     emo_vector = [0.0] * 7
                     emo_labels = {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0, "neutral": 1.0}
                     top_emotion = "neutral"
+                    interpretation_text = "Unable to analyze emotion for this message."
                 else:
                     emo_vector = emo_out["vector"]
                     emo_labels = emo_out["labels"]
                     top_emotion = emo_out["top"]
+                    interpretation_text = emo_out.get("interpretation", "No interpretation available.")
                     
                     # Log translation info if available
                     if emo_out.get("processed_text") and emo_out["processed_text"] != emo_out["original_text"]:
@@ -181,7 +183,7 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
 
                 message_id = str(uuid.uuid4())
                 message = Message(
-                    MessageId=message_id,
+                   MessageId=message_id,
                     UserId=firebase_user_id,
                     Sender=msg_data["from"],
                     Receiver=msg_data["to"],
@@ -191,11 +193,12 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                     Emotion_Embedding=emo_vector,
                     Emotion_labels=emo_labels,
                     Detected_emotion=top_emotion,
+                    Interpretation=interpretation_text  # Now includes the interpretation
                 )
                 session.add(message)
                 message_ids.append(message_id)
 
-            # ✅ Commit once for efficiency
+            # Commit once for efficiency
             session.commit()
             return message_ids
 
@@ -259,7 +262,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
     message_ids = []
     if message_texts:
         try:
-            # ✅ Create embeddings in batch - FIXED: Ensure this returns actual numeric vectors
+            # Create embeddings in batch - FIXED: Ensure this returns actual numeric vectors
             print(f"DEBUG - Creating embeddings for {len(message_texts)} messages")
             embedding_vectors = []
             for text in message_texts:
@@ -272,11 +275,24 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
                     # Create a default embedding vector
                     embedding_vectors.append([0.0] * 1024)
             
-            # ✅ Create emotion outputs using the new method
+            # Create emotion outputs using the new method with interpretations
             emotion_outputs = []
             for text in message_texts:
                 try:
+                    # Get emotion data from RAG pipeline
                     emotion_data = rag.get_emotion_data(text)
+                    
+                    # Generate interpretation using the emotion pipeline
+                    from services.emotion_pipeline import analyze_emotion, interpretation
+                    emotion_analysis = analyze_emotion(text)
+                    
+                    if emotion_analysis.get("pipeline_success"):
+                        interpretation_text = interpretation(emotion_analysis)
+                        emotion_data["interpretation"] = interpretation_text
+                        print(f"Generated interpretation for '{text[:30]}...': {interpretation_text[:100]}...")
+                    else:
+                        emotion_data["interpretation"] = "Failed to analyze emotion for this message."
+                    
                     emotion_outputs.append(emotion_data)
                 except Exception as e:
                     print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")
@@ -287,15 +303,16 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
                             "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
                             "neutral": 1.0
                         },
-                        "top": "neutral"
+                        "top": "neutral",
+                        "interpretation": "Unable to analyze emotion for this message."
                     }
                     emotion_outputs.append(emotion_result)
             
-            print(f"DEBUG - Created {len(embedding_vectors)} embeddings and {len(emotion_outputs)} emotion outputs")
+            print(f"DEBUG - Created {len(embedding_vectors)} embeddings and {len(emotion_outputs)} emotion outputs with interpretations")
             
-            # Save messages with embeddings and emotion data
+            # Save messages with embeddings, emotion data, and interpretations
             message_ids = await save_messages_to_db(messages, phone_number, embedding_vectors, emotion_outputs)
-            print(f"DEBUG - Saved {len(message_ids)} messages to database")
+            print(f"DEBUG - Saved {len(message_ids)} messages to database with interpretations")
             
             # Add to RAG system in batch only if save was successful
             if message_ids:
@@ -360,3 +377,42 @@ async def embed_messages(messages: list, metadata: dict = None):
                 "message_id": str(uuid.uuid4())
             })
             rag.add_document(message['text'], metadata=msg_metadata)
+
+# New helper function to get messages with interpretations
+async def get_messages_with_interpretations(user_id: str, limit: int = 50) -> list:
+    """
+    Retrieve messages with their emotion interpretations from the database.
+    
+    Args:
+        user_id: Firebase user ID
+        limit: Maximum number of messages to retrieve
+        
+    Returns:
+        List of message dictionaries with interpretations
+    """
+    try:
+        with Session(engine) as session:
+            messages = session.exec(
+                select(Message)
+                .where(Message.UserId == user_id)
+                .order_by(Message.DateSent.desc())
+                .limit(limit)
+            ).all()
+            
+            result = []
+            for msg in messages:
+                result.append({
+                    "message_id": msg.MessageId,
+                    "sender": msg.Sender,
+                    "receiver": msg.Receiver,
+                    "date_sent": msg.DateSent.isoformat(),
+                    "content": msg.MessageContent,
+                    "detected_emotion": msg.Detected_emotion,
+                    "emotion_labels": msg.Emotion_labels,
+                    "interpretation": msg.Interpretation
+                })
+            
+            return result
+    except Exception as e:
+        print(f"Error retrieving messages with interpretations: {e}")
+        return []
