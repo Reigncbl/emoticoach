@@ -83,3 +83,5 @@ build/
 dist/
 *.egg-info/
 ios/
+ios/Flutter/flutter_export_environment.sh
+web/

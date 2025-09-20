@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'http://192.168.100.199:8000';
+  static const String baseUrl = 'http://172.30.2.189:8000';
 
   // API endpoints
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -20,4 +20,7 @@ class ApiConfig {
       '$baseUrl/scenarios/details/$scenarioId';
   static String get scenarioChat => '$baseUrl/scenarios/chat';
   static String get scenarioEvaluate => '$baseUrl/scenarios/evaluate';
+  static String get scenarioComplete => '$baseUrl/scenarios/complete';
+  static String scenarioCompleted(String userId) =>
+      '$baseUrl/scenarios/completed/$userId';
 }

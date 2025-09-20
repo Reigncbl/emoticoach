@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/reading_model.dart';
 import 'reading_card.dart';
 import './reading_detail_screen.dart';
-import '../../utils/api_service.dart';
+import '../../services/api_service.dart';
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});

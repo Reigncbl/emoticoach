@@ -11,7 +11,7 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("api_key")
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = "BAAI/bge-m3"  # Specific embedding model for RAG
-MODEL_PATH = os.path.join(r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel", "bge-m3")
+MODEL_PATH = os.path.join(r"Backend\AIModel", "bge-m3")
 
 # Weight for combining semantic and emotional similarity
 EMOTION_WEIGHT = 0.3  # Adjust this to control the importance of emotional similarity

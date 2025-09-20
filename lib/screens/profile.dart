@@ -7,6 +7,7 @@ import 'dart:ui';
 import '../widgets/telegram_status_widget.dart';
 import '../widgets/telegram_verification_widget.dart';
 import '../utils/user_data_mixin.dart';
+import '../services/session_service.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
@@ -20,8 +21,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   // === TELEGRAM INTEGRATION STATE ===
   bool _showTelegramVerification = false;
-  String? _userMobileNumber =
-      '+639762325664'; // This should come from your user session/storage
+  String? _userMobileNumber; // Will be loaded from session
 
   // === NAVIGATION FUNCTIONS ===
   void _navigateToSettings() {
@@ -143,6 +143,17 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
+    _loadUserPhoneNumber(); // Load phone number from session
+  }
+
+  // Load user phone number from session
+  Future<void> _loadUserPhoneNumber() async {
+    final phoneNumber = await SimpleSessionService.getUserPhone();
+    if (mounted) {
+      setState(() {
+        _userMobileNumber = phoneNumber;
+      });
+    }
   }
 
   // Activity Section Subtitle

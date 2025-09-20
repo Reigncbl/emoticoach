@@ -252,7 +252,9 @@ class APIService {
 
   Future<List<Reading>> fetchAllReadings() async {
     try {
-      final response = await _client.get(Uri.parse('$baseUrl/resources/all'));
+      final response = await _client.get(
+        Uri.parse('$baseUrl/books/resources/all'),
+      );
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is List) {
@@ -275,23 +277,19 @@ class APIService {
       throw Exception('Failed to fetch readings: $e');
     }
   }
-  
-  // ===============================
+
   // TELEGRAM INTEGRATION METHODS
-  // ===============================
 
   /// Start Telegram authentication - sends OTP to Telegram
   Future<Map<String, dynamic>> startTelegramAuth(String phoneNumber) async {
     try {
       print('Starting Telegram authentication for: $phoneNumber');
-      
-      final requestBody = {
-        'phone_number': phoneNumber,
-      };
+
+      final requestBody = {'phone_number': phoneNumber};
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/auth/start'),
+            Uri.parse('$baseUrl/messages/auth/start'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(requestBody),
           )
@@ -315,10 +313,7 @@ class APIService {
       }
     } catch (e) {
       print('Error starting Telegram auth: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -330,7 +325,7 @@ class APIService {
   }) async {
     try {
       print('Verifying Telegram code for: $phoneNumber');
-      
+
       final requestBody = {
         'phone_number': phoneNumber,
         'code': code,
@@ -339,7 +334,7 @@ class APIService {
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/auth/verify'),
+            Uri.parse('$baseUrl/messages/auth/verify'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(requestBody),
           )
@@ -350,7 +345,7 @@ class APIService {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        
+
         // Check if password is required for 2FA
         if (responseData['password_required'] == true) {
           return {
@@ -359,10 +354,11 @@ class APIService {
             'message': 'Two-factor authentication password required',
           };
         }
-        
+
         return {
           'success': true,
-          'message': responseData['message'] ?? 'Telegram authenticated successfully',
+          'message':
+              responseData['message'] ?? 'Telegram authenticated successfully',
           'user_id': responseData['user_id'],
         };
       } else {
@@ -374,10 +370,7 @@ class APIService {
       }
     } catch (e) {
       print('Error verifying Telegram auth: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -385,10 +378,10 @@ class APIService {
   Future<Map<String, dynamic>> getTelegramStatus(String phoneNumber) async {
     try {
       print('Checking Telegram status for: $phoneNumber');
-      
+
       final response = await _client
           .get(
-            Uri.parse('$baseUrl/status?phone_number=$phoneNumber'),
+            Uri.parse('$baseUrl/messages/status?phone_number=$phoneNumber'),
             headers: {'Content-Type': 'application/json'},
           )
           .timeout(const Duration(seconds: 15));
@@ -424,13 +417,13 @@ class APIService {
   Future<Map<String, dynamic>> getTelegramContacts(String phoneNumber) async {
     try {
       print('Fetching Telegram contacts for: $phoneNumber');
-      
+
       final response = await _client
           .get(
-            Uri.parse('$baseUrl/contacts?phone_number=$phoneNumber'),
+            Uri.parse('$baseUrl/messages/contacts?phone_number=$phoneNumber'),
             headers: {'Content-Type': 'application/json'},
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 90));
 
       print('Telegram contacts response: ${response.statusCode}');
       print('Telegram contacts body: ${response.body}');
@@ -457,10 +450,7 @@ class APIService {
       }
     } catch (e) {
       print('Error fetching Telegram contacts: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 
@@ -473,7 +463,7 @@ class APIService {
   }) async {
     try {
       print('Fetching Telegram messages for contact: $firstName $lastName');
-      
+
       final requestBody = {
         'phone': contactPhone,
         'first_name': firstName,
@@ -482,11 +472,11 @@ class APIService {
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/messages?phone_number=$phoneNumber'),
+            Uri.parse('$baseUrl/messages/messages?phone_number=$phoneNumber'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(requestBody),
           )
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 90));
 
       print('Telegram messages response: ${response.statusCode}');
       print('Telegram messages body: ${response.body}');
@@ -514,10 +504,47 @@ class APIService {
       }
     } catch (e) {
       print('Error fetching Telegram messages: $e');
-      return {
-        'success': false,
-        'error': 'Network error: ${e.toString()}',
-      };
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
+  }
+
+  /// Analyze text using the emotion analysis pipeline
+  Future<Map<String, dynamic>> analyzeText(String text) async {
+    try {
+      print(
+        'Analyzing text: "${text.length > 50 ? text.substring(0, 50) + '...' : text}"',
+      );
+
+      final requestBody = {'text': text};
+
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/messages/suggestions/analyze'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(requestBody),
+          )
+          .timeout(const Duration(seconds: 90));
+
+      print('Text analysis response: ${response.statusCode}');
+      print('Text analysis body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['success'] == true) {
+          return {'success': true, 'data': responseData['data']};
+        } else {
+          return {'success': false, 'error': 'Analysis pipeline failed'};
+        }
+      } else {
+        final errorData = json.decode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to analyze text',
+        };
+      }
+    } catch (e) {
+      print('Error analyzing text: $e');
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
     }
   }
 }

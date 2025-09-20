@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../utils/api_service.dart';
+import '../services/api_service.dart';
 import '../utils/colors.dart';
 
 class TelegramVerificationWidget extends StatefulWidget {
@@ -16,10 +16,12 @@ class TelegramVerificationWidget extends StatefulWidget {
   });
 
   @override
-  State<TelegramVerificationWidget> createState() => _TelegramVerificationWidgetState();
+  State<TelegramVerificationWidget> createState() =>
+      _TelegramVerificationWidgetState();
 }
 
-class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget> {
+class _TelegramVerificationWidgetState
+    extends State<TelegramVerificationWidget> {
   final APIService _apiService = APIService();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
@@ -63,8 +65,10 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
     });
 
     try {
-      final result = await _apiService.startTelegramAuth(_phoneController.text.trim());
-      
+      final result = await _apiService.startTelegramAuth(
+        _phoneController.text.trim(),
+      );
+
       if (result['success'] == true) {
         setState(() {
           _codeSent = true;
@@ -106,12 +110,12 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
         code: _codeController.text.trim(),
         password: _passwordRequired ? _passwordController.text.trim() : null,
       );
-      
+
       if (result['success'] == true) {
         setState(() {
           _successMessage = 'Telegram connected successfully!';
         });
-        
+
         // Call success callback after a brief delay
         await Future.delayed(const Duration(seconds: 1));
         if (widget.onVerificationSuccess != null) {
@@ -120,7 +124,8 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
       } else if (result['password_required'] == true) {
         setState(() {
           _passwordRequired = true;
-          _errorMessage = 'Two-factor authentication required. Please enter your password.';
+          _errorMessage =
+              'Two-factor authentication required. Please enter your password.';
         });
       } else {
         setState(() {
@@ -177,11 +182,7 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
                   color: kBrightBlue.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.telegram,
-                  color: kBrightBlue,
-                  size: 24,
-                ),
+                child: Icon(Icons.telegram, color: kBrightBlue, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -198,10 +199,7 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
                     ),
                     Text(
                       'Verify your Telegram account for enhanced features',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -213,7 +211,7 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
                 ),
             ],
           ),
-          
+
           const SizedBox(height: 24),
 
           // Phone Number Input (always visible)
@@ -221,9 +219,7 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
             controller: _phoneController,
             enabled: !_codeSent,
             keyboardType: TextInputType.phone,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
               labelText: 'Phone Number',
               hintText: 'Enter your Telegram phone number',
@@ -316,7 +312,11 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle_outline, color: Colors.green[600], size: 20),
+                  Icon(
+                    Icons.check_circle_outline,
+                    color: Colors.green[600],
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -350,8 +350,8 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
               ],
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _isLoading 
-                      ? null 
+                  onPressed: _isLoading
+                      ? null
                       : (_codeSent ? _verifyTelegramCode : _sendTelegramCode),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kBrightBlue,
@@ -367,7 +367,9 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
                           ),
                         )
                       : Text(
@@ -385,13 +387,10 @@ class _TelegramVerificationWidgetState extends State<TelegramVerificationWidget>
           // Helper Text
           const SizedBox(height: 16),
           Text(
-            _codeSent 
+            _codeSent
                 ? 'Check your Telegram app for the verification code'
                 : 'We\'ll send a verification code to your Telegram account',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
             textAlign: TextAlign.center,
           ),
         ],

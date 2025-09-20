@@ -12,8 +12,8 @@ class Reading {
   final String difficulty;
   final int xpPoints;
   final double rating;
-  final int duration; // reading time in minutes
-  final double progress; // reading progress (0.0 to 1.0)
+  final int duration;
+  final double progress; 
   final List<String> skills;
 
   Reading({

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../utils/api_service.dart'; // Adjust import path as needed
+import '../services/api_service.dart'; // Adjust import path as needed
 
 class SuggestionLoader with ChangeNotifier {
   final APIService _apiService = APIService(); // Or pass as dependency

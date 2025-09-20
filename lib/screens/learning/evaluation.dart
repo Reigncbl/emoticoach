@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../../utils/api_service.dart';
+import '../../services/api_service.dart';
+import '../../services/scenario_service.dart';
+import '../../services/user_api_service.dart';
 import '../../models/scenario_models.dart';
 
 class EvaluationScreen extends StatefulWidget {
   final List<ConversationMessage> conversationHistory;
   final String characterName;
+  final int? scenarioId;
 
   const EvaluationScreen({
     Key? key,
     required this.conversationHistory,
     required this.characterName,
+    this.scenarioId,
   }) : super(key: key);
 
   @override
@@ -57,6 +61,33 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _finishScenario() async {
+    // Mark scenario as complete if we have evaluation data and scenario ID
+    if (widget.scenarioId != null && _evaluationResponse?.evaluation != null) {
+      try {
+        final userId = await UserApiService.getCurrentUserId();
+        final evaluation = _evaluationResponse!.evaluation!;
+
+        await ScenarioService.completeScenario(
+          userId: userId,
+          scenarioId: widget.scenarioId!,
+          finalClarityScore: evaluation.clarity,
+          finalEmpathyScore: evaluation.empathy,
+          finalAssertivenessScore: evaluation.assertiveness,
+          finalAppropriatenessScore: evaluation.appropriateness,
+          totalMessages: _evaluationResponse?.totalUserMessages,
+        );
+
+        print('✅ Scenario marked as complete');
+      } catch (e) {
+        print('❌ Error marking scenario as complete: $e');
+        // Don't block navigation if completion tracking fails
+      }
+    }
+
+    Navigator.popUntil(context, (route) => route.isFirst);
   }
 
   @override
@@ -140,8 +171,10 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                       Text(
                         'Assessment',
                         style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold,
-                            fontSize: 22),
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 22,
+                            ),
                       ),
                     ],
                   ),
@@ -170,12 +203,10 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           if (evaluation != null) ...[
             Text(
               'Performance Rating',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
-                ),
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -247,9 +278,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           if (userReplies.isNotEmpty) ...[
             Text(
               'Your Messages',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
                 fontSize: 22,
               ),
@@ -278,7 +307,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Padding (
+                            Padding(
                               padding: const EdgeInsets.only(top: 16.0),
                               child: Container(
                                 width: 24,
@@ -343,9 +372,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.popUntil(context, (route) => route.isFirst);
-                  },
+                  onPressed: () => _finishScenario(),
                   icon: const Icon(Icons.home),
                   label: const Text('Home'),
                   style: ElevatedButton.styleFrom(
@@ -387,16 +414,15 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         description,
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ],
                   ),

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
+import 'session_service.dart';
 
 class UserApiService {
   final http.Client _client;
@@ -379,6 +380,81 @@ class UserApiService {
     } catch (e) {
       print('Error during Google login: $e');
       return AuthResponse.error('Network error: ${e.toString()}');
+    }
+  }
+
+  // ===============================
+  // SESSION MANAGEMENT METHODS (Merged from UserService)
+  // ===============================
+
+  /// Get current user ID from session (prioritize Firebase UID, fallback to phone)
+  static Future<String> getCurrentUserId() async {
+    // Try to get Firebase UID first
+    final firebaseUid = await SimpleSessionService.getFirebaseUid();
+    if (firebaseUid != null && firebaseUid.isNotEmpty) {
+      return firebaseUid;
+    }
+
+    // Fallback to phone number
+    final phone = await SimpleSessionService.getUserPhone();
+    if (phone != null && phone.isNotEmpty) {
+      return phone;
+    }
+
+    // If no session data, throw error
+    throw Exception('No user session found. Please log in again.');
+  }
+
+  /// Check if user is logged in using session service
+  static Future<bool> isUserLoggedIn() async {
+    return await SimpleSessionService.isLoggedIn();
+  }
+
+  /// Logout using session service
+  static Future<void> logout() async {
+    await SimpleSessionService.clearSession();
+  }
+
+  /// Get user profile information from session
+  static Future<Map<String, dynamic>> getUserProfile() async {
+    return await SimpleSessionService.getUserProfile();
+  }
+
+  /// Check if session is still valid
+  static Future<bool> isSessionValid({Duration? maxAge}) async {
+    return await SimpleSessionService.isSessionValid(maxAge: maxAge);
+  }
+
+  /// Get current user details from backend using session info
+  static Future<User?> getCurrentUser() async {
+    try {
+      final userId = await getCurrentUserId();
+
+      // If userId is numeric (database ID), use getUserById
+      if (RegExp(r'^\d+$').hasMatch(userId)) {
+        return await UserApiServiceSingleton.instance.getUserById(
+          int.parse(userId),
+        );
+      }
+
+      // If userId is phone number, use getContactByMobile
+      if (RegExp(r'^\+?[\d\s\-\(\)]+$').hasMatch(userId)) {
+        return await UserApiServiceSingleton.instance.getContactByMobile(
+          userId,
+        );
+      }
+
+      // For Firebase UID or other formats, we might need a different endpoint
+      // For now, try phone fallback
+      final phone = await SimpleSessionService.getUserPhone();
+      if (phone != null && phone.isNotEmpty) {
+        return await UserApiServiceSingleton.instance.getContactByMobile(phone);
+      }
+
+      return null;
+    } catch (e) {
+      print('Error getting current user: $e');
+      return null;
     }
   }
 

@@ -19,7 +19,7 @@ from core.db_connection import engine
 from sqlmodel import Session, select
 
 # Config
-API_ID = int(os.getenv('api_id'))
+API_ID = os.getenv('api_id')
 API_HASH = os.getenv('api_hash')
 SESSION_DIR = "sessions"
 os.makedirs(SESSION_DIR, exist_ok=True)
@@ -28,7 +28,10 @@ active_clients: Dict[str, TelegramClient] = {}
 user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
 
 def get_client(phone: str) -> TelegramClient:
-    specific_session_path = r"C:\Users\John Carlo\emoticoach\emoticoach\Backend\sessions\639063450469"
+    """Returns a TelegramClient for the given phone."""
+    # Use the specific session file
+    specific_session_path = r"C:\3rd year sec sem\Capstone\Telegram\emoticoach\Backend\sessions\639762325664.session"
+    
     normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
     
     if normalized_phone in active_clients:
@@ -323,7 +326,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
             # Continue without embeddings if there's an error
         
     # Get conversation context for RAG
-    conversation_context = get_conversation_context(me.first_name, user.first_name)
+    conversation_context = get_conversation_context(me.first_name, user.first_name, limit=50)
     
     response = {
         "sender": me.first_name,

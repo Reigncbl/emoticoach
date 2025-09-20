@@ -10,7 +10,6 @@ import 'package:visibility_detector/visibility_detector.dart';
 class ReadingContentScreen extends StatefulWidget {
   final String? bookId;
   final String? pageId;
-  
 
   const ReadingContentScreen({super.key, this.bookId, this.pageId});
 
@@ -28,6 +27,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     _scrollController.dispose();
     super.dispose();
   }
+
   bool _minimalMode = false;
   late int _currentPage;
   late Future<List<Map<String, dynamic>>> _pageDataFuture;
@@ -51,7 +51,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
 
   String get baseUrl {
     final bookId = widget.bookId ?? 'R-00002';
-    return 'http://10.0.2.2:8000/book/$bookId/$_currentPage';
+    return 'http://10.0.2.2:8000/books/book/$bookId/$_currentPage';
   }
 
   Future<List<Map<String, dynamic>>> fetchReadingPage() async {
@@ -149,10 +149,11 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                     : BookReaderAppBar(
                         key: const ValueKey('fullAppBar'),
                         title: _appBarData?.title ?? "Loading...",
-                        chapterBlockType: 
-                          (_lastValidChapter != null && _lastValidChapter!.trim().isNotEmpty)
-                              ? _lastValidChapter!
-                              : (_appBarData?.chapter ?? "..."),
+                        chapterBlockType:
+                            (_lastValidChapter != null &&
+                                _lastValidChapter!.trim().isNotEmpty)
+                            ? _lastValidChapter!
+                            : (_appBarData?.chapter ?? "..."),
                         onBackPressed: () => Navigator.pop(context),
                       ),
               ),
@@ -180,7 +181,8 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                       child: NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
                           if (notification is ScrollUpdateNotification) {
-                            final max = _scrollController.position.maxScrollExtent;
+                            final max =
+                                _scrollController.position.maxScrollExtent;
                             final current = _scrollController.position.pixels;
                             final dy = notification.scrollDelta ?? 0;
                             // At bottom: exit minimal mode
@@ -213,7 +215,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                             final type = block['blocktype']?.toString() ?? '';
                             final content = block['content']?.toString();
                             final imageUrl = block['imageurl']?.toString();
-                            final styleJson = _parseStyleJson(block['stylejson']);
+                            final styleJson = _parseStyleJson(
+                              block['stylejson'],
+                            );
                             // Chapter
                             if (type == 'chapter') {
                               // Update _lastValidChapter when a chapter block is visible
@@ -233,13 +237,24 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   }
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0,
+                                  ),
                                   child: Text(
                                     content ?? '',
-                                    textAlign: _parseTextAlign(styleJson['align']),
-                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                          fontWeight: _parseFontWeight(styleJson['fontWeight']),
-                                          fontSize: (styleJson['fontSize'] as num?)?.toDouble(),
+                                    textAlign: _parseTextAlign(
+                                      styleJson['align'],
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          fontWeight: _parseFontWeight(
+                                            styleJson['fontWeight'],
+                                          ),
+                                          fontSize:
+                                              (styleJson['fontSize'] as num?)
+                                                  ?.toDouble(),
                                         ),
                                   ),
                                 ),
@@ -254,14 +269,19 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   ),
                                   child: Text(
                                     content ?? '',
-                                    textAlign: _parseTextAlign(styleJson['align']),
-                                    style: Theme.of(context).textTheme.titleLarge
+                                    textAlign: _parseTextAlign(
+                                      styleJson['align'],
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
                                         ?.copyWith(
                                           fontWeight: _parseFontWeight(
                                             styleJson['fontWeight'],
                                           ),
-                                          fontSize: (styleJson['fontSize'] as num?)
-                                              ?.toDouble(),
+                                          fontSize:
+                                              (styleJson['fontSize'] as num?)
+                                                  ?.toDouble(),
                                         ),
                                   ),
                                 );
@@ -270,12 +290,17 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   padding: const EdgeInsets.only(bottom: 16.0),
                                   child: Text(
                                     content ?? '',
-                                    textAlign: _parseTextAlign(styleJson['align']),
-                                    style: Theme.of(context).textTheme.bodyMedium
+                                    textAlign: _parseTextAlign(
+                                      styleJson['align'],
+                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
                                         ?.copyWith(
                                           height: 1.6,
-                                          fontSize: (styleJson['fontSize'] as num?)
-                                              ?.toDouble(),
+                                          fontSize:
+                                              (styleJson['fontSize'] as num?)
+                                                  ?.toDouble(),
                                           fontWeight: _parseFontWeight(
                                             styleJson['fontWeight'],
                                           ),
@@ -287,7 +312,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   return const SizedBox.shrink();
                                 }
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0,
+                                  ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(10),
                                     child: Image.network(imageUrl),
@@ -313,10 +340,11 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
             right: 0,
             bottom: _minimalMode ? 0 : -60,
             child: MinimalFooter(
-              chapterBlockType: 
-                (_lastValidChapter != null && _lastValidChapter!.trim().isNotEmpty)
-                    ? _lastValidChapter!
-                    : (_appBarData?.chapter ?? "..."),
+              chapterBlockType:
+                  (_lastValidChapter != null &&
+                      _lastValidChapter!.trim().isNotEmpty)
+                  ? _lastValidChapter!
+                  : (_appBarData?.chapter ?? "..."),
               progressPercent: _progress / 100,
             ),
           ),
@@ -326,17 +354,14 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
               left: 0,
               right: 0,
               bottom: 0,
-              child: NextChapterWidget(
-                onTap: _nextPage,
-                text: 'Next Page',
-              ),
+              child: NextChapterWidget(onTap: _nextPage, text: 'Next Page'),
             ),
         ],
       ),
     );
   }
 
-// Function
+  // Function
   TextAlign _parseTextAlign(String? value) {
     switch (value?.toLowerCase()) {
       case 'center':
@@ -350,7 +375,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     }
   }
 
-// Function
+  // Function
   FontWeight _parseFontWeight(String? value) {
     switch (value?.toLowerCase()) {
       case 'bold':
@@ -419,26 +444,25 @@ class BookReaderAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
-
 // Bottom Next Chapter Widget
 class NextChapterWidget extends StatelessWidget {
   final VoidCallback? onTap;
   final String text;
 
-  const NextChapterWidget({
-    Key? key,
-    this.onTap,
-    this.text = 'Next Chapter',
-  }) : super(key: key);
+  const NextChapterWidget({Key? key, this.onTap, this.text = 'Next Chapter'})
+    : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(top: 0, left: 16.0, right: 16.0, bottom: 12.0),
-      decoration: const BoxDecoration(
-        color: Colors.white,
+      padding: const EdgeInsets.only(
+        top: 0,
+        left: 16.0,
+        right: 16.0,
+        bottom: 12.0,
       ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: SafeArea(
         child: Row(
           children: [
@@ -450,11 +474,7 @@ class NextChapterWidget extends StatelessWidget {
                 color: kBrightOrange,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.menu,
-                color: Colors.white,
-                size: 30,
-              ),
+              child: const Icon(Icons.menu, color: Colors.white, size: 30),
             ),
             const SizedBox(width: 12),
             // Next Chapter button
@@ -489,18 +509,12 @@ class NextChapterWidget extends StatelessWidget {
 
 // Minimal AppBar widget - when user taps center to hide
 class MinimalAppBar extends StatelessWidget implements PreferredSizeWidget {
-
   @override
   Size get preferredSize => const Size.fromHeight(36);
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: Container(
-        color: Colors.white,
-      ),
-    );
+    return SizedBox(height: 36, child: Container(color: Colors.white));
   }
 }
 
@@ -509,7 +523,11 @@ class MinimalFooter extends StatelessWidget {
   final String chapterBlockType;
   final double progressPercent;
 
-  const MinimalFooter({Key? key, required this.chapterBlockType, required this.progressPercent}) : super(key: key);
+  const MinimalFooter({
+    Key? key,
+    required this.chapterBlockType,
+    required this.progressPercent,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

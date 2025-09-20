@@ -21,9 +21,7 @@ dependencies:
   http: ^1.4.0
   english_words: ^4.0.0
   provider: ^6.1.5
-  flutter_overlay_window:
-    git:
-      url: https://github.com/X-SLAYER/flutter_overlay_window.git
+  flutter_overlay_window: ^0.5.0
   multiavatar: ^0.1.5
   rename: ^3.0.2
   shimmer: ^3.0.0
@@ -34,6 +32,7 @@ dependencies:
   flutter_native_splash: ^2.4.6
   visibility_detector: ^0.4.0+2
   shared_preferences: ^2.3.3
+  flutter_svg: ^2.0.9
 
 dev_dependencies:
   flutter_test:

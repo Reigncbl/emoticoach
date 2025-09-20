@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../models/scenario_models.dart';
-import '../../utils/api_service.dart';
+import '../services/api_service.dart';
 
 /// Dialog that appears when the AI suggests ending the conversation
 class ConversationEndingDialog extends StatelessWidget {

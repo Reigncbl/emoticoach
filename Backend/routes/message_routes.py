@@ -18,7 +18,7 @@ class ContactRequest(BaseModel):
     last_name: str = ""
 
 class AuthRequest(BaseModel):
-    phone_number: str = "639063450469"
+    phone_number: str = "+639762325664"
 
 # Default phone number from AuthRequest
 DEFAULT_PHONE = AuthRequest().phone_number
