@@ -1,17 +1,19 @@
 import os
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from torch.nn.functional import softmax
+import time
+import requests
 from typing import Dict, List, Tuple, Optional
 from groq import Groq
 from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
 
 load_dotenv()
+
+HF_MODEL = "j-hartmann/emotion-english-distilroberta-base"
 
 class EmotionEmbedder:
     """A class to generate emotion embeddings for text using a pre-trained model with translation support."""
     
-    def __init__(self, model_name: str = "j-hartmann/emotion-english-distilroberta-base", cache_dir: Optional[str] = None):
+    def __init__(self, model_name: str = HF_MODEL, cache_dir: Optional[str] = None):
         """Initialize the emotion embedder with a pre-trained model and translation capability.
         
         Args:
@@ -19,16 +21,23 @@ class EmotionEmbedder:
             cache_dir: Directory to cache the model files (optional)
         """
         self.model_name = model_name
-        self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "..", "AIModel", "emotion_model")
         
-        # Create cache directory if it doesn't exist
-        os.makedirs(self.cache_dir, exist_ok=True)
+        # HF Inference API setup with new syntax
+        self.hf_client = InferenceClient(
+            provider="hf-inference",
+            api_key=os.environ.get("HF_TOKEN")
+        )
         
-        print(f"Loading emotion model from {self.model_name}...")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=self.cache_dir)
-        self.model = AutoModelForSequenceClassification.from_pretrained(model_name, cache_dir=self.cache_dir)
-        self.labels = self.model.config.id2label
-        print("Emotion model loaded successfully!")
+        if not os.environ.get("HF_TOKEN"):
+            raise ValueError("HF_TOKEN not found in environment variables")
+
+        # The labels must be in the correct order as expected by the model's output.
+        # For "j-hartmann/emotion-english-distilroberta-base", this is the order.
+        self.labels = {
+            0: 'anger', 1: 'disgust', 2: 'fear', 3: 'joy', 4: 'neutral', 5: 'sadness', 6: 'surprise'
+        }
+        self.label_names = list(self.labels.values())
+        print(f"Emotion analysis configured for Hugging Face model: {self.model_name}")
         
         # Initialize Groq client for translation
         self.groq_client = None
@@ -45,67 +54,34 @@ class EmotionEmbedder:
                 print(f"Warning: Could not initialize Groq client: {e}")
                 print("Translation will be skipped for non-English text")
 
-
-    def _get_translation_prompt(self, tagalog_text: str) -> str:
-        """Creates a translation prompt for Tagalog to English."""
-        return f"""You are a professional translator specializing in emotional and culturally-aware translations from Tagalog to English. Your goal is to not just translate the words, but to convey the true meaning and feeling of the original text.
-
-Here are a few examples to guide you:
-
-Example 1:
-Tagalog Text: "Kumusta na kayo? Matagal na tayong hindi nagkikita! Miss na miss ko na kayo."
-Correct English Translation: "Hey there, how's it going? It's been forever since we saw each other! I miss you guys so, so much."
-(Note: The translation uses casual language like "Hey there" and "forever" to match the friendly, emotional tone of the original.)
-
-Example 2:
-Tagalog Text: "Grabe! Ang init dito sa Pinas!"
-Correct English Translation: "Whoa, it's so incredibly hot here in the Philippines!"
-(Note: "Grabe" is a difficult word to translate directly. "Whoa" or "Wow" captures the exclamatory and emotional tone.)
-
-Now, please provide only the translation for the following text. Do not add any extra commentary or explanations.
-
-Tagalog Text: {tagalog_text}
-
-English Translation:"""
-
-    def _clean_translation_output(self, text: str) -> str:
-        """Clean translation output from LLM."""
-        if not text:
-            return ""
-        text = text.strip().strip('"\'')
-        
-        # Remove common prefixes that the model might add
-        prefixes_to_remove = [
-            'english translation:', 'translation:', 'english:', 'translated:',
-            'the english translation is:', 'in english:'
-        ]
-        
-        text_lower = text.lower()
-        for prefix in prefixes_to_remove:
-            if text_lower.startswith(prefix):
-                text = text[len(prefix):].strip()
-                break
-                
-        return text
-
     def _translate_text(self, text: str) -> str:
-        """Always translate text to English using Groq, regardless of language."""
+        """Translate text to English if needed using Groq."""
         if not self.groq_client or not self.groq_model:
-            print("Warning: Translation not available, using original text")
             return text
+        
+        # Simple heuristic to check if text might be non-English
+        # You can make this more sophisticated
+        if text.isascii() and len([word for word in text.split() if word.isalpha()]) > 0:
+            # Likely English, return as is
+            return text
+        
         try:
-            prompt = self._get_translation_prompt(text)
+            translate_prompt = f"""Translate the following text to English. If it's already in English, return it unchanged:
+
+Text: "{text}"
+
+Translation:"""
+            
             response = self.groq_client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": translate_prompt}],
                 model=self.groq_model,
-                temperature=0.2,
+                temperature=0,
                 max_tokens=200
             )
-            translated = self._clean_translation_output(response.choices[0].message.content)
-            print(f"Translated: '{text}' -> '{translated}'")
+            translated = response.choices[0].message.content.strip()
             return translated if translated else text
         except Exception as e:
-            print(f"Translation error: {e}, using original text")
+            print(f"Translation error: {e}")
             return text
 
     def get_embedding(self, text: str, translate_if_needed: bool = True) -> List[float]:
@@ -118,26 +94,32 @@ English Translation:"""
         Returns:
             List of emotion probabilities corresponding to different emotions
         """
-        # Translate if needed and translation is available
         processed_text = text
         if translate_if_needed:
             processed_text = self._translate_text(text)
         
-        # Encode input
-        inputs = self.tokenizer(processed_text, return_tensors="pt", truncation=True, max_length=512)
-        
-        # Forward pass
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            logits = outputs.logits
+        try:
+            # Use the new client syntax for text classification
+            api_response = self.hf_client.text_classification(
+                text=processed_text,
+                model=self.model_name
+            )
+            
+            # The API returns a list of dicts. We need to process them.
+            scores_dict = {item['label'].lower(): item['score'] for item in api_response}
+            
+            # Reorder scores to match self.label_names
+            embedding = [scores_dict.get(label, 0.0) for label in self.label_names]
             
             # Apply a small penalty to neutral class to reduce bias
-            neutral_idx = list(self.labels.keys())[list(self.labels.values()).index('neutral')]
-            logits[0][neutral_idx] -= 0.5  # Reduce neutral confidence
+            if 'neutral' in self.label_names:
+                neutral_idx = self.label_names.index('neutral')
+                embedding[neutral_idx] = max(0, embedding[neutral_idx] - 0.1) # Reduce confidence slightly
             
-            probs = softmax(logits, dim=-1).squeeze()
-        
-        return probs.tolist()
+            return embedding
+        except Exception as e:
+            print(f"Emotion embedding error: {e}")
+            return [0.0] * len(self.label_names)
 
     def get_emotion_scores(self, text: str, translate_if_needed: bool = True) -> Dict[str, float]:
         """Get emotion scores with their labels.
@@ -150,7 +132,7 @@ English Translation:"""
             Dictionary mapping emotion labels to their probabilities
         """
         embedding = self.get_embedding(text, translate_if_needed)
-        return {label: score for label, score in zip(self.labels.values(), embedding)}
+        return {label: score for label, score in zip(self.label_names, embedding)}
 
     def get_dominant_emotion(self, text: str, translate_if_needed: bool = True) -> Tuple[str, float]:
         """Get the most probable emotion for the input text.
@@ -163,6 +145,8 @@ English Translation:"""
             Tuple of (emotion_label, probability_score)
         """
         scores = self.get_emotion_scores(text, translate_if_needed)
+        if not scores:
+            return ("neutral", 1.0)
         dominant_emotion = max(scores.items(), key=lambda x: x[1])
         return dominant_emotion
 
@@ -172,10 +156,11 @@ English Translation:"""
         if translate_if_needed:
             processed_text = self._translate_text(text)
 
-        embedding = self.get_embedding(text, translate_if_needed=False)  # Already processed
-        scores = {label: score for label, score in zip(self.labels.values(), embedding)}
+        embedding = self.get_embedding(processed_text, translate_if_needed=False)  # Already processed
+        scores = {label: score for label, score in zip(self.label_names, embedding)}
+        
         # Use get_final_emotion for robust dominant emotion (LLM fallback)
-        dominant_emotion = self.get_final_emotion(text)
+        dominant_emotion = self.get_final_emotion(processed_text)
         dominant_score = scores.get(dominant_emotion, 0.0)
 
         return {
@@ -193,6 +178,8 @@ English Translation:"""
         Uses classifier by default, but calls LLM if confidence < threshold.
         """
         scores = self.get_emotion_scores(text, translate_if_needed=False)
+        if not scores:
+            return "neutral"
         dominant_emotion, dominant_score = max(scores.items(), key=lambda x: x[1])
         
         # If confident enough, return classifier result
@@ -225,7 +212,12 @@ English Translation:"""
                 max_tokens=10
             )
             llm_label = response.choices[0].message.content.strip().lower()
-            return llm_label
+            # Ensure the label is valid
+            if llm_label in self.label_names:
+                return llm_label
+            else:
+                print(f"LLM returned invalid label '{llm_label}', falling back to classifier.")
+                return dominant_emotion
         except Exception as e:
             print(f"LLM check failed: {e}, falling back to classifier")
             return dominant_emotion
@@ -240,6 +232,79 @@ def get_pipeline() -> EmotionEmbedder:
     if _emotion_pipeline is None:
         _emotion_pipeline = EmotionEmbedder()
     return _emotion_pipeline
+
+def interpretation(emotion_data, dominant_emotion: str = None) -> str:
+    """
+    Provide human-readable interpretation of emotion analysis results.
+    
+    Args:
+        emotion_data: Either a dictionary of emotion scores OR full emotion analysis result
+        dominant_emotion: The dominant emotion (optional, will be calculated if not provided)
+        
+    Returns:
+        Human-readable interpretation string
+    """
+    # Handle different input formats
+    if isinstance(emotion_data, dict):
+        if "emotion_scores" in emotion_data:
+            # Full analysis result from analyze_emotion
+            emotion_scores = emotion_data["emotion_scores"]
+            dominant_emotion = emotion_data.get("dominant_emotion", dominant_emotion)
+        elif "pipeline_success" in emotion_data:
+            # Full pipeline result
+            if emotion_data.get("pipeline_success"):
+                emotion_scores = emotion_data["emotion_scores"]
+                dominant_emotion = emotion_data.get("dominant_emotion", dominant_emotion)
+            else:
+                return f"Unable to analyze emotions: {emotion_data.get('error', 'Unknown error')}"
+        else:
+            # Assume it's just emotion scores
+            emotion_scores = emotion_data
+    else:
+        return "Unable to analyze emotions from the provided data."
+    
+    if not emotion_scores:
+        return "Unable to analyze emotions from the provided text."
+    
+    if not dominant_emotion:
+        dominant_emotion = max(emotion_scores.items(), key=lambda x: x[1])[0]
+    
+    dominant_score = emotion_scores.get(dominant_emotion, 0.0)
+    
+    # Create interpretation based on dominant emotion and confidence
+    emotion_descriptions = {
+        'joy': 'positive and happy',
+        'sadness': 'sad or melancholic',
+        'anger': 'frustrated or angry',
+        'fear': 'anxious or fearful',
+        'surprise': 'surprised or shocked',
+        'disgust': 'disgusted or repulsed',
+        'neutral': 'neutral or balanced'
+    }
+    
+    emotion_desc = emotion_descriptions.get(dominant_emotion, dominant_emotion)
+    
+    # Determine confidence level
+    if dominant_score >= 0.8:
+        confidence = "very confident"
+    elif dominant_score >= 0.6:
+        confidence = "confident"
+    elif dominant_score >= 0.4:
+        confidence = "somewhat confident"
+    else:
+        confidence = "uncertain"
+    
+    # Get secondary emotions (top 2 after dominant)
+    sorted_emotions = sorted(emotion_scores.items(), key=lambda x: x[1], reverse=True)
+    secondary_emotions = [emotion for emotion, score in sorted_emotions[1:3] if score > 0.1]
+    
+    base_interpretation = f"The text appears to be {emotion_desc}. I am {confidence} in this assessment (confidence: {dominant_score:.2f})."
+    
+    if secondary_emotions:
+        secondary_text = ", ".join(secondary_emotions)
+        base_interpretation += f" There are also traces of {secondary_text}."
+    
+    return base_interpretation
 
 def analyze_emotion(text: str, user_name: str = None) -> Dict:
     """
@@ -258,6 +323,12 @@ def analyze_emotion(text: str, user_name: str = None) -> Dict:
         # Use the full analysis method which includes get_final_emotion
         analysis = pipeline.analyze_text_full(text, translate_if_needed=True)
         
+        # Add interpretation
+        interpretation_text = interpretation(
+            analysis["emotion_scores"], 
+            analysis["dominant_emotion"]
+        )
+        
         return {
             "pipeline_success": True,
             "original_text": analysis["original_text"],
@@ -266,6 +337,7 @@ def analyze_emotion(text: str, user_name: str = None) -> Dict:
             "dominant_emotion": analysis["dominant_emotion"],
             "dominant_score": analysis["dominant_score"],
             "embedding": analysis["embedding"],
+            "interpretation": interpretation_text,
             "user_context": user_name,
             "analysis_method": "classifier_with_llm_fallback"
         }
@@ -276,4 +348,3 @@ def analyze_emotion(text: str, user_name: str = None) -> Dict:
             "error": str(e),
             "user_context": user_name
         }
-

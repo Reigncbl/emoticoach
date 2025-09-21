@@ -2,16 +2,18 @@
 import os
 import time
 import numpy as np
-from sentence_transformers import SentenceTransformer
+import requests
 from groq import Groq
 from dotenv import load_dotenv
 from .emotion_pipeline import EmotionEmbedder
+from huggingface_hub import InferenceClient
 
 load_dotenv()
 GROQ_API_KEY = os.getenv("api_key")
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = "BAAI/bge-m3"  # Specific embedding model for RAG
 MODEL_PATH = os.path.join(r"Backend\AIModel", "bge-m3")
+EMBEDDING_DIM = 1024 # BGE-M3 embedding dimension
 
 # Weight for combining semantic and emotional similarity
 EMOTION_WEIGHT = 0.3  # Adjust this to control the importance of emotional similarity
@@ -28,35 +30,29 @@ class SimpleRAG:
         if not HF_API_KEY:
             raise ValueError("HF_API_KEY not found in environment variables")
         
-        print(f"Initializing BGE-M3 embedding model...")
+        print(f"Initializing RAG with Hugging Face Inference API for {HF_MODEL}...")
         
-        # Create directory if it doesn't exist
-        os.makedirs(MODEL_PATH, exist_ok=True)
-        
-        # Initialize the SentenceTransformer model with token
-        self.encoder = SentenceTransformer(
-            HF_MODEL, 
-            cache_folder=MODEL_PATH,
-            token=HF_API_KEY
-        )
-        print(f"Model loaded and cached in {MODEL_PATH}")
+        self.hf_client = InferenceClient(model=HF_MODEL, token=HF_API_KEY)
         
         # Initialize emotion embedder
         self.emotion_embedder = EmotionEmbedder()
 
     def _embed(self, text):
         """
-        Get semantic embedding only for database storage.
+        Get semantic embedding only for database storage using HF Inference API.
         Returns numpy array that can be converted to list for pgvector.
         """
         try:
-            # Get semantic embeddings using SentenceTransformer
-            semantic_embedding = self.encoder.encode(text, convert_to_numpy=True)
-            return semantic_embedding
+            # Get semantic embeddings using HF Inference API
+            embedding = self.hf_client.feature_extraction(text)
+            # The output is a list of embeddings, for a single text input, we take the first.
+            # It might be nested, so we flatten it if necessary.
+            embedding = np.array(embedding).flatten()
+            return embedding
         except Exception as e:
             print(f"Embedding error: {e}")
             # Return zero vector as fallback
-            return np.zeros(self.encoder.get_sentence_embedding_dimension())
+            return np.zeros(EMBEDDING_DIM)
 
     def _embed_with_emotion(self, text):
         """
@@ -65,7 +61,7 @@ class SimpleRAG:
         """
         try:
             # Get semantic embeddings using SentenceTransformer
-            semantic_embedding = self.encoder.encode(text, convert_to_numpy=True)
+            semantic_embedding = self._embed(text)
             
             # Get emotion embeddings
             emotion_embedding = self.emotion_embedder.get_embedding(text)
@@ -78,7 +74,7 @@ class SimpleRAG:
             print(f"Embedding error: {e}")
             # Return zero vectors as fallback
             return {
-                "semantic": np.zeros(self.encoder.get_sentence_embedding_dimension()).tolist(),
+                "semantic": np.zeros(EMBEDDING_DIM).tolist(),
                 "emotion": [0] * 7  # 7 emotion classes
             }
 
