@@ -28,17 +28,19 @@ active_clients: Dict[str, TelegramClient] = {}
 user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
 
 def get_client(phone: str) -> TelegramClient:
-    specific_session_path = r"Backend\sessions\639063450469"
+    # Use SESSION_DIR for storing session files
     normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
+    session_file = os.path.join(SESSION_DIR, normalized_phone)
     
     if normalized_phone in active_clients:
         return active_clients[normalized_phone]
     
-    client = TelegramClient(specific_session_path, API_ID, API_HASH)
+    # Create new client with session file in SESSION_DIR
+    client = TelegramClient(session_file, API_ID, API_HASH)
     active_clients[normalized_phone] = client
     return client
 
-async def start_auth_session(phone_number: str ):
+async def start_auth_session(phone_number: str):
     client = get_client(phone_number)
     await client.connect()
     try:
