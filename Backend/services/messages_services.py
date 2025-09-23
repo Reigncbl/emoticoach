@@ -1,3 +1,4 @@
+from http.client import HTTPException
 import os
 import re
 import json
@@ -17,7 +18,10 @@ from services.RAGPipeline import rag
 from model.message import Message
 from core.db_connection import engine
 from sqlmodel import Session, select
+from model.telegram_sessions import TelegramSession
+import http.client
 
+from telethon.sessions import StringSession
 # Config
 API_ID = os.getenv('api_id')
 API_HASH = os.getenv('api_hash')
@@ -26,43 +30,42 @@ os.makedirs(SESSION_DIR, exist_ok=True)
 
 active_clients: Dict[str, TelegramClient] = {}
 user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
+client_locks: Dict[str, asyncio.Lock] = {}  # Locks for thread-safe client access
+cache_lock: asyncio.Lock = asyncio.Lock()  # Lock for user cache access
 
-def get_client(phone: str) -> TelegramClient:
-    # Use SESSION_DIR for storing session files
-    normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
-    session_file = os.path.join(SESSION_DIR, normalized_phone)
+async def get_client(user_id: str, db: Session) -> TelegramClient:
+    """
+    Returns an active TelegramClient loaded from DB session_data.
+    Caches it in memory for reuse. Thread-safe with per-user lock.
+    """
+    # Ensure lock exists
+    if user_id not in client_locks:
+        client_locks[user_id] = asyncio.Lock()
+
+    async with client_locks[user_id]:
+        if user_id in active_clients:
+            return active_clients[user_id]
+
+        # Look up DB session
+        stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
+        db_session = db.exec(stmt).first()
+
+        if not db_session or not db_session.session_data:
+            raise HTTPException(status_code=404, detail="No saved Telegram session found")
+
+        # Create client from DB session
+        client = TelegramClient(StringSession(db_session.session_data), API_ID, API_HASH)
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            raise HTTPException(status_code=401, detail="Session expired, please log in again")
+
+        # Cache for reuse
+        active_clients[user_id] = client
+        return client
     
-    if normalized_phone in active_clients:
-        return active_clients[normalized_phone]
     
-    # Create new client with session file in SESSION_DIR
-    client = TelegramClient(session_file, API_ID, API_HASH)
-    active_clients[normalized_phone] = client
-    return client
-
-async def start_auth_session(phone_number: str):
-    client = get_client(phone_number)
-    await client.connect()
-    try:
-        await client.send_code_request(phone_number)
-    except PhoneNumberBannedError:
-        raise ValueError("Phone number is banned.")
-
-async def verify_auth_code(phone_number: str, code: str = None, password: str = None, firebase_user_id: str = None):
-    client = get_client(phone_number)
-    await client.connect()
-    try:
-        user = await client.sign_in(phone_number, code, password=password)
-        
-        if firebase_user_id:
-            await save_phone_user_mapping(firebase_user_id, phone_number, user.first_name)
-        
-        return {"user_id": user.id, "first_name": user.first_name}
-    except SessionPasswordNeededError:
-        return {"password_required": True}
-    except PhoneCodeInvalidError:
-        raise ValueError("Invalid code.")
-
 async def save_phone_user_mapping(firebase_uid:str, phone_number: str, first_name: str):
     try:
         with Session(engine) as session:
@@ -84,7 +87,7 @@ async def save_phone_user_mapping(firebase_uid:str, phone_number: str, first_nam
         print(f"Error saving user mapping: {e}")
 
 async def is_user_authenticated(phone_number: str) -> dict:
-    client = get_client(phone_number)
+    client = await get_client(phone_number)
     await client.connect()
     
     if await client.is_user_authorized():
@@ -93,29 +96,13 @@ async def is_user_authenticated(phone_number: str) -> dict:
     
     return {"authenticated": False}
 
-async def get_user_contacts(phone_number: str ) -> list:
-    client = get_client(phone_number)
-    await client.connect()
-    if not await client.is_user_authorized():
-        raise PermissionError("User not authenticated.")
-
-    result = await client(GetContactsRequest(hash=0))
-    contacts = []
-    if hasattr(result, 'users'):
-        for user in result.users:
-            contacts.append({
-                "id": user.id,
-                "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
-                "username": getattr(user, 'username', None),
-                "phone": getattr(user, 'phone', None),
-            })
-    return contacts
 
 async def find_firebase_user_by_phone(phone_number: str) -> str:
-    # Check cache first
-    if phone_number in user_cache:
-        return user_cache[phone_number]
-        
+    # Check cache first with lock
+    async with cache_lock:
+        if phone_number in user_cache:
+            return user_cache[phone_number]
+    
     try:
         with Session(engine) as session:
             from model.userinfo import UserInfo
@@ -123,8 +110,9 @@ async def find_firebase_user_by_phone(phone_number: str) -> str:
             stmt = select(UserInfo).where(UserInfo.MobileNumber == phone_number)
             user = session.exec(stmt).first()
             if user and user.UserId:
-                # Cache the result before returning
-                user_cache[phone_number] = user.UserId
+                # Cache the result before returning with lock
+                async with cache_lock:
+                    user_cache[phone_number] = user.UserId
                 return user.UserId
             return None
     except Exception as e:
@@ -225,7 +213,7 @@ def get_conversation_context(sender: str, receiver: str, limit: int ) -> str:
         return ""
 
 async def get_contact_messages(phone_number: str , contact_data: dict = None) -> dict:
-    client = get_client(phone_number)
+    client = await get_client(phone_number)
     await client.connect()
     if not await client.is_user_authorized():
         raise PermissionError("User not authenticated.")
@@ -351,20 +339,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
         "conversation_context": conversation_context,
         "saved_message_ids": message_ids
     }
-    
-    # Save to file in background (don't await)
-    async def save_to_file():
-        try:
-            os.makedirs("saved_messages", exist_ok=True)
-            filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(response, f, indent=2)
-        except Exception as e:
-            print(f"Error saving to file: {e}")
-            
-    asyncio.create_task(save_to_file())
-    
-    return response
+
 
 async def embed_messages(messages: list, metadata: dict = None):
     """Add messages to the RAG system with embeddings"""
@@ -379,6 +354,34 @@ async def embed_messages(messages: list, metadata: dict = None):
                 "message_id": str(uuid.uuid4())
             })
             rag.add_document(message['text'], metadata=msg_metadata)
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
 
 # New helper function to get messages with interpretations
 async def get_messages_with_interpretations(user_id: str, limit: int = 50) -> list:
