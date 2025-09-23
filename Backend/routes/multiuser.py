@@ -1,3 +1,4 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 from telethon import TelegramClient
@@ -8,6 +9,9 @@ from model.telegram_sessions import TelegramSession
 from telethon.tl.functions.contacts import ImportContactsRequest, GetContactsRequest
 from telethon.tl.functions.messages import GetHistoryRequest
 from pydantic import BaseModel
+
+from services.messages_services import get_contact_messages_by_id
+
 import os
 
 multiuser_router = APIRouter(prefix="/telegram", tags=["Telegram"])
@@ -138,9 +142,11 @@ async def get_contacts(user_id: str, db: Session = Depends(get_db)):
     finally:
         await client.disconnect()
 
-@multiuser_router.post("/")
-async def get_messages(user_id: str, data: ContactRequest, db: Session = Depends(get_db)):
-    """Gets the last 10 messages from a contact with sender/receiver info."""
+
+# Refactored endpoint: Get last 10 messages from a contact using contact_id (for multiuser setup)
+@multiuser_router.post("/contact_messages")
+async def get_contact_messages_multiuser(user_id: str, contact_id: int, db: Session = Depends(get_db)):
+    """Gets the last 10 messages from a contact using contact_id, ready for emotion analysis integration."""
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -151,14 +157,11 @@ async def get_messages(user_id: str, data: ContactRequest, db: Session = Depends
     await client.connect()
 
     try:
-        # logged-in user
         me = await client.get_me()
-
-        # resolve receiver/contact
-        receiver = await client.get_entity(data.contact_id)
+        receiver = await client.get_entity(contact_id)
 
         history = await client(GetHistoryRequest(
-            peer=data.contact_id,
+            peer=contact_id,
             limit=10,
             offset_date=None,
             offset_id=0,
@@ -169,18 +172,23 @@ async def get_messages(user_id: str, data: ContactRequest, db: Session = Depends
         ))
 
         messages = []
-        message_ids = []
+        message_texts = []
         for m in history.messages:
+            if not m.message:
+                continue
             msg_entry = {
                 "id": m.id,
-                "message": m.message,
+                "from": me.first_name if getattr(m.from_id, "user_id", None) == me.id else receiver.first_name,
+                "to": receiver.first_name if getattr(m.from_id, "user_id", None) == me.id else me.first_name,
                 "date": m.date.isoformat(),
-                "from_me": (getattr(m.from_id, "user_id", None) == me.id)
+                "text": m.message
             }
             messages.append(msg_entry)
-            message_ids.append(m.id)
+            message_texts.append(m.message)
 
-        # optional context (e.g., could be emotion analysis or RAG pipeline)
+        # Placeholder for emotion analysis or RAG integration
+        # You can call your emotion analysis or RAG pipeline here using message_texts
+
         conversation_context = f"Conversation between {me.first_name} and {receiver.first_name}"
 
         return {
@@ -188,9 +196,22 @@ async def get_messages(user_id: str, data: ContactRequest, db: Session = Depends
             "receiver": receiver.first_name,
             "messages": messages,
             "conversation_context": conversation_context,
-            "saved_message_ids": message_ids
+            "saved_message_ids": [m["id"] for m in messages]
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching messages: {e}")
     finally:
         await client.disconnect()
+
+
+# Endpoint: Get last 10 messages from a contact_id with embedding and emotion analysis
+@multiuser_router.post("/contact_messages_embed")
+async def get_contact_messages_embed(user_id: str, contact_id: int, db: Session = Depends(get_db)):
+    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results."""
+    try:
+        result = await get_contact_messages_by_id(user_id, contact_id, db)
+        return result
+    except PermissionError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
