@@ -5,7 +5,7 @@ import 'package:emoticoach/controllers/reading_content_controller.dart'; // Read
 import 'package:emoticoach/models/reading_model.dart'; // Reading Model
 import 'package:emoticoach/services/session_service.dart'; // Session Service
 import 'package:visibility_detector/visibility_detector.dart';
-import 'package:emoticoach/utils/api_service.dart'; // API Service to fetch reading info
+import 'package:emoticoach/services/api_service.dart'; // API Service to fetch reading info
 import 'epub_viewer.dart'; // EPUB Viewer
 
 // === MAIN SCREEN ===
@@ -652,7 +652,6 @@ class NextChapterWidget extends StatelessWidget {
           ),
         ],
       ),
-      decoration: const BoxDecoration(color: Colors.white),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
