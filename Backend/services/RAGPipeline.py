@@ -139,12 +139,15 @@ class SimpleRAG:
         ]
         return sorted(results, key=lambda x: x["score"], reverse=True)[:top_k]
 
-    def generate_response(self, query):
+    def generate_response(self, query, user_messages=None):
         context = "\n".join([doc["content"] for doc in self.search(query)])
-        prompt = f"Context:\n{context}\n\nQuestion: {query}\nAnswer based on context."
+        style_examples = ""
+        if user_messages:
+            style_examples = "\nUser style examples:\n" + "\n".join(user_messages)
+        prompt = f"{style_examples}\nContext:\n{context}\n\nQuestion: {query}\nAnswer based on context and mimic the user's style as shown above."
         try:
             resp = self.client.chat.completions.create(model=self.model, messages=[
-                {"role": "system", "content": "You are a helpful emotional AI coach."},
+                {"role": "system", "content": "You are a helpful emotional AI coach. Mimic the user's style in your response."},
                 {"role": "user", "content": prompt}
             ], temperature=0.7, max_tokens=500)
             return resp.choices[0].message.content
