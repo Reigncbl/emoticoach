@@ -154,7 +154,6 @@ class ReadingContentController {
       rating: 0.0,
       duration: 0,
       progress: 0.0,
-      chapter: chapter.chapterTitle,
       skills: [],
     );
   }

@@ -112,7 +112,6 @@ class Reading {
     required this.rating,
     required this.duration,
     this.progress = 0.0,
-    required this.chapter,
     required this.skills,
     this.epubFilePath,
   });
@@ -138,7 +137,6 @@ class Reading {
           json['EstimatedMinutes'] ??
           0,
       progress: (json['progress'] ?? 0.0).toDouble(),
-      chapter: json['chapter'] ?? 'Chapter' ?? '',
       skills: json['skills'] != null ? List<String>.from(json['skills']) : [],
       epubFilePath: json['epubFilePath'] ?? json['EpubFilePath'],
     );
@@ -175,7 +173,6 @@ class Reading {
       xpPoints: xpPoints ?? this.xpPoints,
       rating: rating ?? this.rating,
       duration: duration ?? this.duration,
-      chapter: chapter ?? this.chapter,
       progress: progress ?? this.progress,
       skills: skills ?? this.skills,
       epubFilePath: epubFilePath ?? this.epubFilePath,
@@ -197,7 +194,6 @@ class Reading {
       'rating': rating,
       'duration': duration,
       'progress': progress, // percentage // reuse for AppBar
-      'chapter': chapter,
       'skills': skills,
       'epubFilePath': epubFilePath,
     };
