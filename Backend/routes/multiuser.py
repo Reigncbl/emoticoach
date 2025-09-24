@@ -1,3 +1,7 @@
+# Endpoint: Fetch, analyze, and save the latest message from Telethon using contact_id
+from pydantic import BaseModel
+
+from services.messages_services import append_latest_contact_message   
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -19,14 +23,34 @@ multiuser_router = APIRouter(prefix="/telegram", tags=["Telegram"])
 API_ID = int(os.getenv("api_id"))
 API_HASH = os.getenv("api_hash")
 
+# Unified request models for easier input
+from fastapi import Query, Body
+
+class AppendLatestContactMessageRequest(BaseModel):
+    user_id: str = Query(..., description="User ID")
+    contact_id: int = Query(..., description="Contact ID")
+
+
+
+
 class ContactRequest(BaseModel):
-    contact_id: int  # Telegram user ID of the contact
+    user_id: str = Query(..., description="User ID")
+    contact_id: int = Query(..., description="Contact ID")
 
 # -----------------------------------------------------
 # Step 1: Request OTP
 # -----------------------------------------------------
 @multiuser_router.post("/request_code")
-async def request_code(user_id: str, phone_number: str, db: Session = Depends(get_db)):
+async def request_code(
+    user_id: str = Query(None),
+    phone_number: str = Query(None),
+    data: dict = Body(None),
+    db: Session = Depends(get_db)
+):
+    # Prefer body if provided
+    if data:
+        user_id = data.get("user_id", user_id)
+        phone_number = data.get("phone_number", phone_number)
     client = TelegramClient(StringSession(), API_ID, API_HASH)
     await client.connect()
     try:
@@ -59,7 +83,15 @@ async def request_code(user_id: str, phone_number: str, db: Session = Depends(ge
 # Step 2: Verify OTP
 # -----------------------------------------------------
 @multiuser_router.post("/verify_code")
-async def verify_code(user_id: str, code: str, db: Session = Depends(get_db)):
+async def verify_code(
+    user_id: str = Query(None),
+    code: str = Query(None),
+    data: dict = Body(None),
+    db: Session = Depends(get_db)
+):
+    if data:
+        user_id = data.get("user_id", user_id)
+        code = data.get("code", code)
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -75,13 +107,16 @@ async def verify_code(user_id: str, code: str, db: Session = Depends(get_db)):
             phone_code_hash=db_session.phone_code_hash,
         )
 
-        # save logged-in session
+        # save logged-in session and Telegram username
         db_session.session_data = client.session.save()
         db_session.phone_code_hash = None  # clear after successful login
+        # Fetch Telegram username
+        telegram_user = await client.get_me()
+        db_session.telegram_username = telegram_user.username if hasattr(telegram_user, "username") else None
         db.commit()
         db.refresh(db_session)
 
-        return {"message": "Login successful", "user_id": user.id}
+        return {"message": "Login successful", "user_id": user.id, "telegram_username": db_session.telegram_username}
     except SessionPasswordNeededError:
         return {"password_required": True}
     except Exception as e:
@@ -94,7 +129,7 @@ async def verify_code(user_id: str, code: str, db: Session = Depends(get_db)):
 # Step 3: Use saved session
 # -----------------------------------------------------
 @multiuser_router.get("/me")
-async def get_me(user_id: str, db: Session = Depends(get_db)):
+async def get_me(user_id: str = Query(...), db: Session = Depends(get_db)):
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -114,7 +149,7 @@ async def get_me(user_id: str, db: Session = Depends(get_db)):
 
 
 @multiuser_router.get("/contacts")
-async def get_contacts(user_id: str, db: Session = Depends(get_db)):
+async def get_contacts(user_id: str = Query(...), db: Session = Depends(get_db)):
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -145,7 +180,15 @@ async def get_contacts(user_id: str, db: Session = Depends(get_db)):
 
 # Refactored endpoint: Get last 10 messages from a contact using contact_id (for multiuser setup)
 @multiuser_router.post("/contact_messages")
-async def get_contact_messages_multiuser(user_id: str, contact_id: int, db: Session = Depends(get_db)):
+async def get_contact_messages_multiuser(
+    user_id: str = Query(None),
+    contact_id: int = Query(None),
+    data: dict = Body(None),
+    db: Session = Depends(get_db)
+):
+    if data:
+        user_id = data.get("user_id", user_id)
+        contact_id = data.get("contact_id", contact_id)
     """Gets the last 10 messages from a contact using contact_id, ready for emotion analysis integration."""
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
@@ -206,12 +249,39 @@ async def get_contact_messages_multiuser(user_id: str, contact_id: int, db: Sess
 
 # Endpoint: Get last 10 messages from a contact_id with embedding and emotion analysis
 @multiuser_router.post("/contact_messages_embed")
-async def get_contact_messages_embed(user_id: str, contact_id: int, db: Session = Depends(get_db)):
-    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results."""
+async def get_contact_messages_embed(
+    user_id: str = Query(None),
+    contact_id: int = Query(None),
+    data: dict = Body(None),
+    db: Session = Depends(get_db)
+):
+    if data:
+        user_id = data.get("user_id", user_id)
+        contact_id = data.get("contact_id", contact_id)
+    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results. Includes contact_id in the response."""
     try:
         result = await get_contact_messages_by_id(user_id, contact_id, db)
+        # Add contact_id to each message and to the response
+        if "messages" in result:
+            for msg in result["messages"]:
+                msg["contact_id"] = contact_id
+            result["contact_id"] = contact_id
         return result
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+    
+@multiuser_router.post("/append_latest_contact_message")
+async def append_latest_contact_message_multiuser(data: AppendLatestContactMessageRequest, db: Session = Depends(get_db)):
+    """Fetches the latest message from Telethon for the contact, analyzes it, saves to DB, and returns the analyzed message."""
+    from services.messages_services import append_latest_contact_message
+    try:
+        analyzed_message = await append_latest_contact_message(
+            user_id=data.user_id,
+            contact_id=data.contact_id,
+            db=db
+        )
+        return analyzed_message
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to append and analyze latest contact message: {e}")

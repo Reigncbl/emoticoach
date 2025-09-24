@@ -1,4 +1,4 @@
-# backend/routers/telegram_router.py
+
 import json
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
@@ -27,39 +27,13 @@ class CodeRequest(BaseModel):
     code: str
     password: Optional[str] = None
 
-class InterpretationRequest(BaseModel):
+
+class AppendMessageRequest(BaseModel):
     user_id: str
-    limit: Optional[int] = 50
+    sender: str
+    receiver: str
+    text: str
 
-
-@message_router.post("/messages")
-async def get_messages(data: ContactRequest, phone_number: str = DEFAULT_PHONE):
-    """Gets the last 10 messages from a contact with emotion analysis and interpretations."""
-    try:
-        messages = await telegram_svc.get_contact_messages(
-            phone_number, data.dict()
-        )
-        return messages
-    except PermissionError as e:
-        raise HTTPException(status_code=401, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
-
-@message_router.get("/messages/interpretations/{user_id}")
-async def get_messages_with_interpretations(
-    user_id: str, 
-    limit: int = Query(50, description="Maximum number of messages to retrieve")
-):
-    """Gets messages with their emotion interpretations for a specific user."""
-    try:
-        messages = await telegram_svc.get_messages_with_interpretations(user_id, limit)
-        return {
-            "user_id": user_id,
-            "total_messages": len(messages),
-            "messages": messages
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 @message_router.get("/messages/emotions/{user_id}")
 async def get_emotion_summary(

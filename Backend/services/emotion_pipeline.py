@@ -271,19 +271,17 @@ def interpretation(emotion_data, dominant_emotion: str = None) -> str:
     
     dominant_score = emotion_scores.get(dominant_emotion, 0.0)
     
-    # Create interpretation based on dominant emotion and confidence
-    emotion_descriptions = {
-        'joy': 'positive and happy',
-        'sadness': 'sad or melancholic',
-        'anger': 'frustrated or angry',
-        'fear': 'anxious or fearful',
-        'surprise': 'surprised or shocked',
-        'disgust': 'disgusted or repulsed',
-        'neutral': 'neutral or balanced'
+    # Optimized brief explanations for each emotion
+    emotion_reasons = {
+        'joy': 'because it expresses positivity or happiness',
+        'sadness': 'due to words or tone suggesting loss or unhappiness',
+        'anger': 'because it contains frustration or strong negative language',
+        'fear': 'due to anxious or worried expressions',
+        'surprise': 'because it shows unexpectedness or shock',
+        'disgust': 'due to language showing aversion or repulsion',
+        'neutral': 'because it lacks strong emotional cues'
     }
-    
-    emotion_desc = emotion_descriptions.get(dominant_emotion, dominant_emotion)
-    
+
     # Determine confidence level
     if dominant_score >= 0.8:
         confidence = "very confident"
@@ -293,18 +291,59 @@ def interpretation(emotion_data, dominant_emotion: str = None) -> str:
         confidence = "somewhat confident"
     else:
         confidence = "uncertain"
-    
-    # Get secondary emotions (top 2 after dominant)
+
     sorted_emotions = sorted(emotion_scores.items(), key=lambda x: x[1], reverse=True)
     secondary_emotions = [emotion for emotion, score in sorted_emotions[1:3] if score > 0.1]
-    
-    base_interpretation = f"The text appears to be {emotion_desc}. I am {confidence} in this assessment (confidence: {dominant_score:.2f})."
-    
+
+    # Try to use Groq LLM for explanation if available
+    from services.emotion_pipeline import get_pipeline
+    pipeline = get_pipeline()
+    groq_client = getattr(pipeline, "groq_client", None)
+    groq_model = getattr(pipeline, "groq_model", None)
+    text = emotion_data.get("original_text") if isinstance(emotion_data, dict) and "original_text" in emotion_data else None
+    user_context = emotion_data.get("user_context") if isinstance(emotion_data, dict) else None
+    analysis_method = emotion_data.get("analysis_method") if isinstance(emotion_data, dict) else None
+    processed_text = emotion_data.get("processed_text") if isinstance(emotion_data, dict) else None
+    context_lines = []
+    if user_context:
+        context_lines.append(f"User: {user_context}")
+    if analysis_method:
+        context_lines.append(f"Analysis method: {analysis_method}")
+    if processed_text:
+        context_lines.append(f"Processed text: {processed_text}")
     if secondary_emotions:
-        secondary_text = ", ".join(secondary_emotions)
-        base_interpretation += f" There are also traces of {secondary_text}."
-    
-    return base_interpretation
+        context_lines.append(f"Secondary emotions: {', '.join(secondary_emotions)}")
+    context_str = "\n".join(context_lines)
+    if groq_client and groq_model and text:
+        # Optimized prompt: concise, context-rich, direct
+        prompt = (
+            f"Context:\n{context_str}\n"
+            f"Text: \"{text}\"\n"
+            f"Emotion: {dominant_emotion} (confidence: {dominant_score:.2f})\n"
+            f"Briefly explain why this text expresses that emotion."
+        )
+
+        try:
+            response = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=groq_model,
+                temperature=0,
+                max_tokens=80
+            )
+            explanation = response.choices[0].message.content.strip()
+            if explanation:
+                result = f"Detected '{dominant_emotion}' (confidence: {dominant_score:.2f}, {confidence}). Reason: {explanation}"
+                if secondary_emotions:
+                    result += f" Also, traces of {', '.join(secondary_emotions)}."
+                return result
+        except Exception as e:
+            print(f"Groq explanation error: {e}")
+    # Fallback to brief explanation
+    reason = emotion_reasons.get(dominant_emotion, "based on the text's content")
+    brief = f"Detected '{dominant_emotion}' {reason}. Confidence: {dominant_score:.2f} ({confidence})."
+    if secondary_emotions:
+        brief += f" Also, traces of {', '.join(secondary_emotions)}."
+    return brief
 
 def analyze_emotion(text: str, user_name: str = None) -> Dict:
     """
