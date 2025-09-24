@@ -40,7 +40,7 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
     _shortenController = TextEditingController();
     _textFieldFocusNode = FocusNode();
     _fetchLatestMessage();
-    
+
     // Add a slight delay to ensure the overlay is fully initialized
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _setupInputFocus();
@@ -335,159 +335,161 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // RESPONSE CARD
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "put the tone of the response here",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _responseController.text, // Suggested response
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-            // COPY BUTTON
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kPrimaryBlue,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.copy, size: 16, color: Colors.white),
-                label: const Text(
-                  "Copy Text",
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                ),
-                onPressed: () {
-                  Clipboard.setData(
-                    ClipboardData(text: _responseController.text),
-                  );
-                  _showCopyFeedbackDialog(
-                    'Text copied to clipboard!',
-                    Colors.green,
-                  );
-                },
-              ),
-            ),
-            const Spacer(),
-            // TONE BUTTONS
-            Wrap(
-              spacing: 16,
-              runSpacing: 16,
-              children: [
-                _buildToneChip("Formal"),
-                _buildToneChip("Casual"),
-                _buildToneChip("Direct"),
-                _buildToneChip("Neutral"),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // SHORTEN TEXT INPUT & SEND BUTTON
-            GestureDetector(
-              onTap: () {
-                // Force focus and show keyboard
-                FocusScope.of(context).requestFocus(_textFieldFocusNode);
-                _textFieldFocusNode.requestFocus();
-              },
-              child: Container(
-                height: 48,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // RESPONSE CARD
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.grey.shade50,
+                  border: Border.all(color: Colors.blue.shade200),
                 ),
-                child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _shortenController,
-                      focusNode: _textFieldFocusNode,
-                      autofocus: false,
-                      enableInteractiveSelection: true,
-                      textInputAction: TextInputAction.send,
-                      keyboardType: TextInputType.text,
-                      textCapitalization: TextCapitalization.sentences,
-                      onTap: () {
-                        // Ensure focus is properly set on tap
-                        if (!_textFieldFocusNode.hasFocus) {
-                          _textFieldFocusNode.requestFocus();
-                        }
-                        // Force show keyboard
-                        SystemChannels.textInput.invokeMethod('TextInput.show');
-                      },
-                      onSubmitted: (value) {
-                        if (value.trim().isNotEmpty) {
-                          _modifyResponse(value.trim());
-                        }
-                      },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "put the tone of the response here",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _responseController.text, // Suggested response
                       style: const TextStyle(fontSize: 13),
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        hintText: "Type instructions to modify response...",
-                        hintStyle: TextStyle(color: Colors.grey),
-                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // COPY BUTTON
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kPrimaryBlue,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  Container(
-                    margin: const EdgeInsets.all(4),
-                    child: IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor: kPrimaryBlue,
-                        padding: const EdgeInsets.all(8),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      icon: const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        if (_shortenController.text.trim().isNotEmpty) {
-                          _modifyResponse(_shortenController.text.trim());
-                        }
-                      },
-                    ),
+                  icon: const Icon(Icons.copy, size: 16, color: Colors.white),
+                  label: const Text(
+                    "Copy Text",
+                    style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
+                  onPressed: () {
+                    Clipboard.setData(
+                      ClipboardData(text: _responseController.text),
+                    );
+                    _showCopyFeedbackDialog(
+                      'Text copied to clipboard!',
+                      Colors.green,
+                    );
+                  },
+                ),
+              ),
+              const Spacer(),
+              // TONE BUTTONS
+              Wrap(
+                spacing: 16,
+                runSpacing: 16,
+                children: [
+                  _buildToneChip("Formal"),
+                  _buildToneChip("Casual"),
+                  _buildToneChip("Direct"),
+                  _buildToneChip("Neutral"),
                 ],
               ),
-            ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              // SHORTEN TEXT INPUT & SEND BUTTON
+              GestureDetector(
+                onTap: () {
+                  // Force focus and show keyboard
+                  FocusScope.of(context).requestFocus(_textFieldFocusNode);
+                  _textFieldFocusNode.requestFocus();
+                },
+                child: Container(
+                  height: 48,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.grey.shade50,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _shortenController,
+                          focusNode: _textFieldFocusNode,
+                          autofocus: false,
+                          enableInteractiveSelection: true,
+                          textInputAction: TextInputAction.send,
+                          keyboardType: TextInputType.text,
+                          textCapitalization: TextCapitalization.sentences,
+                          onTap: () {
+                            // Ensure focus is properly set on tap
+                            if (!_textFieldFocusNode.hasFocus) {
+                              _textFieldFocusNode.requestFocus();
+                            }
+                            // Force show keyboard
+                            SystemChannels.textInput.invokeMethod(
+                              'TextInput.show',
+                            );
+                          },
+                          onSubmitted: (value) {
+                            if (value.trim().isNotEmpty) {
+                              _modifyResponse(value.trim());
+                            }
+                          },
+                          style: const TextStyle(fontSize: 13),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            hintText: "Type instructions to modify response...",
+                            hintStyle: TextStyle(color: Colors.grey),
+                          ),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.all(4),
+                        child: IconButton(
+                          style: IconButton.styleFrom(
+                            backgroundColor: kPrimaryBlue,
+                            padding: const EdgeInsets.all(8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            if (_shortenController.text.trim().isNotEmpty) {
+                              _modifyResponse(_shortenController.text.trim());
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
