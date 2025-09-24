@@ -1,3 +1,7 @@
+# Endpoint: Fetch, analyze, and save the latest message from Telethon using contact_id
+from pydantic import BaseModel
+
+from services.messages_services import append_latest_contact_message   
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -18,6 +22,11 @@ multiuser_router = APIRouter(prefix="/telegram", tags=["Telegram"])
 
 API_ID = int(os.getenv("api_id"))
 API_HASH = os.getenv("api_hash")
+class AppendLatestContactMessageRequest(BaseModel):
+    user_id: str
+    contact_id: int
+
+
 
 class ContactRequest(BaseModel):
     contact_id: int  # Telegram user ID of the contact
@@ -207,11 +216,30 @@ async def get_contact_messages_multiuser(user_id: str, contact_id: int, db: Sess
 # Endpoint: Get last 10 messages from a contact_id with embedding and emotion analysis
 @multiuser_router.post("/contact_messages_embed")
 async def get_contact_messages_embed(user_id: str, contact_id: int, db: Session = Depends(get_db)):
-    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results."""
+    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results. Includes contact_id in the response."""
     try:
         result = await get_contact_messages_by_id(user_id, contact_id, db)
+        # Add contact_id to each message and to the response
+        if "messages" in result:
+            for msg in result["messages"]:
+                msg["contact_id"] = contact_id
+            result["contact_id"] = contact_id
         return result
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+    
+@multiuser_router.post("/append_latest_contact_message")
+async def append_latest_contact_message_multiuser(data: AppendLatestContactMessageRequest, db: Session = Depends(get_db)):
+    """Fetches the latest message from Telethon for the contact, analyzes it, saves to DB, and returns the analyzed message."""
+    from services.messages_services import append_latest_contact_message
+    try:
+        analyzed_message = await append_latest_contact_message(
+            user_id=data.user_id,
+            contact_id=data.contact_id,
+            db=db
+        )
+        return analyzed_message
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to append and analyze latest contact message: {e}")

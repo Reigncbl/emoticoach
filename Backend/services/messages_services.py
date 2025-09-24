@@ -1,3 +1,5 @@
+# Service function to fetch, analyze, and save the latest message from Telethon using contact_id
+
 
 # New: Multiuser/contact_id version for embedding, emotion, and DB save
 
@@ -140,21 +142,37 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                 return []
 
             message_ids = []
-            for msg_data, sem_embed, emo_out in zip(messages, embeddings, emotion_outputs):
-                # Debug print to check what we're getting
+
+
+            for idx, msg_data in enumerate(messages):
+                from model.message import Message
+                try:
+                    sent_time = datetime.fromisoformat(msg_data["date"])
+                except Exception as e:
+                    print(f"Error parsing date: {e}, using current time")
+                    sent_time = datetime.utcnow()
+                existing = session.exec(
+                    select(Message)
+                    .where((Message.UserId == firebase_user_id) &
+                           (Message.Contact_id == msg_data.get("Contact_id")) &
+                           (Message.MessageContent == msg_data["text"]) &
+                           (Message.DateSent == sent_time))
+                ).first()
+                if existing:
+                    print(f"Duplicate message detected, skipping embed/emotion: {msg_data['text']}")
+                    message_ids.append(existing.MessageId)
+                    continue
+
+                # Only run embedding/emotion if not duplicate
+                sem_embed = embeddings[idx]
+                emo_out = emotion_outputs[idx]
                 print(f"DEBUG - sem_embed type: {type(sem_embed)}, value: {sem_embed}")
                 print(f"DEBUG - emo_out type: {type(emo_out)}, value: {emo_out}")
-                
-                # Ensure we have valid numeric embeddings
                 if isinstance(sem_embed, (list, tuple)) and all(isinstance(x, str) for x in sem_embed):
                     print(f"ERROR - Semantic embedding contains strings: {sem_embed}")
-                    # Skip this message or create a default embedding
-                    sem_vector = [0.0] * 1024  # Default embedding
+                    sem_vector = [0.0] * 1024
                 else:
-                    # Convert embeddings to lists for pgvector
                     sem_vector = sem_embed.tolist() if hasattr(sem_embed, "tolist") else list(sem_embed)
-                
-                # Validate emotion output structure
                 if not isinstance(emo_out, dict) or "vector" not in emo_out:
                     print(f"ERROR - Invalid emotion output: {emo_out}")
                     emo_vector = [0.0] * 7
@@ -166,21 +184,12 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                     emo_labels = emo_out["labels"]
                     top_emotion = emo_out["top"]
                     interpretation_text = emo_out.get("interpretation", "No interpretation available.")
-                    
-                    # Log translation info if available
                     if emo_out.get("processed_text") and emo_out["processed_text"] != emo_out["original_text"]:
                         print(f"Message translated: '{emo_out['original_text']}' -> '{emo_out['processed_text']}'")
 
-                # Parse the ISO format string back to datetime
-                try:
-                    sent_time = datetime.fromisoformat(msg_data["date"])
-                except Exception as e:
-                    print(f"Error parsing date: {e}, using current time")
-                    sent_time = datetime.utcnow()
-
                 message_id = str(uuid.uuid4())
                 message = Message(
-                   MessageId=message_id,
+                    MessageId=message_id,
                     UserId=firebase_user_id,
                     Sender=msg_data["from"],
                     Receiver=msg_data["to"],
@@ -190,7 +199,8 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                     Emotion_Embedding=emo_vector,
                     Emotion_labels=emo_labels,
                     Detected_emotion=top_emotion,
-                    Interpretation=interpretation_text  # Now includes the interpretation
+                    Interpretation=interpretation_text,
+                    Contact_id=msg_data.get("Contact_id")
                 )
                 session.add(message)
                 message_ids.append(message_id)
@@ -363,7 +373,119 @@ async def embed_messages(messages: list, metadata: dict = None):
             rag.add_document(message['text'], metadata=msg_metadata)
             
             
-            
+async def append_latest_contact_message(user_id: str, contact_id: int, db: Session = None):
+    """
+    Fetches the latest message from Telethon for the contact, analyzes it, saves to DB, and returns the analyzed message.
+    """
+    local_db = db is None
+    if local_db:
+        db = Session(engine)
+    try:
+        client = await get_client(user_id, db)
+        await client.connect()
+        if not await client.is_user_authorized():
+            raise PermissionError("User not authenticated.")
+
+        me = await client.get_me()
+        receiver = await client.get_entity(contact_id)
+
+        # Find last saved message ID for this contact
+        last_message_id = None
+        with Session(engine) as session:
+            from model.message import Message
+            last_msg = session.exec(
+                select(Message)
+                .where((Message.UserId == user_id) & (Message.Contact_id == contact_id))
+                .order_by(Message.DateSent.desc())
+            ).first()
+            if last_msg:
+                last_message_id = last_msg.MessageId
+
+        # Fetch all new messages after last_message_id
+        history = await client(GetHistoryRequest(
+            peer=contact_id,
+            limit=20,
+            offset_id=0,
+            offset_date=None,
+            max_id=0,
+            min_id=0,
+            add_offset=0,
+            hash=0
+        ))
+
+        new_messages = []
+        for m in history.messages:
+            # Skip if already saved
+            if last_message_id and str(m.id) == str(last_message_id):
+                break
+            if not m.message:
+                continue
+            sender = me.first_name if getattr(m.from_id, "user_id", None) == me.id else receiver.first_name
+            receiver_name = receiver.first_name if getattr(m.from_id, "user_id", None) == me.id else me.first_name
+            new_messages.append({
+                "from": sender,
+                "to": receiver_name,
+                "date": m.date.isoformat(),
+                "text": m.message,
+                "Contact_id": contact_id
+            })
+
+        if not new_messages:
+            return {"error": "No new messages found for this contact."}
+
+        # Analyze and save all new messages
+        embeddings = []
+        emotions = []
+        for msg in new_messages:
+            try:
+                embedding = rag._embed(msg["text"])
+            except Exception as e:
+                print(f"ERROR - Failed to create embedding: {e}")
+                embedding = [0.0] * 1024
+            embeddings.append(embedding)
+            try:
+                emotion_data = rag.get_emotion_data(msg["text"])
+                from services.emotion_pipeline import analyze_emotion, interpretation
+                emotion_analysis = analyze_emotion(msg["text"])
+                if emotion_analysis.get("pipeline_success"):
+                    interpretation_text = interpretation(emotion_analysis)
+                    emotion_data["interpretation"] = interpretation_text
+                else:
+                    emotion_data["interpretation"] = "Failed to analyze emotion for this message."
+            except Exception as e:
+                print(f"ERROR - Failed to analyze emotion: {e}")
+                emotion_data = {
+                    "vector": [0.0] * 7,
+                    "labels": {
+                        "joy": 0.0, "sadness": 0.0, "anger": 0.0,
+                        "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
+                        "neutral": 1.0
+                    },
+                    "top": "neutral",
+                    "interpretation": "Unable to analyze emotion for this message."
+                }
+            emotions.append(emotion_data)
+
+        message_ids = await save_messages_to_db(new_messages, user_id, embeddings, emotions)
+
+        # Prepare response: return all analyzed messages
+        analyzed_messages = []
+        for i, msg in enumerate(new_messages):
+            analyzed_messages.append({
+                "message_id": message_ids[i] if message_ids else None,
+                "sender": msg["from"],
+                "receiver": msg["to"],
+                "date_sent": msg["date"],
+                "content": msg["text"],
+                "detected_emotion": emotions[i].get("top"),
+                "emotion_labels": emotions[i].get("labels"),
+                "interpretation": emotions[i].get("interpretation")
+            })
+        return {"messages": analyzed_messages}
+    finally:
+        if local_db:
+            db.close()
+          
             
             
             
@@ -408,7 +530,8 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
                 "from": sender,
                 "to": receiver_name,
                 "date": m.date.isoformat(),
-                "text": m.message
+                "text": m.message,
+                "Contact_id": contact_id
             }
             messages.append(message_data)
             message_texts.append(m.message)
@@ -487,12 +610,7 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
             db.close()        
             
             
-            
-            
-            
-            
-            
-            
+  
             
             
             

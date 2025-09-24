@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'http://172.30.2.189:8000';
+  static const String baseUrl = 'http://192.168.1.5:8000';
 
   // API endpoints
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -23,4 +23,24 @@ class ApiConfig {
   static String get scenarioComplete => '$baseUrl/scenarios/complete';
   static String scenarioCompleted(String userId) =>
       '$baseUrl/scenarios/completed/$userId';
+  // Suggestion endpoints
+  static String get analyzeSuggestion => '$baseUrl/suggestion/analyze';
+
+  // RAG endpoints
+  static String get ragContext => '$baseUrl/rag/rag-context';
+
+  // Telegram endpoints
+  static String get telegramRequestCode => '$baseUrl/telegram/request_code';
+  // Add more Telegram endpoints as needed
+
+  // Messages endpoints
+  static String get getMessages => '$baseUrl/messages/messages';
+  // Add more Messages endpoints as needed
+
+  // Books endpoints
+  static String get getAllBooks => '$baseUrl/books/resources/all';
+  static String getBookPage(String readingsId, int page) =>
+      '$baseUrl/books/book/$readingsId/$page';
+  static String getBookResource(String resourceId) =>
+      '$baseUrl/books/resources/$resourceId';
 }
