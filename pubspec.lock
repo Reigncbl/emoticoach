@@ -318,14 +318,13 @@ packages:
   flutter_overlay_window:
     dependency: "direct main"
     description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "111b21041ac3250a965a8ce1705e210c414a7a62"
-      url: "https://github.com/X-SLAYER/flutter_overlay_window.git"
-    source: git
+      name: flutter_overlay_window
+      sha256: "17988420249da68e421d1b44b511e6113d3de7a9e52c3fbd6d99730508af4580"
+      url: "https://pub.dev"
+    source: hosted
     version: "0.5.0"
   flutter_svg:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: flutter_svg
       sha256: cd57f7969b4679317c17af6fd16ee233c1e60a82ed209d8a475c54fd6fd6f845

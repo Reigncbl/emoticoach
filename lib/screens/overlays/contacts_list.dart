@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../utils/api_service.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:emoticoach/services/api_service.dart';
+import 'package:emoticoach/utils/colors.dart';
 
 class ContactsListView extends StatefulWidget {
-  final Function(Map<String, dynamic>)
-  onContactSelected; // Pass full contact data
+  final Function(Map<String, dynamic>) onContactSelected;
   final VoidCallback onClose;
-  final String? userMobileNumber; // For Telegram API calls
+  final String? userMobileNumber;
 
   const ContactsListView({
     super.key,
@@ -143,18 +144,194 @@ class _ContactsListViewState extends State<ContactsListView> {
     await _loadContacts();
   }
 
+  void _openTutorial() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent, // Remove the black overlay
+      builder: (BuildContext context) {
+        return _buildTutorialDialog();
+      },
+    );
+  }
+
+  Widget _buildTutorialDialog() {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              spreadRadius: 3,
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Title section
+            Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/AI-Chat-nav.svg',
+                  width: 24,
+                  height: 24,
+                  colorFilter: const ColorFilter.mode(
+                    kPrimaryBlue,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Contacts Screen Guide',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Content section
+            SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildTutorialSection(
+                    icon: Icons.telegram,
+                    title: 'Telegram Integration',
+                    description:
+                        'Connect your Telegram account to access your contacts directly from the app.',
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTutorialSection(
+                    icon: Icons.person_add,
+                    title: 'Select Contacts',
+                    description:
+                        'Tap on any contact to start a conversation or view their chat history.',
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.2),
+                          spreadRadius: 1,
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: Colors.blue.shade600,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Make sure you\'re logged into Telegram to see your contacts here.',
+                            style: TextStyle(
+                              color: Colors.blue.shade700,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Actions section
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(
+                  'Got it!',
+                  style: TextStyle(
+                    color: kPrimaryBlue,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTutorialSection({
+    required IconData icon,
+    required String title,
+    required String description,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: kPrimaryBlue.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: kPrimaryBlue, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final containerWidth = screenWidth * 0.95;
-    final maxWidth = 500.0;
+    final containerWidth = screenWidth;
+    final maxWidth = 600.0;
     final finalWidth = containerWidth > maxWidth ? maxWidth : containerWidth;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
       child: Container(
         width: finalWidth,
-        height: 550,
+        height: 450,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(18),
@@ -179,61 +356,86 @@ class _ContactsListViewState extends State<ContactsListView> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: _isUsingTelegram ? Colors.blue : Colors.blue,
+        color: kWhite,
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(18),
           topRight: Radius.circular(18),
         ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundColor: Colors.white,
-            child: Icon(
-              _isUsingTelegram ? Icons.telegram : Icons.contacts,
-              color: Colors.blue,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'Select Contact',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.transparent,
+                  child: SvgPicture.asset(
+                    'assets/icons/AI-Chat-nav.svg',
+                    width: 40,
+                    height: 40,
+                    colorFilter: const ColorFilter.mode(
+                      kPrimaryBlue,
+                      BlendMode.srcIn,
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  _isUsingTelegram
-                      ? 'From Telegram (${_contacts.length})'
-                      : _contacts.isEmpty
-                      ? 'No contacts retrieved'
-                      : 'Local contacts',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
+                const Spacer(),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: _openTutorial,
+                  icon: const Icon(Icons.info, color: kPrimaryBlue, size: 22),
+                  tooltip: 'Contact screen tutorial',
+                ),
+                if (!_isLoading && !_isUsingTelegram)
+                  IconButton(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: _retryLoadContacts,
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: kPrimaryBlue,
+                      size: 24,
+                    ),
+                    tooltip: 'Try loading Telegram contacts',
+                  ),
+                GestureDetector(
+                  onTap: widget.onClose,
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(2),
+                    child: const Icon(
+                      Icons.close,
+                      color: kPrimaryBlue,
+                      size: 24,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          if (!_isLoading && !_isUsingTelegram)
-            IconButton(
-              onPressed: _retryLoadContacts,
-              icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
-              tooltip: 'Try loading Telegram contacts',
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF0057E4), Color(0xFF006EFF)],
+              ),
             ),
-          GestureDetector(
-            onTap: widget.onClose,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              child: const Icon(Icons.close, color: Colors.white, size: 20),
+            child: const Text(
+              'Contacts',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+              textAlign: TextAlign.start,
             ),
           ),
         ],

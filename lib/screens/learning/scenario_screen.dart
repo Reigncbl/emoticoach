@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import './reading_screen.dart';
-import './scenario.dart';
+import './scenario_detail_screen.dart';
 import '../../utils/colors.dart';
 import '../../services/scenario_service.dart';
+import '../../services/user_api_service.dart';
 import '../../models/scenario_models.dart';
 import '../../controllers/learning_navigation_controller.dart';
 
@@ -18,12 +19,12 @@ class _LearningScreenState extends State<LearningScreen>
   late TabController _tabController;
   final LearningNavigationController _navController =
       LearningNavigationController();
-  
+
   // Missing state variables
   bool _isLoading = false;
   String? _errorMessage;
   List<Scenario> _scenarios = [];
-  List<Scenario> _completedScenarios = [];
+  List<CompletedScenario> _completedScenarios = [];
 
   @override
   void initState() {
@@ -36,7 +37,7 @@ class _LearningScreenState extends State<LearningScreen>
 
     // Listen to navigation controller changes
     _navController.addListener(_handleNavigationChange);
-    
+
     // Load scenarios when screen initializes
     _loadScenarios();
   }
@@ -67,23 +68,38 @@ class _LearningScreenState extends State<LearningScreen>
       final scenarioData = await ScenarioService.getScenarios();
       print('🔍 DEBUG: Received ${scenarioData.length} scenario records');
 
-      final scenarios = scenarioData
-          .map((data) {
-            print('🔍 DEBUG: Processing scenario data: $data');
-            return Scenario.fromJson(data);
-          })
-          .toList();
+      final scenarios = scenarioData.map((data) {
+        print('🔍 DEBUG: Processing scenario data: $data');
+        return Scenario.fromJson(data);
+      }).toList();
 
       print('🔍 DEBUG: Successfully parsed ${scenarios.length} scenarios');
 
+      // Load completed scenarios for current user
+      List<CompletedScenario> completedScenarios = [];
+      try {
+        final userId = await UserApiService.getCurrentUserId();
+        final completedData = await ScenarioService.getCompletedScenarios(
+          userId,
+        );
+        completedScenarios = completedData.map((data) {
+          return CompletedScenario.fromJson(data);
+        }).toList();
+        print(
+          '🔍 DEBUG: Loaded ${completedScenarios.length} completed scenarios',
+        );
+      } catch (e) {
+        print('🔍 DEBUG: Error loading completed scenarios: $e');
+        // Don't fail the whole load if completed scenarios fail
+      }
+
       setState(() {
         _scenarios = scenarios.where((s) => s.isActive).toList();
+        _completedScenarios = completedScenarios;
         print('🔍 DEBUG: Filtered to ${_scenarios.length} active scenarios');
-        // For now, assume no completed scenarios - you can implement this with user progress tracking
-        _completedScenarios = [];
         _isLoading = false;
       });
-      
+
       print('🔍 DEBUG: Successfully loaded scenarios!');
     } catch (e) {
       print('🔍 DEBUG: Error loading scenarios: $e');
@@ -244,7 +260,8 @@ class _LearningScreenState extends State<LearningScreen>
             _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
             const SizedBox(height: 12),
             ..._completedScenarios.map(
-              (scenario) => _buildScenarioCard(scenario, isCompleted: true),
+              (completedScenario) =>
+                  _buildCompletedScenarioCard(completedScenario),
             ),
             const SizedBox(height: 24),
           ],
@@ -303,43 +320,53 @@ class _LearningScreenState extends State<LearningScreen>
     );
   }
 
-  void _startScenario(Scenario scenario) async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(child: CircularProgressIndicator()),
-      );
+  Widget _buildCompletedScenarioCard(CompletedScenario completedScenario) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      child: ScenarioCard(
+        title: completedScenario.title,
+        description: completedScenario.description,
+        persona: _getPersonaFromCategory(completedScenario.category),
+        difficulty: _capitalizeFirst(completedScenario.difficulty),
+        isReplay: true,
+        scenarioRuns: completedScenario.completionCount,
+        rating: completedScenario.averageScore ?? 4.2,
+        totalRatings: 150, // Default - can be enhanced with actual data
+        duration: completedScenario.formattedDuration,
+        icon: _getIconFromCategory(completedScenario.category),
+        color: _getColorFromCategory(completedScenario.category),
+        onTap: () => _replayScenario(completedScenario),
+      ),
+    );
+  }
 
-      final result = await ScenarioService.startScenario(scenario.id);
+  void _replayScenario(CompletedScenario completedScenario) {
+    // Convert CompletedScenario to Scenario for detail screen
+    final scenario = Scenario(
+      id: completedScenario.scenarioId,
+      title: completedScenario.title,
+      description: completedScenario.description,
+      category: completedScenario.category,
+      difficulty: completedScenario.difficulty,
+      estimatedDuration: completedScenario.estimatedDuration,
+      isActive: true,
+    );
 
-      // Close loading indicator
-      if (mounted) Navigator.pop(context);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ScenarioDetailScreen(scenario: scenario),
+      ),
+    );
+  }
 
-      if (result['success'] == true) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ScenarioScreen(
-              scenarioId: scenario.id,
-              scenarioTitle: scenario.title,
-              aiPersona: result['character_name'] ?? 'AI Assistant',
-              initialMessage:
-                  result['first_message'] ?? 'Loading conversation...',
-            ),
-          ),
-        );
-      } else {
-        _showErrorSnackBar(
-          'Failed to start scenario: ${result['error'] ?? 'Unknown error'}',
-        );
-      }
-    } catch (e) {
-      // Close loading indicator if still open
-      if (mounted) Navigator.pop(context);
-      _showErrorSnackBar('Failed to start scenario: $e');
-    }
+  void _startScenario(Scenario scenario) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ScenarioDetailScreen(scenario: scenario),
+      ),
+    );
   }
 
   String _getPersonaFromCategory(String category) {
@@ -395,16 +422,6 @@ class _LearningScreenState extends State<LearningScreen>
     return text[0].toUpperCase() + text.substring(1).toLowerCase();
   }
 
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
   void _showInfoDialog() {
     showDialog(
       context: context,
@@ -450,7 +467,7 @@ class _LearningScreenState extends State<LearningScreen>
               const Text('Filter by difficulty:'),
               const SizedBox(height: 16),
               CheckboxListTile(
-                title: const Text('Easy'),
+                title: const Text('Beginner'),
                 value: false,
                 onChanged: (value) {},
               ),

@@ -1,5 +1,5 @@
-import '../services/session_service.dart';
-import 'temp_api_service.dart';
+import 'session_service.dart';
+import 'api_service.dart';
 
 /// A utility class that provides session-aware API calls
 /// This demonstrates how to use the enhanced session management system

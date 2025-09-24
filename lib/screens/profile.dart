@@ -4,9 +4,10 @@ import 'package:iconify_flutter/icons/ic.dart';
 import '../utils/colors.dart';
 import 'settings.dart';
 import 'dart:ui';
-import '../widgets/telegram_status_widget.dart';
 import '../widgets/telegram_verification_widget.dart';
 import '../utils/user_data_mixin.dart';
+import '../services/session_service.dart';
+import '../services/api_service.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
@@ -18,10 +19,12 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
+  final APIService _apiService = APIService();
+
   // === TELEGRAM INTEGRATION STATE ===
-  bool _showTelegramVerification = false;
-  String? _userMobileNumber =
-      '+639762325664'; // This should come from your user session/storage
+  bool _isTelegramVerified = false; // Track verification status
+  bool _isCheckingTelegramAuth = true; // Track loading state
+  String? _userMobileNumber; // Will be loaded from session
 
   // === NAVIGATION FUNCTIONS ===
   void _navigateToSettings() {
@@ -38,10 +41,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
   // === TELEGRAM INTEGRATION FUNCTIONS ===
   void _showTelegramVerificationDialog() {
-    setState(() {
-      _showTelegramVerification = true;
-    });
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -57,7 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
             onVerificationSuccess: () {
               Navigator.of(context).pop();
               setState(() {
-                _showTelegramVerification = false;
+                _isTelegramVerified = true; // Update verification status
               });
               // Refresh the page or show success message
               ScaffoldMessenger.of(context).showSnackBar(
@@ -69,14 +68,58 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
             },
             onCancel: () {
               Navigator.of(context).pop();
-              setState(() {
-                _showTelegramVerification = false;
-              });
             },
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _checkTelegramAuthentication() async {
+    try {
+      // Get user phone number from session
+      final phoneNumber = await SimpleSessionService.getUserPhone();
+      if (phoneNumber != null) {
+        setState(() {
+          _userMobileNumber = phoneNumber;
+        });
+
+        print('📞 Checking Telegram status for: $phoneNumber');
+
+        // Check Telegram authentication status with timeout handling
+        final result = await _apiService
+            .getTelegramStatus(phoneNumber)
+            .timeout(
+              const Duration(seconds: 10),
+              onTimeout: () {
+                print('⏰ Telegram status check timed out');
+                return {
+                  'success': false,
+                  'authenticated': false,
+                  'error': 'Request timed out',
+                };
+              },
+            );
+
+        print('✅ Telegram status result: $result');
+
+        setState(() {
+          _isTelegramVerified = result['authenticated'] ?? false;
+          _isCheckingTelegramAuth = false;
+        });
+      } else {
+        print('❌ No phone number found in session');
+        setState(() {
+          _isCheckingTelegramAuth = false;
+        });
+      }
+    } catch (e) {
+      print('❌ Error checking Telegram authentication: $e');
+      setState(() {
+        _isTelegramVerified = false;
+        _isCheckingTelegramAuth = false;
+      });
+    }
   }
 
   void _disconnectTelegram() {
@@ -95,6 +138,9 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
+              setState(() {
+                _isTelegramVerified = false; // Update verification status
+              });
               // TODO: Implement actual disconnect logic
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -143,6 +189,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
+    _checkTelegramAuthentication(); // Check Telegram authentication status
   }
 
   // Activity Section Subtitle
@@ -178,9 +225,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
     final now = DateTime.now();
     final difference = now.difference(date);
 
-
     final actionText = action != null ? '$action ' : '';
-
 
     if (difference.inDays >= 14) {
       final weeks = (difference.inDays / 7).floor();
@@ -233,21 +278,100 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
               child: Icon(Icons.person_outline, size: 40, color: Colors.white),
             ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 12),
 
           // Right side content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Name
-                Text(
-                  name,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                // Name and Telegram Button Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      name,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+
+                    // Telegram Verification Button
+                    GestureDetector(
+                      onTap: _isCheckingTelegramAuth
+                          ? null
+                          : (_isTelegramVerified
+                                ? _disconnectTelegram
+                                : _showTelegramVerificationDialog),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _isCheckingTelegramAuth
+                              ? Colors.grey.withOpacity(0.2)
+                              : (_isTelegramVerified
+                                    ? Colors.green.withOpacity(0.2)
+                                    : Colors.orange.withOpacity(0.2)),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: _isCheckingTelegramAuth
+                                ? Colors.grey.withOpacity(0.5)
+                                : (_isTelegramVerified
+                                      ? Colors.green.withOpacity(0.5)
+                                      : Colors.orange.withOpacity(0.5)),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (_isCheckingTelegramAuth)
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.grey.shade100,
+                                  ),
+                                ),
+                              )
+                            else
+                              Icon(
+                                _isTelegramVerified
+                                    ? Icons.verified
+                                    : Icons.telegram,
+                                size: 14,
+                                color: _isTelegramVerified
+                                    ? Colors.green.shade100
+                                    : Colors.orange.shade100,
+                              ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _isCheckingTelegramAuth
+                                  ? 'Checking...'
+                                  : (_isTelegramVerified
+                                        ? 'Verified'
+                                        : 'Verify'),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: _isCheckingTelegramAuth
+                                    ? Colors.grey.shade100
+                                    : (_isTelegramVerified
+                                          ? Colors.green.shade100
+                                          : Colors.orange.shade100),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
 
@@ -331,7 +455,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
             ],
           ),
           const SizedBox(height: 8),
-
 
           // Progress Bar
           Container(
@@ -807,7 +930,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
     );
   }
 
-
   // === MAIN UI ===
   @override
   Widget build(BuildContext context) {
@@ -856,11 +978,11 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
                   // === PROFILE HEADER ===
                   _profileCard(
-                  name: displayName,
-                  level: 'Level 7: Comm Expert',
-                ),
+                    name: displayName,
+                    level: 'Level 7: Comm Expert',
+                  ),
 
-                const SizedBox(height: 24),
+                  const SizedBox(height: 24),
 
                   // === PROGRESS DASHBOARD ===
                   _title(title: 'Progress Dashboard'),
@@ -909,19 +1031,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                   const SizedBox(height: 12),
 
                   _skillsGraphWidget(),
-
-                  const SizedBox(height: 24),
-
-                  // === TELEGRAM INTEGRATION SECTION ===
-                  _title(title: 'Telegram Integration'),
-
-                  const SizedBox(height: 12),
-
-                  TelegramStatusWidget(
-                    userMobileNumber: _userMobileNumber,
-                    onConnectPressed: _showTelegramVerificationDialog,
-                    onDisconnectPressed: _disconnectTelegram,
-                  ),
 
                   const SizedBox(height: 24),
 

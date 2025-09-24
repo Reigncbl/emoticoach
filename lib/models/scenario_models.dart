@@ -339,3 +339,82 @@ class ConversationFlowResponse {
     );
   }
 }
+
+class CompletedScenario {
+  final int scenarioId;
+  final String title;
+  final String description;
+  final String category;
+  final String difficulty;
+  final int? estimatedDuration;
+  final DateTime completedAt;
+  final int? completionTimeMinutes;
+  final int? finalClarityScore;
+  final int? finalEmpathyScore;
+  final int? finalAssertivenessScore;
+  final int? finalAppropriatenessScore;
+  final double? averageScore;
+  final int? userRating;
+  final int? totalMessages;
+  final int completionCount;
+
+  CompletedScenario({
+    required this.scenarioId,
+    required this.title,
+    required this.description,
+    required this.category,
+    required this.difficulty,
+    this.estimatedDuration,
+    required this.completedAt,
+    this.completionTimeMinutes,
+    this.finalClarityScore,
+    this.finalEmpathyScore,
+    this.finalAssertivenessScore,
+    this.finalAppropriatenessScore,
+    this.averageScore,
+    this.userRating,
+    this.totalMessages,
+    required this.completionCount,
+  });
+
+  factory CompletedScenario.fromJson(Map<String, dynamic> json) {
+    return CompletedScenario(
+      scenarioId: json['scenario_id'] as int,
+      title: json['title'] as String,
+      description: json['description'] as String,
+      category: json['category'] as String,
+      difficulty: json['difficulty'] as String,
+      estimatedDuration: json['estimated_duration'] as int?,
+      completedAt: DateTime.parse(json['completed_at'] as String),
+      completionTimeMinutes: json['completion_time_minutes'] as int?,
+      finalClarityScore: json['final_clarity_score'] as int?,
+      finalEmpathyScore: json['final_empathy_score'] as int?,
+      finalAssertivenessScore: json['final_assertiveness_score'] as int?,
+      finalAppropriatenessScore: json['final_appropriateness_score'] as int?,
+      averageScore: (json['average_score'] as num?)?.toDouble(),
+      userRating: json['user_rating'] as int?,
+      totalMessages: json['total_messages'] as int?,
+      completionCount: json['completion_count'] as int? ?? 1,
+    );
+  }
+
+  String get formattedDuration {
+    if (estimatedDuration == null) return '10-15 min';
+    return '${estimatedDuration! - 2}-${estimatedDuration! + 3} min';
+  }
+
+  String get formattedCompletionTime {
+    if (completionTimeMinutes == null) return 'Unknown';
+    return '$completionTimeMinutes min';
+  }
+
+  String get formattedAverageScore {
+    if (averageScore == null) return 'N/A';
+    return '${averageScore!.toStringAsFixed(1)}/10';
+  }
+
+  String get formattedRating {
+    if (userRating == null) return 'Not rated';
+    return '$userRating/5 ⭐';
+  }
+}

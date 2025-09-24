@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../../models/reading_model.dart';
 import 'reading_card.dart';
 import './reading_detail_screen.dart';
-import '../../utils/api_service.dart';
 import '../../controllers/reading_content_controller.dart';
 import '../../services/session_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/api_service.dart';
+
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});

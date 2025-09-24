@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../utils/api_service.dart';
+import '../../services/api_service.dart';
 
 class DebugConnectionScreen extends StatefulWidget {
   const DebugConnectionScreen({Key? key}) : super(key: key);

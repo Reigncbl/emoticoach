@@ -115,7 +115,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
   @override
   void initState() {
     super.initState();
-    
+  
     // Check if this reading has an EPUB file and redirect if needed
     _checkForEpubAndRedirect();
     
@@ -134,6 +134,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     _currentPage = initialPage;
     _chapterDataFuture = fetchChapterData();
     _loadTotalChapters();
+
   }
 
   Future<ChapterPage> fetchChapterData() async {
@@ -353,7 +354,8 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                       child: NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
                           if (notification is ScrollUpdateNotification) {
-                            final max = _scrollController.position.maxScrollExtent;
+                            final max =
+                                _scrollController.position.maxScrollExtent;
                             final current = _scrollController.position.pixels;
                             final dy = notification.scrollDelta ?? 0;
                             // At bottom: exit minimal mode
@@ -407,7 +409,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   }
                                 },
                                 child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0,
+                                  ),
                                   child: Text(
                                     content,
                                     textAlign: _parseTextAlign(styleJson['align']),
@@ -435,8 +439,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                           fontWeight: _parseFontWeight(
                                             styleJson['fontWeight'],
                                           ),
-                                          fontSize: (styleJson['fontSize'] as num?)
-                                              ?.toDouble(),
+                                          fontSize:
+                                              (styleJson['fontSize'] as num?)
+                                                  ?.toDouble(),
                                         ),
                                   ),
                                 );
@@ -449,8 +454,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                     style: Theme.of(context).textTheme.bodyMedium
                                         ?.copyWith(
                                           height: 1.6,
-                                          fontSize: (styleJson['fontSize'] as num?)
-                                              ?.toDouble(),
+                                          fontSize:
+                                              (styleJson['fontSize'] as num?)
+                                                  ?.toDouble(),
                                           fontWeight: _parseFontWeight(
                                             styleJson['fontWeight'],
                                           ),
@@ -462,7 +468,9 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                                   return const SizedBox.shrink();
                                 }
                                 return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16.0,
+                                  ),
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(10),
                                     child: Image.network(imageUrl),
@@ -516,7 +524,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     );
   }
 
-// Function
+  // Function
   TextAlign _parseTextAlign(String? value) {
     switch (value?.toLowerCase()) {
       case 'center':
@@ -530,7 +538,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     }
   }
 
-// Function
+  // Function
   FontWeight _parseFontWeight(String? value) {
     switch (value?.toLowerCase()) {
       case 'bold':
@@ -628,6 +636,7 @@ class NextChapterWidget extends StatelessWidget {
     this.totalPages = 1,
   }) : super(key: key);
 
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -643,6 +652,7 @@ class NextChapterWidget extends StatelessWidget {
           ),
         ],
       ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -738,18 +748,12 @@ class NextChapterWidget extends StatelessWidget {
 
 // Minimal AppBar widget - when user taps center to hide
 class MinimalAppBar extends StatelessWidget implements PreferredSizeWidget {
-
   @override
   Size get preferredSize => const Size.fromHeight(36);
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: Container(
-        color: Colors.white,
-      ),
-    );
+    return SizedBox(height: 36, child: Container(color: Colors.white));
   }
 }
 
@@ -758,7 +762,11 @@ class MinimalFooter extends StatelessWidget {
   final String chapterBlockType;
   final double progressPercent;
 
-  const MinimalFooter({Key? key, required this.chapterBlockType, required this.progressPercent}) : super(key: key);
+  const MinimalFooter({
+    Key? key,
+    required this.chapterBlockType,
+    required this.progressPercent,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

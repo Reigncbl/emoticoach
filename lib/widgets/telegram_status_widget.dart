@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../utils/api_service.dart';
+import '../services/api_service.dart';
 import '../utils/colors.dart';
 
 class TelegramStatusWidget extends StatefulWidget {

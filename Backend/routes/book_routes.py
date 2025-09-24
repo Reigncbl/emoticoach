@@ -13,8 +13,10 @@ from model.readingsinfo import ReadingsInfo
 from model.readingblock import ReadingBlock
 from model.readingprogress import ReadingProgress, ReadingProgressRead
 
-# Router
-book_router = APIRouter()
+
+# Create router instead of FastAPI app
+book_router = APIRouter(prefix="/books",tags=["Books"])
+
 
 # -------------------- Block Models --------------------
 class BlockResponse(BaseModel):

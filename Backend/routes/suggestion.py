@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from services.emotion_pipeline import get_pipeline, analyze_emotion
 
 # Create APIRouter
-suggestion_router = APIRouter()
+suggestion_router = APIRouter(prefix="/suggestion",tags=["Suggestion"])
 
 # Pydantic models for request/response
 class TextAnalysisRequest(BaseModel):

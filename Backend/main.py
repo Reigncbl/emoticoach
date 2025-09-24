@@ -2,21 +2,12 @@ import os
 from dotenv import load_dotenv
 
 # Load .env variables before anything else
-
 print("Loading environment variables...")
 load_dotenv()
-
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-
-from routes import book_routes, userinfo_routes,scenario_routes,message_routes
-from routes.suggestion import suggestion_router
-
-
-from routes import book_routes
-
+from routes import book_routes, userinfo_routes,scenario_routes,message_routes,rag_routes,multiuser_routes
 
 print("Done importing routes...")
 # Create FastAPI app
@@ -40,8 +31,8 @@ app.include_router(book_routes)
 app.include_router(message_routes)
 app.include_router(userinfo_routes)
 app.include_router(scenario_routes)
-app.include_router(suggestion_router, prefix="/suggestions", tags=["emotions"])
-
+app.include_router(rag_routes)
+app.include_router(multiuser_routes)
 
 # Health check endpoint
 @app.get("/")
@@ -53,4 +44,4 @@ async def health_check():
     return {"status": "healthy"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

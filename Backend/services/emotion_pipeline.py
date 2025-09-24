@@ -1,400 +1,389 @@
 import os
-import json
-import re
-import sys
-from typing import Dict, Any, List
-from datetime import datetime
-from dotenv import load_dotenv
-
-# Add the parent directory to the Python path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-# Import existing services
-from services.translation import translate_texts, get_translation_prompt, clean_llm_output
-from services.RAGPipeline import SimpleRAG
+import time
+import requests
+from typing import Dict, List, Tuple, Optional
 from groq import Groq
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch
-import torch.nn.functional as F
+from dotenv import load_dotenv
+from huggingface_hub import InferenceClient
 
-# Load environment variables
 load_dotenv()
 
-class EmotionPipeline:
-    """Complete emotion analysis pipeline: Translation → Classification → RAG Analysis"""
+HF_MODEL = "j-hartmann/emotion-english-distilroberta-base"
+
+class EmotionEmbedder:
+    """A class to generate emotion embeddings for text using a pre-trained model with translation support."""
     
-    def __init__(self):
+    def __init__(self, model_name: str = HF_MODEL, cache_dir: Optional[str] = None):
+        """Initialize the emotion embedder with a pre-trained model and translation capability.
+        
+        Args:
+            model_name: Name of the pre-trained model to use
+            cache_dir: Directory to cache the model files (optional)
+        """
+        self.model_name = model_name
+        
+        # HF Inference API setup with new syntax
+        self.hf_client = InferenceClient(
+            provider="hf-inference",
+            api_key=os.environ.get("HF_TOKEN")
+        )
+        
+        if not os.environ.get("HF_TOKEN"):
+            raise ValueError("HF_TOKEN not found in environment variables")
+
+        # The labels must be in the correct order as expected by the model's output.
+        # For "j-hartmann/emotion-english-distilroberta-base", this is the order.
+        self.labels = {
+            0: 'anger', 1: 'disgust', 2: 'fear', 3: 'joy', 4: 'neutral', 5: 'sadness', 6: 'surprise'
+        }
+        self.label_names = list(self.labels.values())
+        print(f"Emotion analysis configured for Hugging Face model: {self.model_name}")
+        
         # Initialize Groq client for translation
-        self.groq_client = Groq(api_key=os.getenv("api_key"))
-        self.groq_model = os.getenv("model") or "llama3-8b-8192"
+        self.groq_client = None
+        self.groq_model = None
+        groq_api_key = os.getenv("api_key")  # Using your existing env variable
+        groq_model_name = os.getenv("model")  # Using your existing env variable
         
-        # Initialize emotion classifier
-        model_name = "j-hartmann/emotion-english-distilroberta-base"
-        self.emotion_tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.emotion_model = AutoModelForSequenceClassification.from_pretrained(model_name)
-        
-        # Define emotion labels with emojis
-        self.emotion_emojis = {
-            "anger": "🤬",
-            "disgust": "🤢", 
-            "fear": "😨",
-            "joy": "😀",
-            "neutral": "😐",
-            "sadness": "😭",
-            "surprise": "😲"
-        }
-        
-        # Initialize RAG for insights and suggestions
-        self.rag = SimpleRAG()
-        self._setup_rag_knowledge()
-    
-    def classify_emotion(self, text: str) -> Dict[str, Any]:
-        """Classify emotion using the loaded model"""
-        try:
-            inputs = self.emotion_tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
-            with torch.no_grad():
-                outputs = self.emotion_model(**inputs)
-                probs = F.softmax(outputs.logits, dim=1).squeeze()
-            
-            top_idx = probs.argmax().item()
-            emotion = self.emotion_model.config.id2label[top_idx].lower()
-            confidence = float(probs[top_idx])
-            
-            return {
-                "emotion": emotion,
-                "confidence": confidence,
-                "emoji": self.emotion_emojis.get(emotion, "😐")
-            }
-        except Exception as e:
-            print(f"Classification failed: {e}")
-            return {
-                "emotion": "neutral",
-                "confidence": 0.5,
-                "emoji": "😐"
-            }
-        
-    def _setup_rag_knowledge(self):
-        """Add emotion coaching knowledge to RAG"""
-        coaching_knowledge = [
-            # Anger management 🤬
-            "Anger 🤬 is a normal emotion that signals when something is wrong. To manage anger: take deep breaths, count to 10, identify the trigger, express feelings calmly, and take a break if needed. Channel anger constructively by addressing the root cause.",
-            
-            # Joy enhancement 😀
-            "Joy 😀 is a positive emotion that should be celebrated and shared. To enhance joy: practice gratitude, share good moments with others, engage in activities you love, and savor positive experiences. Joy strengthens relationships and improves wellbeing.",
-            
-            # Sadness support 😭
-            "Sadness 😭 is a natural response to loss or disappointment. To cope with sadness: acknowledge your feelings, reach out for support, engage in self-care, and give yourself time to process emotions. Sadness helps us process difficult experiences.",
-            
-            # Fear management 😨
-            "Fear 😨 can be protective but shouldn't control your life. To manage fear: identify what you're afraid of, challenge negative thoughts, practice relaxation techniques, and take small steps forward. Face fears gradually with support.",
-            
-            # Surprise handling 😲
-            "Surprise 😲 can be positive or negative. To handle surprise: take a moment to process what happened, assess the situation calmly, and adapt your response accordingly. Surprise keeps us alert and helps us learn.",
-            
-            # Disgust processing 🤢
-            "Disgust 🤢 helps us avoid harmful things. To process disgust: identify what triggered the feeling, determine if it's justified, and take appropriate action to address or avoid the trigger. Disgust protects us from threats.",
-            
-            # Neutral state 😐
-            "Neutral 😐 emotions indicate balance and calm. In neutral states: maintain mindfulness, stay present, and be open to experiencing other emotions as they arise. Neutral is a peaceful baseline state.",
-            
-            # General emotional intelligence
-            "Emotional intelligence involves recognizing, understanding, and managing emotions effectively. The seven core emotions are: anger 🤬, joy 😀, sadness 😭, fear 😨, surprise 😲, disgust 🤢, and neutral 😐. Practice self-awareness, empathy, and healthy emotional expression.",
-            
-            # Communication tips
-            "When expressing emotions: use 'I' statements, be specific about feelings, choose appropriate timing, and listen actively to others' responses. Each emotion serves a purpose in communication.",
-            
-            # Stress management
-            "Stress management techniques include: deep breathing, regular exercise, adequate sleep, healthy eating, time management, and seeking support when needed. Recognize which emotions accompany your stress."
-        ]
-        
-        for knowledge in coaching_knowledge:
-            self.rag.add_document(knowledge, {"type": "emotion_coaching"})
-    
-    
-    
-    def translate_if_needed(self, text: str, detected_emotion: str = "neutral") -> str:
-        """Translate text if it's in Tagalog"""
-        language = self.detect_language(text)
-        
-        if language == "tagalog":
+        if groq_api_key and groq_model_name:
             try:
-                prompt = get_translation_prompt(text, detected_emotion)
-                response = self.groq_client.chat.completions.create(
-                    messages=[{"role": "user", "content": prompt}],
-                    model=self.groq_model,
-                    temperature=0.3,
-                    max_tokens=200
-                )
-                translated = clean_llm_output(response.choices[0].message.content)
-                return translated if translated else text
+                self.groq_client = Groq(api_key=groq_api_key)
+                self.groq_model = groq_model_name
+                print("Groq client initialized for translation support")
             except Exception as e:
-                print(f"Translation failed: {e}")
-                return text
+                print(f"Warning: Could not initialize Groq client: {e}")
+                print("Translation will be skipped for non-English text")
+
+    def _translate_text(self, text: str) -> str:
+        """Translate text to English if needed using Groq."""
+        if not self.groq_client or not self.groq_model:
+            return text
         
-        return text
-    
-    def save_message_to_json(self, complete_analysis: Dict[str, Any]) -> str:
-        """Save complete message analysis to JSON file in saved_messages directory"""
+        # Simple heuristic to check if text might be non-English
+        # You can make this more sophisticated
+        if text.isascii() and len([word for word in text.split() if word.isalpha()]) > 0:
+            # Likely English, return as is
+            return text
+        
         try:
-            # Create saved_messages directory if it doesn't exist
-            save_dir = "saved_messages"
-            os.makedirs(save_dir, exist_ok=True)
+            translate_prompt = f"""Translate the following text to English. If it's already in English, return it unchanged:
+
+Text: "{text}"
+
+Translation:"""
             
-            # Generate filename based on timestamp and emotion
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            emotion = complete_analysis.get("emotion", "unknown")
-            filename = f"{save_dir}/message_{timestamp}_{emotion}.json"
-            
-            # Save complete analysis to JSON file
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(complete_analysis, f, indent=2, ensure_ascii=False)
-            
-            return filename
-            
+            response = self.groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": translate_prompt}],
+                model=self.groq_model,
+                temperature=0,
+                max_tokens=200
+            )
+            translated = response.choices[0].message.content.strip()
+            return translated if translated else text
         except Exception as e:
-            print(f"Failed to save message: {e}")
-            return None
-    
-    def create_metadata(self, original_text: str, english_text: str, emotion_result: Dict) -> Dict[str, Any]:
-        """Create metadata from analysis results"""
-        metadata = {
-            "original_text": original_text,
-            "english_text": english_text,
-            "emotion": emotion_result["emotion"],
-            "confidence": emotion_result["confidence"],
-            "emoji": emotion_result["emoji"],
-            "language_detected": self.detect_language(original_text),
-            "timestamp": datetime.now().isoformat(),
-            "processing_pipeline": "translation->classification->rag"
-        }
+            print(f"Translation error: {e}")
+            return text
+
+    def get_embedding(self, text: str, translate_if_needed: bool = True) -> List[float]:
+        """Generate emotion embedding for the input text.
         
-        return metadata
-    
-    def get_rag_insights(self, metadata: Dict[str, Any], message_history: List[Dict[str, Any]], user_name: str = None) -> Dict[str, Any]:
-        """Get emotion insights, tone analysis, and suggestions from RAG using few-shot prompting."""
-        emotion = metadata["emotion"]
-        confidence = metadata["confidence"]
-        emoji = metadata.get("emoji", self.emotion_emojis.get(emotion, "😐"))
-        text = metadata["english_text"]
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
+            
+        Returns:
+            List of emotion probabilities corresponding to different emotions
+        """
+        processed_text = text
+        if translate_if_needed:
+            processed_text = self._translate_text(text)
         
-        # Prepare message history for the prompt
-        history_summary = "No recent messages."
-        if message_history:
-            recent_emotions = [msg.get("emotion", "unknown") for msg in message_history[-5:]]
-            history_summary = f"Recent emotional patterns: {', '.join(recent_emotions)}"
-
-        # Determine user context for personalized coaching
-        user_context = ""
-        if user_name:
-            user_context = f"You are providing personalized coaching for {user_name}. "
-
-        # Few-shot prompt optimized for Taglish/Filipino context with flexible user support
-        prompt = f"""You are EmotiCoach, an expert AI emotional wellness coach specializing in Filipino culture and Taglish communication. {user_context}Your goal is to provide culturally sensitive, empathetic, and actionable advice. Always respond in valid JSON format.
-
-### Example 1 (English):
-**User Message:** "I'm so angry at my boss! He's always undermining me."
-**Emotion:** anger 🤬 (98.1% confidence)
-**History:** "Recent emotional patterns: sadness, anger, sadness"
-**Your JSON Response:**
-```json
-{{
-  "analysis": {{
-    "primary_emotion": "Anger",
-    "interpretation": "The user is feeling intense anger and frustration, likely due to a perceived injustice or lack of respect at work. The recurring pattern of sadness and anger suggests an ongoing issue that is causing significant distress.",
-    "keywords": ["angry", "boss", "undermining"]
-  }},
-  "coaching": {{
-    "empathetic_statement": "It sounds incredibly frustrating to feel undermined by your boss, especially when it's a recurring issue. Your feelings are completely valid.",
-    "suggestions": [
-      "Take deep breaths to calm your immediate anger before reacting",
-      "Document specific examples of the undermining behavior",
-      "Consider having a calm, professional conversation with your boss about the impact",
-      "Focus on what you can control - your excellent work and professional responses"
-    ],
-    "suggested_response": "I'm feeling really frustrated about this situation at work. I need some time to think before I respond."
-  }}
-}}
-
-### User's Current Situation:
-**User Message:** "{text}"
-**Emotion:** {emotion} {emoji} ({confidence:.1%} confidence)
-**History:** "{history_summary}"
-
-**Your JSON Response:**
-"""
-        
-        # Get RAG response
-        rag_response_str = self.rag.generate_response(prompt)
-        
-        # Parse the JSON response
         try:
-            # Clean the response to extract only the JSON part
-            json_match = re.search(r'```json\n({.*?})\n```', rag_response_str, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-                parsed_response = json.loads(json_str)
-            else:
-                # Fallback if the ```json ``` block is missing
-                parsed_response = json.loads(rag_response_str)
+            # Use the new client syntax for text classification
+            api_response = self.hf_client.text_classification(
+                text=processed_text,
+                model=self.model_name
+            )
             
-            return parsed_response
+            # The API returns a list of dicts. We need to process them.
+            scores_dict = {item['label'].lower(): item['score'] for item in api_response}
+            
+            # Reorder scores to match self.label_names
+            embedding = [scores_dict.get(label, 0.0) for label in self.label_names]
+            
+            # Apply a small penalty to neutral class to reduce bias
+            if 'neutral' in self.label_names:
+                neutral_idx = self.label_names.index('neutral')
+                embedding[neutral_idx] = max(0, embedding[neutral_idx] - 0.1) # Reduce confidence slightly
+            
+            return embedding
+        except Exception as e:
+            print(f"Emotion embedding error: {e}")
+            return [0.0] * len(self.label_names)
 
-        except (json.JSONDecodeError, TypeError) as e:
-            print(f"Failed to parse RAG JSON response: {e}")
-            # Return a fallback response
-            return {
-                "analysis": {
-                    "primary_emotion": emotion.capitalize(),
-                    "interpretation": "Could not parse the detailed analysis, but the primary emotion is clear."
-                },
-                "coaching": {
-                    "empathetic_statement": f"It seems you're feeling {emotion}. Your feelings are valid.",
-                    "suggestions": ["Take a moment to breathe and acknowledge how you feel."],
-                    "suggested_response": rag_response_str  # Return the raw string if parsing fails
-                }
-            }
-    
-    def load_saved_messages(self) -> List[Dict[str, Any]]:
-        """Load all saved messages from saved_messages directory"""
-        saved_messages = []
-        save_dir = "saved_messages"
+    def get_emotion_scores(self, text: str, translate_if_needed: bool = True) -> Dict[str, float]:
+        """Get emotion scores with their labels.
         
-        if os.path.exists(save_dir):
-            for filename in os.listdir(save_dir):
-                if filename.endswith('.json'):
-                    try:
-                        filepath = os.path.join(save_dir, filename)
-                        with open(filepath, 'r', encoding='utf-8') as f:
-                            message_data = json.load(f)
-                            saved_messages.append(message_data)
-                    except Exception as e:
-                        print(f"Error loading {filename}: {e}")
-        
-        return saved_messages
-    
-    def get_message_history_summary(self) -> Dict[str, Any]:
-        """Get summary statistics from saved messages"""
-        saved_messages = self.load_saved_messages()
-        
-        if not saved_messages:
-            return {"total_messages": 0, "emotion_distribution": {}}
-        
-        # Count emotions
-        emotion_counts = {}
-        languages = {}
-        
-        for msg in saved_messages:
-            emotion = msg.get("emotion", "unknown")
-            language = msg.get("language_detected", "unknown")
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
             
-            emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
-            languages[language] = languages.get(language, 0) + 1
+        Returns:
+            Dictionary mapping emotion labels to their probabilities
+        """
+        embedding = self.get_embedding(text, translate_if_needed)
+        return {label: score for label, score in zip(self.label_names, embedding)}
+
+    def get_dominant_emotion(self, text: str, translate_if_needed: bool = True) -> Tuple[str, float]:
+        """Get the most probable emotion for the input text.
+        
+        Args:
+            text: Input text to analyze
+            translate_if_needed: Whether to translate non-English text
+            
+        Returns:
+            Tuple of (emotion_label, probability_score)
+        """
+        scores = self.get_emotion_scores(text, translate_if_needed)
+        if not scores:
+            return ("neutral", 1.0)
+        dominant_emotion = max(scores.items(), key=lambda x: x[1])
+        return dominant_emotion
+
+    def analyze_text_full(self, text: str, translate_if_needed: bool = True) -> Dict:
+        """Get complete emotion analysis for text, using LLM fallback for dominant emotion if needed."""
+        processed_text = text
+        if translate_if_needed:
+            processed_text = self._translate_text(text)
+
+        embedding = self.get_embedding(processed_text, translate_if_needed=False)  # Already processed
+        scores = {label: score for label, score in zip(self.label_names, embedding)}
+        
+        # Use get_final_emotion for robust dominant emotion (LLM fallback)
+        dominant_emotion = self.get_final_emotion(processed_text)
+        dominant_score = scores.get(dominant_emotion, 0.0)
+
+        return {
+            "original_text": text,
+            "processed_text": processed_text if processed_text != text else None,
+            "embedding": embedding,
+            "emotion_scores": scores,
+            "dominant_emotion": dominant_emotion,
+            "dominant_score": dominant_score
+        }
+
+    def get_final_emotion(self, text: str, threshold: float = 0.6) -> str:
+        """
+        Get final single-label emotion.
+        Uses classifier by default, but calls LLM if confidence < threshold.
+        """
+        scores = self.get_emotion_scores(text, translate_if_needed=False)
+        if not scores:
+            return "neutral"
+        dominant_emotion, dominant_score = max(scores.items(), key=lambda x: x[1])
+        
+        # If confident enough, return classifier result
+        if dominant_score >= threshold:
+            return dominant_emotion
+
+        # Otherwise, double-check with LLM
+        if not self.groq_client or not self.groq_model:
+            print("Warning: Groq not available, falling back to classifier output")
+            return dominant_emotion
+
+        check_prompt = f"""
+        You are an emotion classification checker.
+        You must ONLY answer with one of these 7 labels:
+        [joy, sadness, anger, fear, surprise, disgust, neutral].
+
+        Message: "{text}"
+        Classifier Prediction: {dominant_emotion}
+
+        If the classifier prediction matches the true emotion, repeat it.
+        If it is wrong, replace it with the correct one.
+        Answer with ONLY the label.
+        """
+        
+        try:
+            response = self.groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": check_prompt}],
+                model=self.groq_model,
+                temperature=0,
+                max_tokens=10
+            )
+            llm_label = response.choices[0].message.content.strip().lower()
+            # Ensure the label is valid
+            if llm_label in self.label_names:
+                return llm_label
+            else:
+                print(f"LLM returned invalid label '{llm_label}', falling back to classifier.")
+                return dominant_emotion
+        except Exception as e:
+            print(f"LLM check failed: {e}, falling back to classifier")
+            return dominant_emotion
+
+
+# Global instance for backward compatibility
+_emotion_pipeline = None
+
+def get_pipeline() -> EmotionEmbedder:
+    """Get or create the global emotion pipeline instance."""
+    global _emotion_pipeline
+    if _emotion_pipeline is None:
+        _emotion_pipeline = EmotionEmbedder()
+    return _emotion_pipeline
+
+def interpretation(emotion_data, dominant_emotion: str = None) -> str:
+    """
+    Provide human-readable interpretation of emotion analysis results.
+    
+    Args:
+        emotion_data: Either a dictionary of emotion scores OR full emotion analysis result
+        dominant_emotion: The dominant emotion (optional, will be calculated if not provided)
+        
+    Returns:
+        Human-readable interpretation string
+    """
+    # Handle different input formats
+    if isinstance(emotion_data, dict):
+        if "emotion_scores" in emotion_data:
+            # Full analysis result from analyze_emotion
+            emotion_scores = emotion_data["emotion_scores"]
+            dominant_emotion = emotion_data.get("dominant_emotion", dominant_emotion)
+        elif "pipeline_success" in emotion_data:
+            # Full pipeline result
+            if emotion_data.get("pipeline_success"):
+                emotion_scores = emotion_data["emotion_scores"]
+                dominant_emotion = emotion_data.get("dominant_emotion", dominant_emotion)
+            else:
+                return f"Unable to analyze emotions: {emotion_data.get('error', 'Unknown error')}"
+        else:
+            # Assume it's just emotion scores
+            emotion_scores = emotion_data
+    else:
+        return "Unable to analyze emotions from the provided data."
+    
+    if not emotion_scores:
+        return "Unable to analyze emotions from the provided text."
+    
+    if not dominant_emotion:
+        dominant_emotion = max(emotion_scores.items(), key=lambda x: x[1])[0]
+    
+    dominant_score = emotion_scores.get(dominant_emotion, 0.0)
+    
+    # Optimized brief explanations for each emotion
+    emotion_reasons = {
+        'joy': 'because it expresses positivity or happiness',
+        'sadness': 'due to words or tone suggesting loss or unhappiness',
+        'anger': 'because it contains frustration or strong negative language',
+        'fear': 'due to anxious or worried expressions',
+        'surprise': 'because it shows unexpectedness or shock',
+        'disgust': 'due to language showing aversion or repulsion',
+        'neutral': 'because it lacks strong emotional cues'
+    }
+
+    # Determine confidence level
+    if dominant_score >= 0.8:
+        confidence = "very confident"
+    elif dominant_score >= 0.6:
+        confidence = "confident"
+    elif dominant_score >= 0.4:
+        confidence = "somewhat confident"
+    else:
+        confidence = "uncertain"
+
+    sorted_emotions = sorted(emotion_scores.items(), key=lambda x: x[1], reverse=True)
+    secondary_emotions = [emotion for emotion, score in sorted_emotions[1:3] if score > 0.1]
+
+    # Try to use Groq LLM for explanation if available
+    from services.emotion_pipeline import get_pipeline
+    pipeline = get_pipeline()
+    groq_client = getattr(pipeline, "groq_client", None)
+    groq_model = getattr(pipeline, "groq_model", None)
+    text = emotion_data.get("original_text") if isinstance(emotion_data, dict) and "original_text" in emotion_data else None
+    user_context = emotion_data.get("user_context") if isinstance(emotion_data, dict) else None
+    analysis_method = emotion_data.get("analysis_method") if isinstance(emotion_data, dict) else None
+    processed_text = emotion_data.get("processed_text") if isinstance(emotion_data, dict) else None
+    context_lines = []
+    if user_context:
+        context_lines.append(f"User: {user_context}")
+    if analysis_method:
+        context_lines.append(f"Analysis method: {analysis_method}")
+    if processed_text:
+        context_lines.append(f"Processed text: {processed_text}")
+    if secondary_emotions:
+        context_lines.append(f"Secondary emotions: {', '.join(secondary_emotions)}")
+    context_str = "\n".join(context_lines)
+    if groq_client and groq_model and text:
+        # Optimized prompt: concise, context-rich, direct
+        prompt = (
+            f"Context:\n{context_str}\n"
+            f"Text: \"{text}\"\n"
+            f"Emotion: {dominant_emotion} (confidence: {dominant_score:.2f})\n"
+            f"Briefly explain why this text expresses that emotion."
+        )
+
+        try:
+            response = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=groq_model,
+                temperature=0,
+                max_tokens=80
+            )
+            explanation = response.choices[0].message.content.strip()
+            if explanation:
+                result = f"Detected '{dominant_emotion}' (confidence: {dominant_score:.2f}, {confidence}). Reason: {explanation}"
+                if secondary_emotions:
+                    result += f" Also, traces of {', '.join(secondary_emotions)}."
+                return result
+        except Exception as e:
+            print(f"Groq explanation error: {e}")
+    # Fallback to brief explanation
+    reason = emotion_reasons.get(dominant_emotion, "based on the text's content")
+    brief = f"Detected '{dominant_emotion}' {reason}. Confidence: {dominant_score:.2f} ({confidence})."
+    if secondary_emotions:
+        brief += f" Also, traces of {', '.join(secondary_emotions)}."
+    return brief
+
+def analyze_emotion(text: str, user_name: str = None) -> Dict:
+    """
+    Analyze emotion using the complete pipeline with LLM fallback.
+    
+    Args:
+        text: Text to analyze
+        user_name: Optional user name for context
+        
+    Returns:
+        Dictionary with analysis results
+    """
+    try:
+        pipeline = get_pipeline()
+        
+        # Use the full analysis method which includes get_final_emotion
+        analysis = pipeline.analyze_text_full(text, translate_if_needed=True)
+        
+        # Add interpretation
+        interpretation_text = interpretation(
+            analysis["emotion_scores"], 
+            analysis["dominant_emotion"]
+        )
         
         return {
-            "total_messages": len(saved_messages),
-            "emotion_distribution": emotion_counts,
-            "language_distribution": languages,
-            "most_common_emotion": max(emotion_counts, key=emotion_counts.get) if emotion_counts else None,
-            "recent_messages": saved_messages[-5:] if len(saved_messages) >= 5 else saved_messages
+            "pipeline_success": True,
+            "original_text": analysis["original_text"],
+            "processed_text": analysis["processed_text"],
+            "emotion_scores": analysis["emotion_scores"],
+            "dominant_emotion": analysis["dominant_emotion"],
+            "dominant_score": analysis["dominant_score"],
+            "embedding": analysis["embedding"],
+            "interpretation": interpretation_text,
+            "user_context": user_name,
+            "analysis_method": "classifier_with_llm_fallback"
         }
-    
-    def process_message(self, text: str, user_name: str = None) -> Dict[str, Any]:
-        """
-        Complete pipeline: Input → Translation → Classification → Metadata → RAG Analysis
-        """
-        try:
-            # Step 1: Initial emotion classification (for translation context)
-            initial_classification = self.classify_emotion(text)
-            
-            # Step 2: Translation (if Tagalog)  
-            english_text = self.translate_if_needed(text, initial_classification["emotion"])
-            
-            # Step 3: Final emotion classification on English text
-            final_classification = self.classify_emotion(english_text)
-            
-            # Step 4: Create metadata
-            metadata = self.create_metadata(text, english_text, final_classification)
-            
-            # Step 5: Get message history for RAG context
-            message_history = self.load_saved_messages()
-            
-            # Step 6: RAG analysis for insights and suggestions (with user context)
-            rag_insights = self.get_rag_insights(metadata, message_history, user_name)
-            
-            # Step 7: Combine everything into final output
-            result = {
-                **metadata,
-                "analysis": rag_insights,
-                "message_history_summary": self.get_message_history_summary(),
-                "pipeline_success": True
-            }
-            
-            # Step 8: Save complete analysis (including suggestions) to JSON
-            saved_file = self.save_message_to_json(result)
-            if saved_file:
-                result["saved_to_file"] = saved_file
-            
-            return result
-            
-        except Exception as e:
-            return {
-                "error": str(e),
-                "pipeline_success": False,
-                "original_text": text,
-                "timestamp": datetime.now().isoformat()
-            }
-
-# Global pipeline instance
-_pipeline: EmotionPipeline = None
-
-def get_pipeline() -> EmotionPipeline:
-    """Get or create pipeline instance"""
-    global _pipeline
-    if _pipeline is None:
-        _pipeline = EmotionPipeline()
-    return _pipeline
-
-# Convenience function
-def analyze_emotion(text: str, user_name: str = None) -> Dict[str, Any]:
-    """Quick function to analyze emotion in text"""
-    pipeline = get_pipeline()
-    return pipeline.process_message(text, user_name)
-
-# Example usage
-if __name__ == "__main__":
-    # Test the pipeline
-    test_messages = [
-        "Galit na galit ako sa nangyari!",  # Tagalog anger
-        "I'm so happy today!",             # English joy
-        "Nalulungkot ako ngayon...",       # Tagalog sadness
-    ]
-    
-    pipeline = EmotionPipeline()
-    
-    for message in test_messages:
-        print(f"\n{'='*60}")
-        print(f"INPUT: {message}")
-        print(f"{'='*60}")
         
-        result = pipeline.process_message(message)
-        
-        if result["pipeline_success"]:
-            print(f"🌐 Language: {result['language_detected']}")
-            print(f"🔤 English: {result['english_text']}")
-            print(f"😊 Emotion: {result['emotion']} {result['emoji']} ({result['confidence']:.1%})")
-            
-            # Print the structured analysis from RAG
-            analysis = result.get('analysis', {})
-            coaching = analysis.get('coaching', {})
-            
-            print("\n--- EmotiCoach Analysis ---")
-            print(f"� Interpretation: {analysis.get('analysis', {}).get('interpretation', 'N/A')}")
-            print(f"💬 Empathetic Statement: {coaching.get('empathetic_statement', 'N/A')}")
-            print("✅ Suggestions:")
-            for suggestion in coaching.get('suggestions', []):
-                print(f"  - {suggestion}")
-            print(f"🗣️ Suggested Response: {coaching.get('suggested_response', 'N/A')}")
-            print("---------------------------\n")
-
-        else:
-            print(f"❌ Error: {result['error']}")
+    except Exception as e:
+        return {
+            "pipeline_success": False,
+            "error": str(e),
+            "user_context": user_name
+        }

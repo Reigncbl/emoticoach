@@ -135,4 +135,69 @@ class ScenarioService {
       throw Exception('Failed to evaluate conversation');
     }
   }
+
+  static Future<Map<String, dynamic>> completeScenario({
+    required String userId,
+    required int scenarioId,
+    int? completionTimeMinutes,
+    int? finalClarityScore,
+    int? finalEmpathyScore,
+    int? finalAssertivenessScore,
+    int? finalAppropriatenessScore,
+    int? userRating,
+    int? totalMessages,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConfig.scenarioComplete),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'user_id': userId,
+          'scenario_id': scenarioId,
+          'completion_time_minutes': completionTimeMinutes,
+          'final_clarity_score': finalClarityScore,
+          'final_empathy_score': finalEmpathyScore,
+          'final_assertiveness_score': finalAssertivenessScore,
+          'final_appropriateness_score': finalAppropriatenessScore,
+          'user_rating': userRating,
+          'total_messages': totalMessages,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data;
+        }
+      }
+      throw Exception('Failed to mark scenario as complete');
+    } catch (e) {
+      print('Error completing scenario: $e');
+      throw Exception('Failed to complete scenario');
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getCompletedScenarios(
+    String userId,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConfig.scenarioCompleted(userId)),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(
+            data['completed_scenarios'] ?? [],
+          );
+        }
+      }
+      throw Exception('Failed to load completed scenarios');
+    } catch (e) {
+      print('Error fetching completed scenarios: $e');
+      throw Exception('Failed to load completed scenarios');
+    }
+  }
 }
