@@ -17,6 +17,10 @@ dependencies:
   firebase_auth: ^6.0.1
   firebase_ui_auth: ^3.0.0
   google_sign_in: ^6.1.6
+  epubx: ^4.0.0
+  #epub_view: ^3.2.0
+  epub_view: ^3.2.0
+  path_provider: ^2.1.4
 
   http: ^1.4.0
   english_words: ^4.0.0
@@ -31,7 +35,7 @@ dependencies:
   supercharged: ^2.1.1
   iconify_flutter: ^0.0.7
   smooth_page_indicator: ^1.2.1
-  flutter_native_splash: ^2.4.6
+  #flutter_native_splash: ^2.4.6
   visibility_detector: ^0.4.0+2
   shared_preferences: ^2.3.3
 
@@ -45,6 +49,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/epub/
     - assets/sample.json
   fonts:
     - family: OpenSans

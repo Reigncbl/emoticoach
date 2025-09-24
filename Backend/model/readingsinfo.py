@@ -12,6 +12,7 @@ class ReadingsInfo(SQLModel, table=True):
     XPValue: int
     Rating: int
     ModuleTypeID: str = Field(foreign_key="moduletype.ModuleTypeID", max_length=5)
+    EpubFilePath: Optional[str] = Field(default=None, max_length=255)
 
     # Relationships
     module_type: Optional["ModuleType"] = Relationship(back_populates="readings")

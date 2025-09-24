@@ -3,6 +3,9 @@ import '../../models/reading_model.dart';
 import 'reading_card.dart';
 import './reading_detail_screen.dart';
 import '../../utils/api_service.dart';
+import '../../controllers/reading_content_controller.dart';
+import '../../services/session_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ReadingScreen extends StatefulWidget {
   const ReadingScreen({super.key});
@@ -14,15 +17,20 @@ class ReadingScreen extends StatefulWidget {
 class _ReadingScreenState extends State<ReadingScreen> {
   final TextEditingController _searchController = TextEditingController();
   final APIService _api = APIService();
+  final ReadingProgressController _progressController = ReadingProgressController();
+  final ReadingContentController _contentController = ReadingContentController();
+  
   List<Reading> _allReadings = [];
   List<Reading> _filteredReadings = [];
+  List<ReadingWithProgress> _readingsWithProgress = [];
   bool _isLoading = true;
   String? _error;
+  String? _mobileNumber;
 
   @override
   void initState() {
     super.initState();
-    _fetchReadings();
+    _initializeUser();
     _searchController.addListener(_filterReadings);
   }
 
@@ -31,6 +39,118 @@ class _ReadingScreenState extends State<ReadingScreen> {
     _searchController.removeListener(_filterReadings);
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Method to refresh the screen (can be called when returning from other screens)
+  Future<void> refreshScreen() async {
+    print('Refreshing reading screen...');
+    if (_mobileNumber != null) {
+      await _fetchReadingsWithProgress();
+    } else {
+      await _fetchReadings();
+    }
+  }
+
+  Future<void> _initializeUser() async {
+    try {
+      // Get mobile number from session - this is now our primary identifier
+      final userPhone = await SimpleSessionService.getUserPhone();
+      print('Phone number from session: $userPhone');
+      
+      if (userPhone != null && userPhone.isNotEmpty) {
+        _mobileNumber = userPhone;
+        print('Using phone number as mobile identifier: $_mobileNumber');
+        await _fetchReadingsWithProgress();
+      } else {
+        print('No mobile number available, fetching readings without progress');
+        // No mobile number available, just fetch readings without progress
+        await _fetchReadings();
+      }
+    } catch (e) {
+      print('Error initializing user: $e');
+      await _fetchReadings();
+    }
+  }
+
+  Future<void> _fetchReadingsWithProgress() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    
+    try {
+      // First fetch all readings
+      final readings = await _api.fetchAllReadings();
+      
+      if (_mobileNumber != null) {
+        // Then fetch progress for each reading using mobile number (EFFICIENT METHOD)
+        final readingsWithProgress = await _progressController.fetchReadingsWithProgressEfficient(_mobileNumber!, readings);
+        
+        // Calculate accurate progress percentages by fetching total chapters
+        List<ReadingWithProgress> updatedReadingsWithProgress = [];
+        
+        for (var rwp in readingsWithProgress) {
+          if (rwp.progress != null && rwp.progress!.currentPage != null && rwp.progress!.currentPage! > 0) {
+            try {
+              double progressPercentage = 0.0;
+              final currentPage = rwp.progress!.currentPage!;
+              
+              if (rwp.progress!.isCompleted) {
+                progressPercentage = 1.0;
+              } else {
+                // Check if this reading has an EPUB file
+                if (rwp.reading.hasEpubFile) {
+                  // For EPUB files, use stored total pages information
+                  print('EPUB file detected for ${rwp.reading.title}, using EPUB progress calculation');
+                  progressPercentage = await _getEpubProgress(rwp.reading.id, currentPage);
+                } else {
+                  // For regular content, fetch total pages
+                  final totalPages = await _contentController.getTotalPages(rwp.reading.id);
+                  progressPercentage = (currentPage / totalPages).clamp(0.0, 1.0);
+                  print('Regular content ${rwp.reading.title}: Page $currentPage/$totalPages = ${(progressPercentage * 100).toStringAsFixed(1)}%');
+                }
+              }
+              
+              // Create new reading with updated progress
+              final updatedReading = rwp.reading.copyWith(progress: progressPercentage);
+              updatedReadingsWithProgress.add(ReadingWithProgress(
+                reading: updatedReading,
+                progress: rwp.progress,
+              ));
+            } catch (e) {
+              print('Error calculating progress for ${rwp.reading.id}: $e');
+              // Fallback to original reading if API fails
+              updatedReadingsWithProgress.add(rwp);
+            }
+          } else {
+            // No progress or not started, keep original
+            updatedReadingsWithProgress.add(rwp);
+          }
+        }
+        
+        if (!mounted) return;
+        setState(() {
+          _readingsWithProgress = updatedReadingsWithProgress;
+          _allReadings = updatedReadingsWithProgress.map((rwp) => rwp.reading).toList();
+          _filteredReadings = List.from(_allReadings);
+          _isLoading = false;
+        });
+      } else {
+        // No mobile number, just use readings without progress
+        if (!mounted) return;
+        setState(() {
+          _allReadings = readings;
+          _filteredReadings = List.from(_allReadings);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = e.toString();
+      });
+    }
   }
 
   Future<void> _fetchReadings() async {
@@ -109,7 +229,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _fetchReadings,
+                onPressed: () {
+                  if (_mobileNumber != null) {
+                    _fetchReadingsWithProgress();
+                  } else {
+                    _fetchReadings();
+                  }
+                },
                 child: const Text('Retry'),
               ),
             ],
@@ -130,11 +256,15 @@ class _ReadingScreenState extends State<ReadingScreen> {
           children: [
             const SizedBox(height: 12),
 
+
+
+            // ...existing code...
             // Search bar with filter icon
             Row(
               children: [
                 Expanded(
                   child: TextField(
+                    controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Search for specific chat scenarios...',
                       suffixIcon: const Icon(Icons.search),
@@ -162,7 +292,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                 "Continue Reading",
                 onViewAll: () => _showAllReadings('continue'),
               ),
-              _continueReadingCard(),
+              _horizontalReadingCards(_getContinueReadingItems(), isContinueReading: true),
               const SizedBox(height: 24),
             ],
 
@@ -178,6 +308,16 @@ class _ReadingScreenState extends State<ReadingScreen> {
             _sectionHeader("Books", onViewAll: () => _showAllReadings('CAT-B')),
             _horizontalReadingCards(catB),
             const SizedBox(height: 24),
+
+            // Completed Section
+            if (_getCompletedItems().isNotEmpty) ...[
+              _sectionHeader(
+                "Completed",
+                onViewAll: () => _showAllReadings('completed'),
+              ),
+              _horizontalReadingCards(_getCompletedItems()),
+              const SizedBox(height: 24),
+            ],
 
             // Fallback: if both Cat-A and Cat-B are empty but we do have data, show all
             if (catA.isEmpty && catB.isEmpty && hasAny) ...[
@@ -213,68 +353,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  Widget _continueReadingCard() {
-    final continueReading = _getContinueReadingItems().first;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              continueReading.category,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            continueReading.title,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          Text(
-            'by ${continueReading.author}',
-            style: const TextStyle(fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '${continueReading.formattedDuration} • ${continueReading.difficulty} • ${continueReading.progressPercentage} complete',
-            style: const TextStyle(fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          LinearProgressIndicator(
-            value: continueReading.progress,
-            backgroundColor: Colors.grey.shade300,
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: () => _navigateToReading(continueReading),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-            child: const Text(
-              "Continue Reading",
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _horizontalReadingCards(List<Reading> readings) {
+  Widget _horizontalReadingCards(List<Reading> readings, {bool isContinueReading = false}) {
     if (readings.isEmpty) {
       return _categoryEmpty();
     }
@@ -289,70 +368,103 @@ class _ReadingScreenState extends State<ReadingScreen> {
           return ReadingCard(
             reading: reading,
             onTap: () => _navigateToReading(reading),
+            isContinueReading: isContinueReading,
           );
         },
       ),
     );
   }
 
+  // Helper method to get EPUB progress
+  Future<double> _getEpubProgress(String bookId, int currentPage) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final totalPages = prefs.getInt("total_pages_$bookId");
+      
+      if (totalPages != null && totalPages > 0) {
+        return (currentPage / totalPages).clamp(0.0, 1.0);
+      }
+    } catch (e) {
+      print('Error getting EPUB progress: $e');
+    }
+    
+    // Fallback calculation
+    return (currentPage / 100.0).clamp(0.0, 0.95);
+  }
+
   // Helper methods to filter readings
   List<Reading> _getContinueReadingItems() {
-    final items = _filteredReadings
-        .where((r) => (r.progress ?? 0) > 0 && (r.progress ?? 0) < 1.0)
+    if (_readingsWithProgress.isEmpty) return [];
+    
+    List<Reading> continueItems = [];
+    
+    for (var rwp in _readingsWithProgress) {
+      if (rwp.progress != null && rwp.progress!.currentPage != null && rwp.progress!.currentPage! > 0 && !rwp.isCompleted) {
+        // This item has progress and is not completed - the progress percentage is already calculated accurately
+        continueItems.add(rwp.reading);
+      }
+    }
+    
+    return continueItems;
+  }
+
+  List<Reading> _getCompletedItems() {
+    if (_readingsWithProgress.isEmpty) return [];
+    
+    final items = _readingsWithProgress
+        .where((rwp) => rwp.isCompleted) // Use the isCompleted getter from ReadingWithProgress
+        .map((rwp) => rwp.readingWithProgress) // Get the Reading object
         .toList();
     return items;
   }
 
   List<Reading> _getCatA() {
     return _filteredReadings
-        .where((r) => (r.category ?? '').toUpperCase() == 'CAT-A')
+        .where((r) => r.category.toUpperCase() == 'CAT-A')
+        .where((r) => r.progress == 0) // Only show items without progress
         .toList();
   }
 
   List<Reading> _getCatB() {
     return _filteredReadings
-        .where((r) => (r.category ?? '').toUpperCase() == 'CAT-B')
+        .where((r) => r.category.toUpperCase() == 'CAT-B')
+        .where((r) => r.progress == 0) // Only show items without progress
         .toList();
   }
 
-  void _navigateToReading(Reading reading) {
-    Navigator.push(
+  void _navigateToReading(Reading reading) async {
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ReadingDetailScreen(reading: reading),
       ),
     );
-  }
-
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Filter Readings'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: const [Text('Filter options will be implemented here')],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
+    
+    // If result is true, it means data might have changed, so refresh
+    if (result == true) {
+      print('Refreshing reading screen after returning from detail screen');
+      if (_mobileNumber != null) {
+        await _fetchReadingsWithProgress();
+      } else {
+        await _fetchReadings();
+      }
+    }
   }
 
   void _showAllReadings(String section) {
     List<Reading> readingsToShow;
     String title;
+    bool isContinueReading = false;
 
     switch (section) {
       case 'continue':
         readingsToShow = _getContinueReadingItems();
         title = 'Continue Reading';
+        isContinueReading = true;
+        break;
+      case 'completed':
+        readingsToShow = _getCompletedItems();
+        title = 'Completed';
         break;
       case 'CAT-A':
         readingsToShow = _getCatA();
@@ -375,7 +487,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
       context,
       MaterialPageRoute(
         builder: (context) =>
-            _AllReadingsScreen(readings: readingsToShow, title: title),
+            _AllReadingsScreen(
+              readings: readingsToShow, 
+              title: title,
+              isContinueReading: isContinueReading,
+            ),
       ),
     );
   }
@@ -416,8 +532,13 @@ class _ReadingScreenState extends State<ReadingScreen> {
 class _AllReadingsScreen extends StatelessWidget {
   final List<Reading> readings;
   final String title;
+  final bool isContinueReading;
 
-  const _AllReadingsScreen({required this.readings, required this.title});
+  const _AllReadingsScreen({
+    required this.readings, 
+    required this.title,
+    this.isContinueReading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -438,6 +559,7 @@ class _AllReadingsScreen extends StatelessWidget {
                 itemBuilder: (context, index) {
                   return ReadingCard(
                     reading: readings[index],
+                    isContinueReading: isContinueReading,
                     onTap: () {
                       Navigator.push(
                         context,

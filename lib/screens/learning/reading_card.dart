@@ -5,8 +5,14 @@ import '../../utils/colors.dart';
 class ReadingCard extends StatelessWidget {
   final Reading reading;
   final VoidCallback? onTap;
+  final bool isContinueReading; // New parameter to indicate if this is in continue reading section
 
-  const ReadingCard({super.key, required this.reading, this.onTap});
+  const ReadingCard({
+    super.key, 
+    required this.reading, 
+    this.onTap,
+    this.isContinueReading = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +128,10 @@ class ReadingCard extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  reading.progress > 0 ? "Continue" : "Read Now",
+                  reading.isCompleted
+                      ? "Read Again"
+                      : (isContinueReading ? "Continue Reading" 
+                         : (reading.progress > 0 ? "Continue" : "Read Now")),
                   style: const TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
