@@ -1,3 +1,7 @@
+
+# New: Multiuser/contact_id version for embedding, emotion, and DB save
+
+from http.client import HTTPException
 import os
 import re
 import json
@@ -7,6 +11,7 @@ from typing import Dict
 from datetime import datetime, date
 from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest, GetContactsRequest
+from telethon.tl.functions.messages import GetHistoryRequest
 from telethon.tl.types import InputPhoneContact
 from telethon.errors import (
     PhoneNumberBannedError,
@@ -17,7 +22,10 @@ from services.RAGPipeline import rag
 from model.message import Message
 from core.db_connection import engine
 from sqlmodel import Session, select
+from model.telegram_sessions import TelegramSession
+import http.client
 
+from telethon.sessions import StringSession
 # Config
 API_ID = os.getenv('api_id')
 API_HASH = os.getenv('api_hash')
@@ -26,43 +34,42 @@ os.makedirs(SESSION_DIR, exist_ok=True)
 
 active_clients: Dict[str, TelegramClient] = {}
 user_cache: Dict[str, str] = {}  # phone_number -> firebase_uid cache
+client_locks: Dict[str, asyncio.Lock] = {}  # Locks for thread-safe client access
+cache_lock: asyncio.Lock = asyncio.Lock()  # Lock for user cache access
 
-def get_client(phone: str) -> TelegramClient:
-    # Use SESSION_DIR for storing session files
-    normalized_phone = phone.replace('+', '').replace('-', '').replace(' ', '')
-    session_file = os.path.join(SESSION_DIR, normalized_phone)
+async def get_client(user_id: str, db: Session) -> TelegramClient:
+    """
+    Returns an active TelegramClient loaded from DB session_data.
+    Caches it in memory for reuse. Thread-safe with per-user lock.
+    """
+    # Ensure lock exists
+    if user_id not in client_locks:
+        client_locks[user_id] = asyncio.Lock()
+
+    async with client_locks[user_id]:
+        if user_id in active_clients:
+            return active_clients[user_id]
+
+        # Look up DB session
+        stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
+        db_session = db.exec(stmt).first()
+
+        if not db_session or not db_session.session_data:
+            raise HTTPException(status_code=404, detail="No saved Telegram session found")
+
+        # Create client from DB session
+        client = TelegramClient(StringSession(db_session.session_data), API_ID, API_HASH)
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            raise HTTPException(status_code=401, detail="Session expired, please log in again")
+
+        # Cache for reuse
+        active_clients[user_id] = client
+        return client
     
-    if normalized_phone in active_clients:
-        return active_clients[normalized_phone]
     
-    # Create new client with session file in SESSION_DIR
-    client = TelegramClient(session_file, API_ID, API_HASH)
-    active_clients[normalized_phone] = client
-    return client
-
-async def start_auth_session(phone_number: str):
-    client = get_client(phone_number)
-    await client.connect()
-    try:
-        await client.send_code_request(phone_number)
-    except PhoneNumberBannedError:
-        raise ValueError("Phone number is banned.")
-
-async def verify_auth_code(phone_number: str, code: str = None, password: str = None, firebase_user_id: str = None):
-    client = get_client(phone_number)
-    await client.connect()
-    try:
-        user = await client.sign_in(phone_number, code, password=password)
-        
-        if firebase_user_id:
-            await save_phone_user_mapping(firebase_user_id, phone_number, user.first_name)
-        
-        return {"user_id": user.id, "first_name": user.first_name}
-    except SessionPasswordNeededError:
-        return {"password_required": True}
-    except PhoneCodeInvalidError:
-        raise ValueError("Invalid code.")
-
 async def save_phone_user_mapping(firebase_uid:str, phone_number: str, first_name: str):
     try:
         with Session(engine) as session:
@@ -84,7 +91,7 @@ async def save_phone_user_mapping(firebase_uid:str, phone_number: str, first_nam
         print(f"Error saving user mapping: {e}")
 
 async def is_user_authenticated(phone_number: str) -> dict:
-    client = get_client(phone_number)
+    client = await get_client(phone_number)
     await client.connect()
     
     if await client.is_user_authorized():
@@ -93,29 +100,13 @@ async def is_user_authenticated(phone_number: str) -> dict:
     
     return {"authenticated": False}
 
-async def get_user_contacts(phone_number: str ) -> list:
-    client = get_client(phone_number)
-    await client.connect()
-    if not await client.is_user_authorized():
-        raise PermissionError("User not authenticated.")
-
-    result = await client(GetContactsRequest(hash=0))
-    contacts = []
-    if hasattr(result, 'users'):
-        for user in result.users:
-            contacts.append({
-                "id": user.id,
-                "name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
-                "username": getattr(user, 'username', None),
-                "phone": getattr(user, 'phone', None),
-            })
-    return contacts
 
 async def find_firebase_user_by_phone(phone_number: str) -> str:
-    # Check cache first
-    if phone_number in user_cache:
-        return user_cache[phone_number]
-        
+    # Check cache first with lock
+    async with cache_lock:
+        if phone_number in user_cache:
+            return user_cache[phone_number]
+    
     try:
         with Session(engine) as session:
             from model.userinfo import UserInfo
@@ -123,8 +114,9 @@ async def find_firebase_user_by_phone(phone_number: str) -> str:
             stmt = select(UserInfo).where(UserInfo.MobileNumber == phone_number)
             user = session.exec(stmt).first()
             if user and user.UserId:
-                # Cache the result before returning
-                user_cache[phone_number] = user.UserId
+                # Cache the result before returning with lock
+                async with cache_lock:
+                    user_cache[phone_number] = user.UserId
                 return user.UserId
             return None
     except Exception as e:
@@ -138,13 +130,16 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
     - emotion_outputs: list of dicts {"vector": [...], "labels": {...}, "top": "joy", "interpretation": "..."}
     """
     try:
-        firebase_user_id = await find_firebase_user_by_phone(phone_number)
-        if not firebase_user_id:
-            print(f"No Firebase user found for phone {phone_number}, skipping database save")
-            return []
-
-        message_ids = []
+        # Use user_id directly for saving messages
+        firebase_user_id = phone_number  # phone_number param is now user_id
+        from model.userinfo import UserInfo
         with Session(engine) as session:
+            user = session.get(UserInfo, firebase_user_id)
+            if not user:
+                print(f"No UserInfo found for user_id {firebase_user_id}, skipping database save")
+                return []
+
+            message_ids = []
             for msg_data, sem_embed, emo_out in zip(messages, embeddings, emotion_outputs):
                 # Debug print to check what we're getting
                 print(f"DEBUG - sem_embed type: {type(sem_embed)}, value: {sem_embed}")
@@ -225,7 +220,7 @@ def get_conversation_context(sender: str, receiver: str, limit: int ) -> str:
         return ""
 
 async def get_contact_messages(phone_number: str , contact_data: dict = None) -> dict:
-    client = get_client(phone_number)
+    client = await get_client(phone_number)
     await client.connect()
     if not await client.is_user_authorized():
         raise PermissionError("User not authenticated.")
@@ -351,20 +346,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
         "conversation_context": conversation_context,
         "saved_message_ids": message_ids
     }
-    
-    # Save to file in background (don't await)
-    async def save_to_file():
-        try:
-            os.makedirs("saved_messages", exist_ok=True)
-            filename = f"saved_messages/{user.id}_{re.sub(r'[^a-zA-Z0-9_-]', '_', user.first_name)}.json"
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(response, f, indent=2)
-        except Exception as e:
-            print(f"Error saving to file: {e}")
-            
-    asyncio.create_task(save_to_file())
-    
-    return response
+
 
 async def embed_messages(messages: list, metadata: dict = None):
     """Add messages to the RAG system with embeddings"""
@@ -379,6 +361,149 @@ async def embed_messages(messages: list, metadata: dict = None):
                 "message_id": str(uuid.uuid4())
             })
             rag.add_document(message['text'], metadata=msg_metadata)
+            
+            
+            
+            
+            
+            
+            
+
+async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session = None) -> dict:
+    """
+    Fetch last 10 messages with a contact (by contact_id), create semantic and emotion embeddings, save to DB, and return results.
+    """
+    # Use provided db session or create one
+    local_db = db is None
+    if local_db:
+        db = Session(engine)
+    try:
+        client = await get_client(user_id, db)
+        await client.connect()
+        if not await client.is_user_authorized():
+            raise PermissionError("User not authenticated.")
+
+        me = await client.get_me()
+        receiver = await client.get_entity(contact_id)
+
+        history = await client(GetHistoryRequest(
+            peer=contact_id,
+            limit=10,
+            offset_date=None,
+            offset_id=0,
+            max_id=0,
+            min_id=0,
+            add_offset=0,
+            hash=0
+        ))
+
+        messages = []
+        message_texts = []
+        for m in history.messages:
+            if not m.message:
+                continue
+            sender = me.first_name if getattr(m.from_id, "user_id", None) == me.id else receiver.first_name
+            receiver_name = receiver.first_name if getattr(m.from_id, "user_id", None) == me.id else me.first_name
+            message_data = {
+                "from": sender,
+                "to": receiver_name,
+                "date": m.date.isoformat(),
+                "text": m.message
+            }
+            messages.append(message_data)
+            message_texts.append(m.message)
+
+        message_ids = []
+        if message_texts:
+            try:
+                embedding_vectors = []
+                for text in message_texts:
+                    try:
+                        embed = rag._embed(text)
+                        embedding_vectors.append(embed)
+                    except Exception as e:
+                        print(f"ERROR - Failed to create embedding for text '{text[:50]}...': {e}")
+                        embedding_vectors.append([0.0] * 1024)
+
+                emotion_outputs = []
+                for text in message_texts:
+                    try:
+                        emotion_data = rag.get_emotion_data(text)
+                        from services.emotion_pipeline import analyze_emotion, interpretation
+                        emotion_analysis = analyze_emotion(text)
+                        if emotion_analysis.get("pipeline_success"):
+                            interpretation_text = interpretation(emotion_analysis)
+                            emotion_data["interpretation"] = interpretation_text
+                        else:
+                            emotion_data["interpretation"] = "Failed to analyze emotion for this message."
+                        emotion_outputs.append(emotion_data)
+                    except Exception as e:
+                        print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")
+                        emotion_result = {
+                            "vector": [0.0] * 7,
+                            "labels": {
+                                "joy": 0.0, "sadness": 0.0, "anger": 0.0,
+                                "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
+                                "neutral": 1.0
+                            },
+                            "top": "neutral",
+                            "interpretation": "Unable to analyze emotion for this message."
+                        }
+                        emotion_outputs.append(emotion_result)
+
+                message_ids = await save_messages_to_db(messages, user_id, embedding_vectors, emotion_outputs)
+
+                # Add to RAG system in batch only if save was successful
+                if message_ids:
+                    rag_documents = []
+                    for i, (msg, embedding) in enumerate(zip(messages, embedding_vectors)):
+                        try:
+                            msg_id = message_ids[i]
+                            metadata = {
+                                "sender": msg["from"],
+                                "receiver": msg["to"],
+                                "date": msg["date"],
+                                "message_id": msg_id
+                            }
+                            rag_documents.append((message_texts[i], metadata))
+                        except IndexError:
+                            continue
+                    for doc, metadata in rag_documents:
+                        rag.add_document(doc, metadata=metadata)
+            except Exception as e:
+                print(f"ERROR - Failed to process embeddings: {e}")
+
+        conversation_context = get_conversation_context(me.first_name, receiver.first_name, 50)
+
+        return {
+            "sender": me.first_name,
+            "receiver": receiver.first_name,
+            "messages": messages,
+            "conversation_context": conversation_context,
+            "saved_message_ids": message_ids
+        }
+    finally:
+        if local_db:
+            db.close()        
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
 
 # New helper function to get messages with interpretations
 async def get_messages_with_interpretations(user_id: str, limit: int = 50) -> list:
