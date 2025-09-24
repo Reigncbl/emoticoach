@@ -9,6 +9,5 @@ class UserInfo(SQLModel, table=True):
     FirstName: str = Field(max_length=100)  # Required field
     LastName: str = Field(max_length=100)   # Required field
     MobileNumber: Optional[str] = Field(default=None, max_length=20)
-    TelegramUserId: Optional[str] = Field(default=None, max_length=50)  # New field
     PasswordHash: Optional[str] = Field(default=None)  # TEXT field
     CreatedAt: date = Field()  # Required field

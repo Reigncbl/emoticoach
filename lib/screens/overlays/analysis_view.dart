@@ -213,7 +213,7 @@ class _AnalysisViewState extends State<AnalysisView> {
 
       // Check if this message is from the contact (not from "reign" which is the user)
       final isFromContact =
-          from.toLowerCase() != 'reign' &&
+          from.toLowerCase() != '' &&
           from.toLowerCase() != widget.userPhoneNumber.replaceAll('+', '') &&
           messageText.isNotEmpty;
 

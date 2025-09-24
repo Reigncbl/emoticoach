@@ -1,26 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/scenario_models.dart';
 import 'package:emoticoach/models/reading_model.dart';
+import '../config/api_config.dart';
 
 class APIService {
   final http.Client _client;
   late String baseUrl;
 
   APIService({http.Client? client}) : _client = client ?? http.Client() {
-    // Set base URL based on platform
-    if (kIsWeb) {
-      baseUrl = "http://localhost:8000"; // Web
-    } else if (Platform.isAndroid) {
-      baseUrl = "http://10.0.2.2:8000"; // Android emulator
-    } else if (Platform.isIOS) {
-      baseUrl = "http://localhost:8000"; // iOS simulator
-    } else {
-      baseUrl = "http://localhost:8000"; // Desktop/other
-    }
-
+    // Use centralized base URL from ApiConfig
+    baseUrl = ApiConfig.baseUrl;
     print('APIService initialized with baseUrl: $baseUrl');
   }
 

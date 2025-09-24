@@ -19,7 +19,7 @@ def get_messages_for_conversation(user_id: str, contact_name: str, limit: int = 
                     Message.Receiver == contact_name,
                 )
             )
-            .order_by(Message.DateSent.desc())
+            .order_by(Message.DateSent.asc())
             .limit(limit)
         )
         if start_time:

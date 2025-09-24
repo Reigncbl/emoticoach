@@ -45,6 +45,9 @@ class _OverlayUIState extends State<OverlayUI> {
       child: _showEditScreen
           ? EditOverlayScreen(
               initialText: 'User text not loaded',
+              selectedContact: _selectedContact,
+              contactPhone: _selectedContactPhone,
+              userPhoneNumber: _userPhoneNumber,
               onBack: _goBackToMainScreen,
             )
           : (_currentShape == BoxShape.circle
