@@ -149,7 +149,7 @@ class SimpleRAG:
             resp = self.client.chat.completions.create(model=self.model, messages=[
                 {"role": "system", "content": "You are a helpful emotional AI coach. Mimic the user's style in your response."},
                 {"role": "user", "content": prompt}
-            ], temperature=0.7, max_tokens=500)
+            ], temperature=0.7, max_tokens=400)
             return resp.choices[0].message.content
         except Exception as e:
             return f"Error: {e}"

@@ -4,6 +4,9 @@ import '../utils/colors.dart';
 import '../utils/user_data_mixin.dart';
 import '../main.dart';
 import '../controllers/learning_navigation_controller.dart';
+import '../services/api_service.dart';
+import '../services/session_service.dart';
+import '../widgets/telegram_verification_widget.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,10 +16,196 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with UserDataMixin {
+  final APIService _apiService = APIService();
+  bool _isTelegramAuthenticated = false;
+  bool _isCheckingTelegramAuth = true;
+  String? _userPhoneNumber;
+
   @override
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
+    _checkTelegramAuthentication();
+  }
+
+  Future<void> _checkTelegramAuthentication() async {
+    try {
+      // Get user phone number from session
+      final phoneNumber = await SimpleSessionService.getUserPhone();
+      if (phoneNumber != null) {
+        setState(() {
+          _userPhoneNumber = phoneNumber;
+        });
+
+        // Check Telegram authentication status
+        final result = await _apiService.getTelegramStatus(phoneNumber);
+
+        setState(() {
+          _isTelegramAuthenticated = result['authenticated'] ?? false;
+          _isCheckingTelegramAuth = false;
+        });
+
+        // Show modal if not authenticated
+        if (!_isTelegramAuthenticated && mounted) {
+          _showTelegramAuthModal();
+        }
+      } else {
+        setState(() {
+          _isCheckingTelegramAuth = false;
+        });
+      }
+    } catch (e) {
+      print('Error checking Telegram authentication: $e');
+      setState(() {
+        _isCheckingTelegramAuth = false;
+      });
+    }
+  }
+
+  void _showTelegramAuthModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Icon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: kBrightBlue.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.telegram, size: 48, color: kBrightBlue),
+                ),
+                const SizedBox(height: 20),
+
+                // Title
+                Text(
+                  'Telegram Authentication Required',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: kBlack,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+
+                // Description
+                Text(
+                  'To access EmotiCoach\'s full features including message analysis and AI suggestions, you need to authenticate with Telegram first.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                        },
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: kBrightBlue),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: Text(
+                          'Later',
+                          style: TextStyle(
+                            color: kBrightBlue,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showTelegramVerificationDialog();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kBrightBlue,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Authenticate Now',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showTelegramVerificationDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Container(
+          margin: const EdgeInsets.all(16),
+          child: TelegramVerificationWidget(
+            userMobileNumber: _userPhoneNumber,
+            onVerificationSuccess: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _isTelegramAuthenticated = true;
+              });
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Telegram connected successfully!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            onCancel: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -665,4 +854,3 @@ class AchievementCard extends StatelessWidget {
     );
   }
 }
-
