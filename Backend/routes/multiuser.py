@@ -141,7 +141,7 @@ async def get_me(user_id: str = Query(...), db: Session = Depends(get_db)):
 
     try:
         me = await client.get_me()
-        return {"id": me.id, "username": me.username, "phone": me.phone}
+        return {"id": user_id, "username": me.username, "phone": me.phone}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error fetching user: {e}")
     finally:

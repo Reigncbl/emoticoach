@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ic.dart';
 import '../utils/colors.dart';
+import '../utils/auth_utils.dart';
 import 'settings.dart';
 import 'dart:ui';
 import '../widgets/telegram_verification_widget.dart';
 import '../utils/user_data_mixin.dart';
 import '../services/session_service.dart';
-import '../services/api_service.dart';
+import '../services/telegram_service.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
@@ -19,7 +20,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
 
   // === TELEGRAM INTEGRATION STATE ===
   bool _isTelegramVerified = false; // Track verification status
@@ -86,9 +87,20 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
         print('📞 Checking Telegram status for: $phoneNumber');
 
+        // Get userId using safe method that prioritizes session data
+        String? userId = await AuthUtils.getSafeUserId();
+
+        if (userId == null || userId.isEmpty) {
+          setState(() {
+            _isTelegramVerified = false;
+            _isCheckingTelegramAuth = false;
+          });
+          return;
+        }
+
         // Check Telegram authentication status with timeout handling
-        final result = await _apiService
-            .getTelegramStatus(phoneNumber)
+        final result = await _telegramService
+            .getMe(userId: userId)
             .timeout(
               const Duration(seconds: 10),
               onTimeout: () {
@@ -104,7 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
         print('✅ Telegram status result: $result');
 
         setState(() {
-          _isTelegramVerified = result['authenticated'] ?? false;
+          _isTelegramVerified = result['id'] != null;
           _isCheckingTelegramAuth = false;
         });
       } else {
@@ -1219,5 +1231,11 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _telegramService.dispose();
+    super.dispose();
   }
 }

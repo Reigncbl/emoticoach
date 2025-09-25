@@ -431,7 +431,8 @@ class _OverlayScreenState extends State<OverlayScreen>
                                     enableDrag: true,
                                     overlayTitle: "Emoticoach",
                                     overlayContent: 'Overlay Enabled',
-                                    flag: OverlayFlag.defaultFlag,
+                                    flag: OverlayFlag
+                                        .focusPointer, // Enable keyboard input and focus
                                     alignment: OverlayAlignment.topLeft,
                                     positionGravity: PositionGravity.left,
                                     height: 200,

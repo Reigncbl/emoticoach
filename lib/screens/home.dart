@@ -1,10 +1,10 @@
 import 'dart:ui';
-import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 import '../utils/user_data_mixin.dart';
+import '../utils/auth_utils.dart';
 import '../main.dart';
 import '../controllers/learning_navigation_controller.dart';
-import '../services/api_service.dart';
+import '../services/telegram_service.dart';
 import '../services/session_service.dart';
 import '../widgets/telegram_verification_widget.dart';
 
@@ -16,7 +16,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with UserDataMixin {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
   bool _isTelegramAuthenticated = false;
   bool _isCheckingTelegramAuth = true;
   String? _userPhoneNumber;
@@ -30,6 +30,9 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
 
   Future<void> _checkTelegramAuthentication() async {
     try {
+      // Wait a bit to ensure Firebase is fully initialized
+      await Future.delayed(const Duration(milliseconds: 500));
+
       // Get user phone number from session
       final phoneNumber = await SimpleSessionService.getUserPhone();
       if (phoneNumber != null) {
@@ -37,17 +40,27 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
           _userPhoneNumber = phoneNumber;
         });
 
-        // Check Telegram authentication status
-        final result = await _apiService.getTelegramStatus(phoneNumber);
+        // Get userId from session first (preferred method)
+        String? userId = await AuthUtils.getSafeUserId();
 
-        setState(() {
-          _isTelegramAuthenticated = result['authenticated'] ?? false;
-          _isCheckingTelegramAuth = false;
-        });
+        if (userId != null && userId.isNotEmpty) {
+          final result = await _telegramService.getMe(userId: userId);
 
-        // Show modal if not authenticated
-        if (!_isTelegramAuthenticated && mounted) {
-          _showTelegramAuthModal();
+          setState(() {
+            _isTelegramAuthenticated = result['id'] != null;
+            _isCheckingTelegramAuth = false;
+          });
+
+          // Show modal if not authenticated
+          if (!_isTelegramAuthenticated && mounted) {
+            _showTelegramAuthModal();
+          }
+        } else {
+          print('No valid userId found in session or Firebase');
+          setState(() {
+            _isTelegramAuthenticated = false;
+            _isCheckingTelegramAuth = false;
+          });
         }
       } else {
         setState(() {
@@ -57,6 +70,7 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
     } catch (e) {
       print('Error checking Telegram authentication: $e');
       setState(() {
+        _isTelegramAuthenticated = false;
         _isCheckingTelegramAuth = false;
       });
     }
@@ -120,27 +134,29 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                 // Buttons
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(color: kBrightBlue),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: kBrightBlue),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 24,
                         ),
-                        child: Text(
-                          'Later',
-                          style: TextStyle(
-                            color: kBrightBlue,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Later',
+                        style: TextStyle(
+                          color: kBrightBlue,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
+
                     const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton(
@@ -156,7 +172,7 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                           ),
                         ),
                         child: const Text(
-                          'Authenticate Now',
+                          'Authenticate',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -604,6 +620,12 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _telegramService.dispose();
+    super.dispose();
   }
 }
 

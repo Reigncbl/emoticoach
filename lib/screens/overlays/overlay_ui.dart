@@ -19,6 +19,7 @@ class _OverlayUIState extends State<OverlayUI> {
   bool _showContactsList = false; // Add contacts list state
   String _selectedContact = ''; // Track selected contact
   String _selectedContactPhone = ''; // Track selected contact phone
+  int _selectedContactId = 0; // Track selected contact ID
   String _userPhoneNumber = ''; // User's phone number from session
   SendPort? homePort;
 
@@ -117,6 +118,7 @@ class _OverlayUIState extends State<OverlayUI> {
     setState(() {
       _selectedContact = contact['name'] ?? 'Unknown Contact';
       _selectedContactPhone = contact['phone'] ?? '';
+      _selectedContactId = contact['id'] ?? 0;
       _showContactsList = false;
     });
   }
@@ -135,6 +137,7 @@ class _OverlayUIState extends State<OverlayUI> {
       _currentShape = BoxShape.circle;
       _showContactsList = false;
       _selectedContact = '';
+      _selectedContactId = 0;
     });
   }
 
@@ -176,6 +179,7 @@ class _OverlayUIState extends State<OverlayUI> {
     return AnalysisView(
       selectedContact: _selectedContact,
       contactPhone: _selectedContactPhone,
+      contactId: _selectedContactId,
       userPhoneNumber: _userPhoneNumber,
       onClose: _closeOverlay,
       onEdit: _goToEditScreen,

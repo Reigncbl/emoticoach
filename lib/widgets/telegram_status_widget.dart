@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
+import '../services/telegram_service.dart';
 import '../utils/colors.dart';
+import '../utils/auth_utils.dart';
 
 class TelegramStatusWidget extends StatefulWidget {
   final String? userMobileNumber;
@@ -19,7 +20,7 @@ class TelegramStatusWidget extends StatefulWidget {
 }
 
 class _TelegramStatusWidgetState extends State<TelegramStatusWidget> {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
 
   bool _isLoading = true;
   bool _isAuthenticated = false;
@@ -47,13 +48,23 @@ class _TelegramStatusWidgetState extends State<TelegramStatusWidget> {
     });
 
     try {
-      final result = await _apiService.getTelegramStatus(
-        widget.userMobileNumber!,
-      );
+      // Get userId using safe method that prioritizes session data
+      String? userId = await AuthUtils.getSafeUserId();
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _isAuthenticated = false;
+          _isLoading = false;
+          _errorMessage = 'User not authenticated. Please log in again.';
+        });
+        return;
+      }
+
+      final result = await _telegramService.getMe(userId: userId);
 
       setState(() {
-        _isAuthenticated = result['authenticated'] ?? false;
-        _telegramUser = result['user'];
+        _isAuthenticated = result['id'] != null;
+        _telegramUser = result['first_name'] ?? result['username'];
         _isLoading = false;
       });
     } catch (e) {
@@ -307,5 +318,11 @@ class _TelegramStatusWidgetState extends State<TelegramStatusWidget> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _telegramService.dispose();
+    super.dispose();
   }
 }

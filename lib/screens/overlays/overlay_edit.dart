@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import '../../utils/colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import '../../services/api_service.dart';
+import '../../services/telegram_service.dart';
 
 class EditOverlayScreen extends StatefulWidget {
   final String initialText;
@@ -25,7 +25,7 @@ class EditOverlayScreen extends StatefulWidget {
 }
 
 class _EditOverlayScreenState extends State<EditOverlayScreen> {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
   late TextEditingController _responseController;
   late TextEditingController _shortenController;
   late FocusNode _textFieldFocusNode;
@@ -43,17 +43,30 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
 
     // Add a slight delay to ensure the overlay is fully initialized
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _configureAndroidOverlayFlags();
       _setupInputFocus();
     });
+  }
+
+  Future<void> _configureAndroidOverlayFlags() async {
+    try {
+      const platform = MethodChannel('com.example.emoticoach/overlay');
+      await platform.invokeMethod('configureOverlayFlags');
+      debugPrint('✅ Android overlay flags configured for keyboard input');
+    } catch (e) {
+      debugPrint('❌ Error configuring Android overlay flags: $e');
+    }
   }
 
   void _setupInputFocus() {
     // Ensure the text field can receive focus in overlay context
     if (mounted) {
-      _textFieldFocusNode.requestFocus();
-      Future.delayed(const Duration(milliseconds: 100), () {
+      // Wait a bit longer for Android overlay configuration to take effect
+      Future.delayed(const Duration(milliseconds: 200), () {
         if (mounted) {
-          _textFieldFocusNode.unfocus();
+          _textFieldFocusNode.requestFocus();
+          // Try to force keyboard display
+          SystemChannels.textInput.invokeMethod('TextInput.show');
         }
       });
     }
@@ -65,23 +78,32 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
         _isLoading = true;
       });
 
-      final nameParts = widget.selectedContact.split(' ');
-      final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      // For now, using a placeholder approach since we need userId and contactId
+      // In a real implementation, these would be passed from the parent widget
+      // or retrieved from user session/preferences
+      final userId =
+          widget.userPhoneNumber; // Using phone as userId temporarily
 
-      final response = await _apiService.getTelegramMessages(
-        phoneNumber: widget.userPhoneNumber,
-        contactPhone: widget.contactPhone,
-        firstName: firstName,
-        lastName: lastName,
+      // Extract contact ID from contact phone or use a default approach
+      // This is a temporary solution - in production, contactId should be passed properly
+      int contactId;
+      try {
+        contactId = int.parse(
+          widget.contactPhone.replaceAll(RegExp(r'[^\d]'), ''),
+        );
+      } catch (e) {
+        contactId = widget.contactPhone.hashCode.abs(); // Fallback to hash
+      }
+
+      final response = await _telegramService.appendLatestContactMessage(
+        userId: userId,
+        contactId: contactId,
       );
 
       if (response['success'] == true) {
-        final responseData = response['data'] ?? response;
-        final messages = responseData['messages'] as List<dynamic>? ?? [];
-        final latestMessage = _getLatestContactMessage(messages);
+        final data = response['data'];
+        final latestMessage =
+            data['text'] ?? data['message'] ?? 'No message available';
 
         setState(() {
           _latestMessage = latestMessage;
@@ -99,24 +121,6 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
         _isLoading = false;
       });
     }
-  }
-
-  String _getLatestContactMessage(List<dynamic> messages) {
-    for (int i = 0; i < messages.length; i++) {
-      final message = messages[i];
-      final from = message['from']?.toString() ?? '';
-      final messageText = message['text']?.toString() ?? '';
-
-      final isFromContact =
-          from.toLowerCase() != '' &&
-          from.toLowerCase() != widget.userPhoneNumber.replaceAll('+', '') &&
-          messageText.isNotEmpty;
-
-      if (isFromContact) {
-        return messageText;
-      }
-    }
-    return 'No recent messages found';
   }
 
   Future<void> _modifyResponse(String instruction) async {
@@ -162,6 +166,7 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
     _responseController.dispose();
     _shortenController.dispose();
     _textFieldFocusNode.dispose();
+    _telegramService.dispose();
     super.dispose();
   }
 

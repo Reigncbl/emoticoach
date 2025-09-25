@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:emoticoach/services/api_service.dart';
+import 'package:emoticoach/services/telegram_service.dart';
 import 'package:emoticoach/utils/colors.dart';
+import 'package:emoticoach/utils/auth_utils.dart';
 
 class ContactsListView extends StatefulWidget {
   final Function(Map<String, dynamic>) onContactSelected;
@@ -20,7 +21,7 @@ class ContactsListView extends StatefulWidget {
 }
 
 class _ContactsListViewState extends State<ContactsListView> {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
 
   List<Map<String, dynamic>> _contacts = [];
   bool _isLoading = true;
@@ -67,25 +68,33 @@ class _ContactsListViewState extends State<ContactsListView> {
     try {
       // First check if user is authenticated with Telegram
       print('Checking Telegram authentication status...');
-      final statusResult = await _apiService.getTelegramStatus(
-        widget.userMobileNumber!,
-      );
+
+      // Get userId using safe method that prioritizes session data
+      String? userId = await AuthUtils.getSafeUserId();
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'User not authenticated. Please log in again.';
+        });
+        return;
+      }
+
+      final statusResult = await _telegramService.getMe(userId: userId);
 
       print('Status result: $statusResult');
 
-      if (statusResult['success'] == true &&
-          statusResult['authenticated'] == true) {
+      if (statusResult['id'] != null) {
         print('User is authenticated, fetching contacts...');
 
         // Get Telegram contacts
-        final contactsResult = await _apiService.getTelegramContacts(
-          widget.userMobileNumber!,
+        final contactsResult = await _telegramService.getContacts(
+          userId: userId,
         );
 
         print('Contacts result: $contactsResult');
 
-        if (contactsResult['success'] == true &&
-            contactsResult['contacts'] != null) {
+        if (contactsResult['contacts'] != null) {
           final telegramContacts = contactsResult['contacts'] as List;
 
           setState(() {
@@ -656,5 +665,11 @@ class _ContactsListViewState extends State<ContactsListView> {
           ),
       ],
     );
+  }
+
+  @override
+  void dispose() {
+    _telegramService.dispose();
+    super.dispose();
   }
 }

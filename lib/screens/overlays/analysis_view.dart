@@ -3,13 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:emoticoach/services/api_service.dart';
+import 'package:emoticoach/services/telegram_service.dart';
 import 'package:emoticoach/utils/colors.dart';
 import 'package:emoticoach/utils/overlay_stats_tracker.dart';
+import 'package:emoticoach/utils/auth_utils.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AnalysisView extends StatefulWidget {
   final String selectedContact;
   final String contactPhone;
+  final int contactId;
   final String userPhoneNumber;
   final VoidCallback onClose;
   final VoidCallback onEdit;
@@ -19,6 +22,7 @@ class AnalysisView extends StatefulWidget {
     super.key,
     required this.selectedContact,
     required this.contactPhone,
+    required this.contactId,
     required this.userPhoneNumber,
     required this.onClose,
     required this.onEdit,
@@ -31,6 +35,7 @@ class AnalysisView extends StatefulWidget {
 
 class _AnalysisViewState extends State<AnalysisView> {
   final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
   bool _isLoading = true;
   String _errorMessage = '';
   String _latestMessage = '';
@@ -44,6 +49,9 @@ class _AnalysisViewState extends State<AnalysisView> {
   bool _messageAnalysisEnabled = false;
   bool _smartSuggestionsEnabled = false;
   bool _toneAdjusterEnabled = false;
+
+  // Test input controller
+  final TextEditingController _testInputController = TextEditingController();
   bool _settingsLoaded = false; // Track if settings are loaded
   Timer? _settingsTimer; // Timer for periodic settings check
 
@@ -87,6 +95,8 @@ class _AnalysisViewState extends State<AnalysisView> {
   @override
   void dispose() {
     _settingsTimer?.cancel(); // Clean up timer
+    _testInputController.dispose();
+    _telegramService.dispose();
     super.dispose();
   }
 
@@ -101,10 +111,12 @@ class _AnalysisViewState extends State<AnalysisView> {
       if (newAnalysis != _messageAnalysisEnabled ||
           newSuggestions != _smartSuggestionsEnabled ||
           newTone != _toneAdjusterEnabled) {
-        print('🔄 Settings changed detected! Updating UI...');
-        print('  Analysis: $_messageAnalysisEnabled -> $newAnalysis');
-        print('  Suggestions: $_smartSuggestionsEnabled -> $newSuggestions');
-        print('  Tone: $_toneAdjusterEnabled -> $newTone');
+        debugPrint('🔄 Settings changed detected! Updating UI...');
+        debugPrint('  Analysis: $_messageAnalysisEnabled -> $newAnalysis');
+        debugPrint(
+          '  Suggestions: $_smartSuggestionsEnabled -> $newSuggestions',
+        );
+        debugPrint('  Tone: $_toneAdjusterEnabled -> $newTone');
 
         setState(() {
           _messageAnalysisEnabled = newAnalysis;
@@ -113,7 +125,7 @@ class _AnalysisViewState extends State<AnalysisView> {
         });
       }
     } catch (e) {
-      print('❌ Error checking settings: $e');
+      debugPrint('❌ Error checking settings: $e');
     }
   }
 
@@ -132,11 +144,11 @@ class _AnalysisViewState extends State<AnalysisView> {
         _toneAdjusterEnabled = prefs.getBool(_toneAdjusterKey) ?? false;
         _settingsLoaded = true; // Mark settings as loaded
       });
-      print(
+      debugPrint(
         '✅ Analysis view settings loaded - Analysis: $_messageAnalysisEnabled, Suggestions: $_smartSuggestionsEnabled, Tone: $_toneAdjusterEnabled',
       );
     } catch (e) {
-      print('❌ Error loading analysis view settings: $e');
+      debugPrint('❌ Error loading analysis view settings: $e');
       setState(() {
         _settingsLoaded = true; // Still mark as loaded to show UI
       });
@@ -150,22 +162,26 @@ class _AnalysisViewState extends State<AnalysisView> {
         _errorMessage = '';
       });
 
-      final nameParts = widget.selectedContact.split(' ');
-      final firstName = nameParts.isNotEmpty ? nameParts[0] : '';
-      final lastName = nameParts.length > 1
-          ? nameParts.sublist(1).join(' ')
-          : '';
+      // Get userId using safe method that prioritizes session data
+      String? userId = await AuthUtils.getSafeUserId();
 
-      final response = await _apiService.getTelegramMessages(
-        phoneNumber: widget.userPhoneNumber,
-        contactPhone: widget.contactPhone,
-        firstName: firstName,
-        lastName: lastName,
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // Use the actual contact ID from Telegram API instead of parsing phone number
+      final contactId = widget.contactId;
+
+      final response = await _telegramService.getContactMessages(
+        userId: userId,
+        contactId: contactId,
       );
 
-      if (response['success'] == true) {
-        final responseData = response['data'] ?? response;
-        final messages = responseData['messages'] as List<dynamic>? ?? [];
+      if (response['messages'] != null) {
+        final messages = response['messages'] as List<dynamic>? ?? [];
         final latestMessage = _getLatestContactMessage(messages);
 
         setState(() {
@@ -198,14 +214,14 @@ class _AnalysisViewState extends State<AnalysisView> {
   }
 
   String _getLatestContactMessage(List<dynamic> messages) {
-    // Debug print to see the message structure
-    print('DEBUG: Processing ${messages.length} messages');
-    print('DEBUG: Contact name: ${widget.selectedContact}');
+    // Debug debugPrint to see the message structure
+    debugPrint('DEBUG: Processing ${messages.length} messages');
+    debugPrint('DEBUG: Contact name: ${widget.selectedContact}');
 
     // The messages are already ordered from newest to oldest
     for (int i = 0; i < messages.length; i++) {
       final message = messages[i];
-      print('DEBUG: Message $i: $message');
+      debugPrint('DEBUG: Message $i: $message');
 
       // Get the sender name
       final from = message['from']?.toString() ?? '';
@@ -218,7 +234,9 @@ class _AnalysisViewState extends State<AnalysisView> {
           messageText.isNotEmpty;
 
       if (isFromContact) {
-        print('DEBUG: Found latest message from contact ($from): $messageText');
+        debugPrint(
+          'DEBUG: Found latest message from contact ($from): $messageText',
+        );
         return messageText;
       }
     }
@@ -247,7 +265,7 @@ class _AnalysisViewState extends State<AnalysisView> {
           sessionId: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
         );
 
-        print('✅ Tracked message analysis event');
+        debugPrint('✅ Tracked message analysis event');
       } else {
         setState(() {
           _analysisError =
@@ -478,7 +496,9 @@ class _AnalysisViewState extends State<AnalysisView> {
                             Spacer(),
                             GestureDetector(
                               onTap: () async {
-                                print('🔄 Manually refreshing settings...');
+                                debugPrint(
+                                  '🔄 Manually refreshing settings...',
+                                );
                                 await _loadSettings();
                               },
                               child: Container(
@@ -526,6 +546,10 @@ class _AnalysisViewState extends State<AnalysisView> {
                   const SizedBox(height: 10),
                 ],
                 if (_toneAdjusterEnabled) ...[_buildChecklist()],
+
+                // Test TextField for keyboard input validation
+                _buildTestInputSection(),
+
                 // Show a message if no features are enabled
                 if (!_messageAnalysisEnabled &&
                     !_smartSuggestionsEnabled &&
@@ -675,42 +699,32 @@ class _AnalysisViewState extends State<AnalysisView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Text content with simple selection
               SelectableText(
                 responseText,
                 style: const TextStyle(fontSize: 12, color: Colors.black87),
-                contextMenuBuilder:
-                    (
-                      BuildContext context,
-                      EditableTextState editableTextState,
-                    ) {
-                      return AdaptiveTextSelectionToolbar(
-                        anchors: editableTextState.contextMenuAnchors,
-                        children: [
-                          TextSelectionToolbarTextButton(
-                            padding: const EdgeInsets.all(8.0),
-                            onPressed: () {
-                              editableTextState.copySelection(
-                                SelectionChangedCause.toolbar,
-                              );
-                              editableTextState.hideToolbar();
-                            },
-                            child: const Text('Copy'),
-                          ),
-                          TextSelectionToolbarTextButton(
-                            padding: const EdgeInsets.all(8.0),
-                            onPressed: () {
-                              editableTextState.selectAll(
-                                SelectionChangedCause.toolbar,
-                              );
-                              editableTextState.hideToolbar();
-                            },
-                            child: const Text('Select All'),
-                          ),
-                        ],
-                      );
-                    },
               ),
               const SizedBox(height: 8),
+              // Simple copy button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _copyToClipboard(responseText, context),
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: const Text('Copy', style: TextStyle(fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const Spacer(),
+                ],
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -742,7 +756,7 @@ class _AnalysisViewState extends State<AnalysisView> {
                           Colors.green,
                         );
 
-                        print('✅ Tracked suggestion usage event');
+                        debugPrint('✅ Tracked suggestion usage event');
                       } catch (e) {
                         _showCopyFeedbackDialog(
                           'Failed to copy to clipboard',
@@ -767,7 +781,7 @@ class _AnalysisViewState extends State<AnalysisView> {
                             'analysis_${DateTime.now().millisecondsSinceEpoch}',
                       );
 
-                      print('✅ Tracked response rephrasing event');
+                      debugPrint('✅ Tracked response rephrasing event');
 
                       // Call the original edit callback
                       widget.onEdit();
@@ -789,6 +803,116 @@ class _AnalysisViewState extends State<AnalysisView> {
         style: const TextStyle(color: Colors.blue, fontSize: 11, height: 1.3),
       ),
     );
+  }
+
+  Widget _buildTestInputSection() {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '🎹 Keyboard Input Test',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue.shade700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _testInputController,
+                  decoration: const InputDecoration(
+                    hintText: 'Type here to test keyboard input...',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    isDense: true,
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                  maxLines: 2,
+                  onChanged: (value) {
+                    print('💬 Keyboard input: $value');
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {
+                  final text = _testInputController.text;
+                  if (text.isNotEmpty) {
+                    _copyToClipboard(text, context);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Nothing to copy!'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: 'Copy input text',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'This field tests keyboard input functionality in the overlay.',
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.blue.shade600,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method for copying text to clipboard
+  Future<void> _copyToClipboard(String text, BuildContext context) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: text));
+      print(
+        '📋 Copied to clipboard: ${text.length > 50 ? text.substring(0, 50) + "..." : text}',
+      );
+
+      // Show feedback
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📋 Copied to clipboard!'),
+            duration: Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error copying to clipboard: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Failed to copy'),
+            duration: Duration(seconds: 1),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Widget _buildSection({

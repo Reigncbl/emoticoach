@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../services/api_service.dart';
+import '../services/telegram_service.dart';
 import '../utils/colors.dart';
+import '../utils/auth_utils.dart';
 
 class TelegramVerificationWidget extends StatefulWidget {
   final String? userMobileNumber; // The user's app mobile number
@@ -22,7 +23,7 @@ class TelegramVerificationWidget extends StatefulWidget {
 
 class _TelegramVerificationWidgetState
     extends State<TelegramVerificationWidget> {
-  final APIService _apiService = APIService();
+  final TelegramService _telegramService = TelegramService();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _codeController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -47,6 +48,7 @@ class _TelegramVerificationWidgetState
     _phoneController.dispose();
     _codeController.dispose();
     _passwordController.dispose();
+    _telegramService.dispose();
     super.dispose();
   }
 
@@ -65,8 +67,22 @@ class _TelegramVerificationWidgetState
     });
 
     try {
-      final result = await _apiService.startTelegramAuth(
-        _phoneController.text.trim(),
+      final phoneNumber = _phoneController.text.trim();
+
+      // Get userId using safe method that prioritizes session data
+      String? userId = await AuthUtils.getSafeUserId();
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _errorMessage = 'User not authenticated. Please log in again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final result = await _telegramService.requestCode(
+        userId: userId,
+        phoneNumber: phoneNumber,
       );
 
       if (result['success'] == true) {
@@ -105,10 +121,20 @@ class _TelegramVerificationWidgetState
     });
 
     try {
-      final result = await _apiService.verifyTelegramAuth(
-        phoneNumber: _phoneController.text.trim(),
+      // Get userId using safe method that prioritizes session data
+      String? userId = await AuthUtils.getSafeUserId();
+
+      if (userId == null || userId.isEmpty) {
+        setState(() {
+          _errorMessage = 'User not authenticated. Please log in again.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final result = await _telegramService.verifyCode(
+        userId: userId,
         code: _codeController.text.trim(),
-        password: _passwordRequired ? _passwordController.text.trim() : null,
       );
 
       if (result['success'] == true) {
