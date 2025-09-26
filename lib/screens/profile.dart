@@ -9,6 +9,10 @@ import '../widgets/telegram_verification_widget.dart';
 import '../utils/user_data_mixin.dart';
 import '../services/session_service.dart';
 import '../services/telegram_service.dart';
+import '../controllers/experience_controller.dart';
+import '../services/experience_service.dart';
+import '../models/user_experience.dart';
+late final ExperienceController _xpController;
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
 
@@ -21,6 +25,7 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   final TelegramService _telegramService = TelegramService();
+  final ExperienceController _xpController = ExperienceController(ExperienceService());
 
   // === TELEGRAM INTEGRATION STATE ===
   bool _isTelegramVerified = false; // Track verification status
@@ -75,7 +80,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
       ),
     );
   }
-
   Future<void> _checkTelegramAuthentication() async {
     try {
       // Get user phone number from session
@@ -201,7 +205,15 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
+
+
+    _loadExperience();
     _checkTelegramAuthentication(); // Check Telegram authentication status
+  }
+   // 👇 place this here
+  Future<void> _loadExperience() async {
+    await _xpController.loadExperience();
+    setState(() {}); 
   }
 
   // Activity Section Subtitle
@@ -256,7 +268,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   // === UI HELPERS ===
 
   // profile card
-  Widget _profileCard({required String name, required String level}) {
+  Widget _profileCard({required String name, required int level, required String levelName, String? imageUrl,}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -388,6 +400,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                 const SizedBox(height: 6),
 
                 // Level Badge
+                // Level Badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -404,14 +417,30 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Use backend image if available, else fallback to star icon
+                      if (imageUrl != null)
+                      Image.network(
+                        imageUrl,
+                        height: 20,
+                        width: 20,
+                      )
+                    else
                       Icon(Icons.star_outline, size: 16, color: Colors.white),
+
                       const SizedBox(width: 6),
+
+                      // Dynamic font color based on level
                       Text(
-                        level,
+                        "Level $level: $levelName",
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white,
+                          color: () {
+                            if (level >= 1 && level <= 3) return Colors.brown[400]; // Bronze
+                            if (level >= 4 && level <= 6) return Colors.grey[300];  // Silver
+                            if (level >= 7 && level <= 10) return Colors.amber[400]; // Gold
+                            return Colors.white;
+                          }(),
                         ),
                       ),
                     ],
@@ -991,15 +1020,25 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                   // === PROFILE HEADER ===
                   _profileCard(
                     name: displayName,
-                    level: 'Level 7: Comm Expert',
+                    level: _xpController.experience?.level ?? 0,
+                    levelName: _xpController.experience?.levelName ?? "Unknown",
+                    imageUrl: _xpController.experience?.imageUrl,
                   ),
+
+
 
                   const SizedBox(height: 24),
 
                   // === PROGRESS DASHBOARD ===
                   _title(title: 'Progress Dashboard'),
                   // Progress Dashboard Widget
-                  _progressDashboard(progressXp: '1820', totalXp: '3800'),
+                  if (_xpController.experience != null)
+                    _progressDashboard(
+                      progressXp: _xpController.experience!.xp.toString(),
+                      totalXp: _xpController.experience!.nextLevelXp?.toString() ?? _xpController.experience!.xp.toString(),
+                    )
+                  else
+                    const CircularProgressIndicator(),
 
                   // === STATS ROW 1 ===
                   Row(

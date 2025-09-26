@@ -316,7 +316,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       if (user != null) {
         print('🔍 Fetching user details from backend for UID: ${user.uid}');
 
-        // First try to call the backend API to get user details
         final response = await http.get(
           Uri.parse('${ApiConfig.baseUrl}/users/${user.uid}'),
           headers: {'Content-Type': 'application/json'},
@@ -329,22 +328,28 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
           final userData = jsonDecode(response.body);
           final firstName = userData['FirstName'] ?? '';
           final lastName = userData['LastName'] ?? '';
+
           print('✅ Got user data from backend: $firstName $lastName');
+
+          // ✅ Save UID in session for later use
+          if (userData['UserId'] != null) {
+            await SimpleSessionService.updateSessionData(
+              'firebase_uid',
+              userData['UserId'],
+            );
+            print('✅ UID saved in session: ${userData['UserId']}');
+          }
 
           if (firstName.isNotEmpty || lastName.isNotEmpty) {
             return '$firstName $lastName'.trim();
           }
         } else {
-          print(
-            '❌ Backend API call failed: ${response.statusCode} - ${response.body}',
-          );
+          print('❌ Backend API call failed: ${response.statusCode} - ${response.body}');
         }
 
         // Fallback to Firebase displayName if backend fails
         if (user.displayName != null && user.displayName!.isNotEmpty) {
-          print(
-            '🔄 Using Firebase displayName as fallback: ${user.displayName}',
-          );
+          print('🔄 Using Firebase displayName as fallback: ${user.displayName}');
           return user.displayName!;
         }
       }
@@ -355,6 +360,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       return 'User';
     }
   }
+
 
   // Handle successful signup - simplified
   Future<void> _handleSuccessfulSignup() async {
