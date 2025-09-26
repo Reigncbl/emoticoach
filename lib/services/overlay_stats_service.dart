@@ -66,28 +66,26 @@ class OverlayStatsService implements OverlayStatsRepository {
 
   /// Initialize the service
   Future<void> initialize() async {
-    print('🔧 OverlayStatsService.initialize() called');
+    print('OverlayStatsService.initialize() called');
 
     // Prevent multiple simultaneous initializations
     if (_isInitialized || _isInitializing) {
-      print('⚠️ Already initialized or initializing, skipping');
+      print('Already initialized or initializing, skipping');
       return;
     }
 
     _isInitializing = true;
     try {
-      print('📦 Getting SharedPreferences instance...');
       _prefs ??= await SharedPreferences.getInstance();
-      print('✅ SharedPreferences ready');
+      print('SharedPreferences ready');
 
-      print('📚 Loading caches...');
       await _loadCaches();
-      print('✅ Caches loaded');
+      print('Caches loaded');
 
       _isInitialized = true;
-      print('✅ OverlayStatsService initialization complete');
+      print('OverlayStatsService initialization complete');
     } catch (e) {
-      print('❌ Error during initialization: $e');
+      print('Error during initialization: $e');
       throw e;
     } finally {
       _isInitializing = false;
@@ -127,20 +125,17 @@ class OverlayStatsService implements OverlayStatsRepository {
 
   /// Load all caches from storage
   Future<void> _loadCaches() async {
-    print('📂 Loading events cache...');
     await _loadEventsCache();
-    print('📂 Loading config cache...');
     await _loadConfigCache();
-    print('📂 Refreshing statistics cache...');
     await _refreshStatisticsCache();
-    print('✅ All caches loaded');
+    print('All caches loaded');
   }
 
   /// Load events cache from SharedPreferences
   Future<void> _loadEventsCache() async {
     try {
       final eventsJson = _prefs?.getStringList(_eventsKey) ?? [];
-      print('📄 Found ${eventsJson.length} stored events');
+      print('Found ${eventsJson.length} stored events');
 
       _eventsCache = eventsJson
           .map((json) => OverlayUsageEvent.fromJson(jsonDecode(json)))
@@ -148,9 +143,9 @@ class OverlayStatsService implements OverlayStatsRepository {
 
       // Sort by timestamp (newest first)
       _eventsCache!.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      print('✅ Events cache loaded: ${_eventsCache!.length} events');
+      print('Events cache loaded: ${_eventsCache!.length} events');
     } catch (e) {
-      print('❌ Error loading events cache: $e');
+      print('Error loading events cache: $e');
       _eventsCache = [];
     }
   }
@@ -161,13 +156,13 @@ class OverlayStatsService implements OverlayStatsRepository {
       final configJson = _prefs?.getString(_configKey);
       if (configJson != null) {
         _configCache = OverlayStatsConfig.fromJson(jsonDecode(configJson));
-        print('✅ Config loaded from storage');
+        print('Config loaded from storage');
       } else {
         _configCache = OverlayStatsConfig.defaultConfig();
         // Save directly to SharedPreferences without calling saveConfig to avoid circular dependency
         final configJsonToSave = jsonEncode(_configCache!.toJson());
         await _prefs!.setString(_configKey, configJsonToSave);
-        print('✅ Default config created and saved');
+        print('Default config created and saved');
       }
     } catch (e) {
       print('❌ Error loading config cache: $e');
@@ -186,13 +181,10 @@ class OverlayStatsService implements OverlayStatsRepository {
           events,
           period,
         );
-        print(
-          '📊 ${period.name}: ${_statisticsCache![period]!.messagesAnalyzed} messages, ${_statisticsCache![period]!.suggestionsUsed} suggestions, ${_statisticsCache![period]!.responsesRephrased} rephrased',
-        );
       }
-      print('✅ Statistics cache refreshed for all periods');
+      print('Statistics cache refreshed for all periods');
     } catch (e) {
-      print('❌ Error refreshing statistics cache: $e');
+      print('Error refreshing statistics cache: $e');
       _statisticsCache = {};
     }
   }
@@ -230,9 +222,9 @@ class OverlayStatsService implements OverlayStatsRepository {
         _notifyStatisticsUpdated(updatedStats);
       }
 
-      print('✅ Recorded overlay event: ${event.type.name}');
+      print('Recorded overlay event: ${event.type.name}');
     } catch (e) {
-      print('❌ Error recording event: $e');
+      print('Error recording event: $e');
       rethrow;
     }
   }
@@ -297,9 +289,9 @@ class OverlayStatsService implements OverlayStatsRepository {
       await _prefs!.setString(_configKey, configJson);
 
       _notifyConfigUpdated(config);
-      print('✅ Saved overlay config: ${config.selectedPeriod.displayName}');
+      print('Saved overlay config: ${config.selectedPeriod.displayName}');
     } catch (e) {
-      print('❌ Error saving config: $e');
+      print('Error saving config: $e');
       rethrow;
     }
   }
@@ -319,9 +311,9 @@ class OverlayStatsService implements OverlayStatsRepository {
 
       await _refreshStatisticsCache();
 
-      print('✅ Cleared all overlay statistics data');
+      print('Cleared all overlay statistics data');
     } catch (e) {
-      print('❌ Error clearing data: $e');
+      print('Error clearing data: $e');
       rethrow;
     }
   }
@@ -373,7 +365,7 @@ class OverlayStatsService implements OverlayStatsRepository {
         await recordEvent(event);
       }
 
-      print('✅ Generated 100 sample overlay events');
+      print('Generated 100 sample overlay events');
     }
   }
 
@@ -417,9 +409,9 @@ class OverlayStatsService implements OverlayStatsRepository {
         await saveConfig(config);
       }
 
-      print('✅ Imported overlay statistics data');
+      print('Imported overlay statistics data');
     } catch (e) {
-      print('❌ Error importing data: $e');
+      print('Error importing data: $e');
       rethrow;
     }
   }

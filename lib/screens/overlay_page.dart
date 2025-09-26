@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import '../utils/colors.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
-// import '../controllers/app_monitor_controller.dart'; // Commented out - only used for auto-launch
 import '../models/overlay_statistics.dart';
 import '../services/overlay_stats_service.dart';
 import '../utils/overlay_stats_tracker.dart';
@@ -23,16 +23,16 @@ class _OverlayScreenState extends State<OverlayScreen>
   bool messageAnalysisEnabled = false;
   bool smartSuggestionsEnabled = false;
   bool toneAdjusterEnabled = false;
-  // bool autoLaunchEnabled = false; // Commented out - not implementing
+
+  // Platform channel for native overlay integration
+  static const MethodChannel _platform = MethodChannel('emoticoach_service');
+  bool _isNativeOverlayActive = false;
+  bool _isOverlayExpanded = false; // Track overlay state: false = bubble, true = expanded
 
   // Add preference keys
-  static const String _messagingOverlayKey = 'messaging_overlay_enabled';
   static const String _messageAnalysisKey = 'message_analysis_enabled';
   static const String _smartSuggestionsKey = 'smart_suggestions_enabled';
   static const String _toneAdjusterKey = 'tone_adjuster_enabled';
-  // static const String _autoLaunchKey = 'auto_launch_enabled'; // Commented out
-
-  // final AppMonitorController _appMonitor = AppMonitorController(); // Commented out - only used for auto-launch
 
   // Dynamic statistics state
   StatisticsPeriod _selectedPeriod = StatisticsPeriod.pastWeek;
@@ -58,11 +58,10 @@ class _OverlayScreenState extends State<OverlayScreen>
         messageAnalysisEnabled = prefs.getBool(_messageAnalysisKey) ?? false;
         smartSuggestionsEnabled = prefs.getBool(_smartSuggestionsKey) ?? false;
         toneAdjusterEnabled = prefs.getBool(_toneAdjusterKey) ?? false;
-        // autoLaunchEnabled = prefs.getBool(_autoLaunchKey) ?? false; // Commented out
       });
-      print('✅ Settings loaded from preferences');
+      debugPrint('Settings loaded from preferences');
     } catch (e) {
-      print('❌ Error loading settings: $e');
+      debugPrint('Error loading settings: $e');
     }
   }
 
@@ -72,10 +71,112 @@ class _OverlayScreenState extends State<OverlayScreen>
       await prefs.setBool(_messageAnalysisKey, messageAnalysisEnabled);
       await prefs.setBool(_smartSuggestionsKey, smartSuggestionsEnabled);
       await prefs.setBool(_toneAdjusterKey, toneAdjusterEnabled);
-      // await prefs.setBool(_autoLaunchKey, autoLaunchEnabled); // Commented out
-      print('✅ Settings saved to preferences');
+      debugPrint('Settings saved to preferences');
+
+      // Update cache data after saving settings
+      await _updateCacheData();
     } catch (e) {
-      print('❌ Error saving settings: $e');
+      debugPrint('Error saving settings: $e');
+    }
+  }
+
+  Future<void> _updateCacheData() async {
+    try {
+      // Update the configuration with current settings
+      final statsService = OverlayStatsService.instance;
+      final config = await statsService.getConfig();
+      final updatedConfig = config.copyWith(lastRefresh: DateTime.now());
+
+      // Save updated config to cache
+      await statsService.saveConfig(updatedConfig);
+
+      // Refresh statistics cache to reflect any changes
+      await _loadStatistics();
+
+      debugPrint('Cache data updated after settings change');
+    } catch (e) {
+      debugPrint('Error updating cache data: $e');
+    }
+  }
+
+  // Native overlay integration methods
+  Future<void> _showNativeOverlay() async {
+    try {
+      await _platform.invokeMethod('showNativeOverlay');
+      setState(() {
+        _isNativeOverlayActive = true;
+      });
+      debugPrint('Native overlay shown successfully');
+    } catch (e) {
+      debugPrint('Error showing native overlay: $e');
+    }
+  }
+
+  Future<void> _hideNativeOverlay() async {
+    try {
+      await _platform.invokeMethod('hideNativeOverlay');
+      setState(() {
+        _isNativeOverlayActive = false;
+        _isOverlayExpanded = false; // Reset to bubble state when hidden
+      });
+      debugPrint('Native overlay hidden successfully');
+    } catch (e) {
+      debugPrint('Error hiding native overlay: $e');
+    }
+  }
+
+  Future<void> _makeOverlayFocusable() async {
+    try {
+      await _platform.invokeMethod('makeOverlayFocusable');
+      debugPrint('Overlay made focusable');
+    } catch (e) {
+      debugPrint('Error making overlay focusable: $e');
+    }
+  }
+
+  Future<void> _makeOverlayNonFocusable() async {
+    try {
+      await _platform.invokeMethod('makeOverlayNonFocusable');
+      debugPrint('Overlay made non-focusable');
+    } catch (e) {
+      debugPrint('Error making overlay non-focusable: $e');
+    }
+  }
+
+  // New methods for two-state overlay system
+  Future<void> _expandOverlay() async {
+    try {
+      await _platform.invokeMethod('expandOverlay');
+      setState(() {
+        _isOverlayExpanded = true;
+      });
+      debugPrint('Overlay expanded successfully');
+    } catch (e) {
+      debugPrint('Error expanding overlay: $e');
+    }
+  }
+
+  Future<void> _collapseOverlay() async {
+    try {
+      await _platform.invokeMethod('collapseOverlay');
+      setState(() {
+        _isOverlayExpanded = false;
+      });
+      debugPrint('Overlay collapsed successfully');
+    } catch (e) {
+      debugPrint('Error collapsing overlay: $e');
+    }
+  }
+
+  Future<void> _toggleOverlayState() async {
+    try {
+      await _platform.invokeMethod('toggleOverlayState');
+      setState(() {
+        _isOverlayExpanded = !_isOverlayExpanded;
+      });
+      debugPrint('Overlay state toggled successfully');
+    } catch (e) {
+      debugPrint('Error toggling overlay state: $e');
     }
   }
 
@@ -89,9 +190,9 @@ class _OverlayScreenState extends State<OverlayScreen>
         messagingOverlayEnabled = hasOverlayPermission;
       });
 
-      print('✅ Permissions checked - Overlay: $hasOverlayPermission');
+      debugPrint('Permissions checked - Overlay: $hasOverlayPermission');
     } catch (e) {
-      print('❌ Error checking permissions: $e');
+      debugPrint('Error checking permissions: $e');
     }
   }
 
@@ -103,21 +204,21 @@ class _OverlayScreenState extends State<OverlayScreen>
 
   Future<void> _initializeStatistics() async {
     try {
-      print('🔧 Starting statistics initialization...');
+      debugPrint('Starting statistics initialization...');
       setState(() {
         _isLoadingStats = true;
       });
 
       await OverlayStatsTracker.initialize();
-      print('✅ OverlayStatsTracker initialized');
+      debugPrint('OverlayStatsTracker initialized');
 
       OverlayStatsTracker.addListener(this);
-      print('✅ Added statistics listener');
+      debugPrint('Added statistics listener');
 
       await _loadStatistics();
-      print('✅ Statistics initialization completed');
+      debugPrint('Statistics initialization completed');
     } catch (e) {
-      print('❌ Error initializing statistics: $e');
+      debugPrint('Error initializing statistics: $e');
       if (mounted) {
         setState(() {
           _isLoadingStats = false;
@@ -128,7 +229,7 @@ class _OverlayScreenState extends State<OverlayScreen>
 
   Future<void> _loadStatistics() async {
     try {
-      print('📊 Loading statistics for period: ${_selectedPeriod.name}');
+      debugPrint('Loading statistics for period: ${_selectedPeriod.name}');
       if (mounted) {
         setState(() {
           _isLoadingStats = true;
@@ -139,11 +240,11 @@ class _OverlayScreenState extends State<OverlayScreen>
         _selectedPeriod,
       );
 
-      print(
-        '📈 Retrieved statistics: Messages=${statistics.messagesAnalyzed}, Suggestions=${statistics.suggestionsUsed}, Rephrased=${statistics.responsesRephrased}',
+      debugPrint(
+        'Retrieved statistics: Messages=${statistics.messagesAnalyzed}, Suggestions=${statistics.suggestionsUsed}, Rephrased=${statistics.responsesRephrased}',
       );
-      print(
-        '📅 Period: ${statistics.period.name}, Last Updated: ${statistics.lastUpdated}',
+      debugPrint(
+        'Period: ${statistics.period.name}, Last Updated: ${statistics.lastUpdated}',
       );
 
       if (mounted) {
@@ -151,10 +252,10 @@ class _OverlayScreenState extends State<OverlayScreen>
           _currentStatistics = statistics;
           _isLoadingStats = false;
         });
-        print('✅ Statistics loaded and UI updated');
+        debugPrint('Statistics loaded and UI updated');
       }
     } catch (e) {
-      print('❌ Error loading statistics: $e');
+      debugPrint('Error loading statistics: $e');
       if (mounted) {
         setState(() {
           _isLoadingStats = false;
@@ -175,19 +276,19 @@ class _OverlayScreenState extends State<OverlayScreen>
   // OverlayStatsListener implementation
   @override
   void onEventRecorded(OverlayUsageEvent event) {
-    print('🔔 Event recorded notification: ${event.type.name}');
+    debugPrint(' Event recorded notification: ${event.type.name}');
     // Reload statistics when new events are recorded
     _loadStatistics();
   }
 
   @override
   void onStatisticsUpdated(OverlayStatistics statistics) {
-    print('🔔 Statistics updated notification: ${statistics.period.name}');
+    debugPrint('Statistics updated notification: ${statistics.period.name}');
     if (statistics.period == _selectedPeriod && mounted) {
       setState(() {
         _currentStatistics = statistics;
       });
-      print('✅ UI updated with new statistics');
+      debugPrint('UI updated with new statistics');
     }
   }
 
@@ -292,12 +393,12 @@ class _OverlayScreenState extends State<OverlayScreen>
                           ),
                           child: Builder(
                             builder: (context) {
-                              print(
-                                '🎨 Building stats card - Loading: $_isLoadingStats, Stats: $_currentStatistics',
+                              debugPrint(
+                                'Building stats card - Loading: $_isLoadingStats, Stats: $_currentStatistics',
                               );
 
                               if (_isLoadingStats) {
-                                print('🔄 Showing loading indicator');
+                                debugPrint('Showing loading indicator');
                                 return Center(
                                   child: Padding(
                                     padding: const EdgeInsets.all(20.0),
@@ -309,17 +410,6 @@ class _OverlayScreenState extends State<OverlayScreen>
                                   ),
                                 );
                               } else if (_currentStatistics != null) {
-                                print('📊 Showing statistics data');
-                                print(
-                                  '   Messages: ${_currentStatistics!.messagesAnalyzed}',
-                                );
-                                print(
-                                  '   Suggestions: ${_currentStatistics!.suggestionsUsed}',
-                                );
-                                print(
-                                  '   Rephrased: ${_currentStatistics!.responsesRephrased}',
-                                );
-
                                 return Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,
@@ -342,7 +432,7 @@ class _OverlayScreenState extends State<OverlayScreen>
                                   ],
                                 );
                               } else {
-                                print('❌ No statistics data available');
+                                debugPrint('No statistics data available');
                                 return Padding(
                                   padding: const EdgeInsets.all(20.0),
                                   child: Text(
@@ -362,97 +452,225 @@ class _OverlayScreenState extends State<OverlayScreen>
                     ),
                   ),
                 ),
-
-                /*
-                // Debug Panel (only in debug mode)
-                if (const bool.fromEnvironment('dart.vm.product') == false)
-                  _buildDebugPanel(),
-                */
                 // Overlay Status
                 Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
                   ),
-                  child: FutureBuilder<bool>(
-                    future: FlutterOverlayWindow.isActive(),
-                    builder: (context, snapshot) {
-                      final isOverlayActive = snapshot.data ?? false;
+                  child: Column(
+                    children: [
+                      // Flutter Overlay Status
+                      FutureBuilder<bool>(
+                        future: FlutterOverlayWindow.isActive(),
+                        builder: (context, snapshot) {
+                          final isOverlayActive = snapshot.data ?? false;
 
-                      return Container(
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: kPrimaryBlue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                              horizontal: 16,
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Flutter Overlay Status',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        isOverlayActive
+                                            ? 'Enabled (Tap icon to disable)'
+                                            : 'Disabled (Tap icon to enable)',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _BounceGlowIcon(
+                                  isActive: isOverlayActive,
+                                  onTap: () async {
+                                    final isActive =
+                                        await FlutterOverlayWindow.isActive();
+                                    if (isActive) {
+                                      await FlutterOverlayWindow.closeOverlay();
+                                    } else {
+                                      await FlutterOverlayWindow.showOverlay(
+                                        enableDrag: true,
+                                        overlayTitle: "Emoticoach",
+                                        overlayContent: 'Overlay Enabled',
+                                        flag: OverlayFlag.focusPointer,
+                                        alignment: OverlayAlignment.topLeft,
+                                        positionGravity: PositionGravity.left,
+                                        height: 200,
+                                        width: 200,
+                                        startPosition: const OverlayPosition(
+                                          0,
+                                          200,
+                                        ),
+                                      );
+                                    }
+                                    setState(() {});
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Native Overlay Controls
+                      Container(
                         decoration: BoxDecoration(
-                          color: kPrimaryBlue,
+                          color: Colors.purple[600],
                           borderRadius: BorderRadius.circular(12),
                         ),
                         padding: const EdgeInsets.symmetric(
                           vertical: 14,
                           horizontal: 16,
                         ),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Native Overlay (Two-State)',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      SizedBox(height: 2),
+                                      Text(
+                                        _isNativeOverlayActive
+                                            ? _isOverlayExpanded 
+                                                ? 'Active - Expanded View'
+                                                : 'Active - Bubble View'
+                                            : 'Inactive - Tap to show',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _BounceGlowIcon(
+                                  isActive: _isNativeOverlayActive,
+                                  onTap: () async {
+                                    if (_isNativeOverlayActive) {
+                                      await _hideNativeOverlay();
+                                    } else {
+                                      await _showNativeOverlay();
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+
+                            if (_isNativeOverlayActive) ...[
+                              const SizedBox(height: 12),
+                              
+                              // State control buttons
+                              Row(
                                 children: [
-                                  Text(
-                                    'Overlay Status',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _isOverlayExpanded ? _collapseOverlay : _expandOverlay,
+                                      icon: Icon(
+                                        _isOverlayExpanded ? Icons.compress : Icons.expand,
+                                        size: 16,
+                                      ),
+                                      label: Text(_isOverlayExpanded ? 'Collapse' : 'Expand'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: _isOverlayExpanded ? Colors.orange : Colors.green,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    isOverlayActive
-                                        ? 'Enabled (Tap icon to disable)'
-                                        : 'Disabled (Tap icon to enable)',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _toggleOverlayState,
+                                      icon: Icon(Icons.swap_vert, size: 16),
+                                      label: Text('Toggle State'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-
-                            _BounceGlowIcon(
-                              isActive: isOverlayActive,
-                              onTap: () async {
-                                final isActive =
-                                    await FlutterOverlayWindow.isActive();
-                                if (isActive) {
-                                  await FlutterOverlayWindow.closeOverlay();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Overlay Disabled')),
-                                  );
-                                } else {
-                                  await FlutterOverlayWindow.showOverlay(
-                                    enableDrag: true,
-                                    overlayTitle: "Emoticoach",
-                                    overlayContent: 'Overlay Enabled',
-                                    flag: OverlayFlag
-                                        .focusPointer, // Enable keyboard input and focus
-                                    alignment: OverlayAlignment.topLeft,
-                                    positionGravity: PositionGravity.left,
-                                    height: 200,
-                                    width: 200,
-                                    startPosition: const OverlayPosition(
-                                      0,
-                                      200,
+                              
+                              const SizedBox(height: 8),
+                              
+                              // Focus control buttons
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _makeOverlayFocusable,
+                                      icon: Icon(Icons.keyboard, size: 16),
+                                      label: Text('Make Focusable'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white,
+                                        foregroundColor: Colors.purple[600],
+                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
                                     ),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Overlay Enabled')),
-                                  );
-                                }
-                                setState(() {});
-                              },
-                            ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _makeOverlayNonFocusable,
+                                      icon: Icon(Icons.touch_app_outlined, size: 16),
+                                      label: Text('Non-Focusable'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.white70,
+                                        foregroundColor: Colors.purple[600],
+                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
-                      );
-                    },
+                      ),
+                    ],
                   ),
                 ),
                 // Supported App
@@ -529,7 +747,7 @@ class _OverlayScreenState extends State<OverlayScreen>
                     children: [
                       _settingsTile(
                         icon: Icons.search,
-                        title: "Messaging Overlay",
+                        title: "Messaging Overlay (Flutter)",
                         subtitle: "Enable floating communication coach",
                         switchValue: messagingOverlayEnabled,
                         onChanged: (v) async {
@@ -599,6 +817,34 @@ class _OverlayScreenState extends State<OverlayScreen>
                         },
                       ),
                       _settingsTile(
+                        icon: Icons.layers,
+                        title: "Native Overlay (Two-State)",
+                        subtitle: "Bubble & expanded views with keyboard support",
+                        switchValue: _isNativeOverlayActive,
+                        onChanged: (v) async {
+                          if (v) {
+                            await _showNativeOverlay();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Native overlay enabled! Starts as bubble - tap to expand, long-press for focus mode.',
+                                ),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          } else {
+                            await _hideNativeOverlay();
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Native overlay disabled'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      _settingsTile(
                         icon: Icons.insights,
                         title: "Message Analysis",
                         subtitle: "Detect tone, intent, & emotional cues",
@@ -606,6 +852,17 @@ class _OverlayScreenState extends State<OverlayScreen>
                         onChanged: (v) async {
                           setState(() => messageAnalysisEnabled = v);
                           await _saveSettings();
+
+                          // Track configuration change event
+                          await OverlayStatsTracker.trackCustomEvent(
+                            type: OverlayEventType.messageAnalyzed,
+                            metadata: {
+                              'setting_changed': 'message_analysis',
+                              'enabled': v,
+                              'timestamp': DateTime.now().toIso8601String(),
+                            },
+                          );
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -626,6 +883,17 @@ class _OverlayScreenState extends State<OverlayScreen>
                         onChanged: (v) async {
                           setState(() => smartSuggestionsEnabled = v);
                           await _saveSettings();
+
+                          // Track configuration change event
+                          await OverlayStatsTracker.trackCustomEvent(
+                            type: OverlayEventType.suggestionUsed,
+                            metadata: {
+                              'setting_changed': 'smart_suggestions',
+                              'enabled': v,
+                              'timestamp': DateTime.now().toIso8601String(),
+                            },
+                          );
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -646,6 +914,17 @@ class _OverlayScreenState extends State<OverlayScreen>
                         onChanged: (v) async {
                           setState(() => toneAdjusterEnabled = v);
                           await _saveSettings();
+
+                          // Track configuration change event
+                          await OverlayStatsTracker.trackCustomEvent(
+                            type: OverlayEventType.responseRephrased,
+                            metadata: {
+                              'setting_changed': 'tone_adjuster',
+                              'enabled': v,
+                              'timestamp': DateTime.now().toIso8601String(),
+                            },
+                          );
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
@@ -658,51 +937,6 @@ class _OverlayScreenState extends State<OverlayScreen>
                           );
                         },
                       ),
-                      // _settingsTile(
-                      //   icon: Icons.auto_awesome,
-                      //   title: "Auto-Launch on Telegram",
-                      //   subtitle: "Automatically show overlay when Telegram opens",
-                      //   switchValue: autoLaunchEnabled,
-                      //   onChanged: (v) async {
-                      //     if (v) {
-                      //       // Request usage stats permission
-                      //       final bool hasPermission = await _appMonitor
-                      //           .requestUsageStatsPermission();
-                      //       if (hasPermission) {
-                      //         await _appMonitor.startMonitoring();
-                      //         _appMonitor.setOverlayEnabled(true);
-                      //         setState(() => autoLaunchEnabled = true);
-                      //         ScaffoldMessenger.of(context).showSnackBar(
-                      //           SnackBar(
-                      //             content: Text(
-                      //               'Auto-launch enabled! Monitoring service started.',
-                      //             ),
-                      //           ),
-                      //         );
-                      //       } else {
-                      //         setState(() => autoLaunchEnabled = false);
-                      //         ScaffoldMessenger.of(context).showSnackBar(
-                      //           SnackBar(
-                      //             content: Text(
-                      //               'Usage access permission required. Please enable in Settings.',
-                      //             ),
-                      //           ),
-                      //         );
-                      //       }
-                      //     } else {
-                      //       await _appMonitor.stopMonitoring();
-                      //       _appMonitor.setOverlayEnabled(false);
-                      //       setState(() => autoLaunchEnabled = false);
-                      //       ScaffoldMessenger.of(context).showSnackBar(
-                      //         SnackBar(
-                      //           content: Text(
-                      //             'Auto-launch disabled. Monitoring service stopped.',
-                      //           ),
-                      //         ),
-                      //       );
-                      //     }
-                      //   },
-                      // ), // Commented out - auto-launch feature not being implemented
                       const SizedBox(height: 12),
                     ],
                   ),
@@ -753,210 +987,6 @@ class _OverlayScreenState extends State<OverlayScreen>
         ),
       ),
     );
-  }
-
-  Widget _buildDebugPanel() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.orange[50],
-        border: Border.all(color: Colors.orange[300]!),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '🛠️ Debug Panel',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.orange[800],
-            ),
-          ),
-          SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _generateTestData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange[100],
-                    foregroundColor: Colors.orange[800],
-                  ),
-                  child: Text('Generate Test Data'),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _clearAllData,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red[100],
-                    foregroundColor: Colors.red[800],
-                  ),
-                  child: Text('Clear All Data'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _testSingleEvent,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[100],
-                    foregroundColor: Colors.blue[800],
-                  ),
-                  child: Text('Add Test Event'),
-                ),
-              ),
-              SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _printStorageInfo,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green[100],
-                    foregroundColor: Colors.green[800],
-                  ),
-                  child: Text('Storage Info'),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _forceRefreshStats,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple[100],
-                foregroundColor: Colors.purple[800],
-              ),
-              child: Text('🔄 Force Refresh Stats'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _generateTestData() async {
-    try {
-      print('🧪 Generating test data...');
-      await OverlayStatsTracker.generateSampleData();
-      print('✅ Test data generated');
-      await _loadStatistics();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Test data generated successfully!')),
-        );
-      }
-    } catch (e) {
-      print('❌ Error generating test data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error generating test data: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _clearAllData() async {
-    try {
-      print('🗑️ Clearing all data...');
-      await OverlayStatsTracker.clearAllData();
-      print('✅ All data cleared');
-      await _loadStatistics();
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('All data cleared!')));
-      }
-    } catch (e) {
-      print('❌ Error clearing data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error clearing data: $e')));
-      }
-    }
-  }
-
-  Future<void> _testSingleEvent() async {
-    try {
-      print('🎯 Adding test event...');
-      await OverlayStatsTracker.trackMessageAnalyzed(
-        messageContent: 'Test message for debugging',
-        analysisType: 'debug_test',
-        sessionId: 'debug_session',
-      );
-      print('✅ Test event added');
-      await _loadStatistics();
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Test event added!')));
-      }
-    } catch (e) {
-      print('❌ Error adding test event: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error adding test event: $e')));
-      }
-    }
-  }
-
-  Future<void> _printStorageInfo() async {
-    try {
-      print('📋 Getting storage info...');
-      final info = await OverlayStatsTracker.getStorageInfo();
-      print('📊 Storage Info: $info');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Events: ${info['eventsCount']}, Size: ${info['totalSize']} bytes',
-            ),
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      print('❌ Error getting storage info: $e');
-    }
-  }
-
-  Future<void> _forceRefreshStats() async {
-    try {
-      print('🔄 Force refreshing statistics...');
-      setState(() {
-        _isLoadingStats = true;
-        _currentStatistics = null;
-      });
-
-      await _loadStatistics();
-
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Statistics refreshed!')));
-      }
-    } catch (e) {
-      print('❌ Error force refreshing stats: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error refreshing stats: $e')));
-      }
-    }
   }
 
   Widget _buildPeriodTab(StatisticsPeriod period, String label) {

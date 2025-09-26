@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:developer';
 import 'dart:async';
 import 'screens/onboarding/onboarding_screen.dart';
@@ -9,7 +8,6 @@ import 'screens/profile.dart';
 import 'screens/overlays/overlay_ui.dart';
 import "screens/learning/scenario_screen.dart";
 import 'widgets/bottom_nav_bar.dart';
-import 'controllers/app_monitor_controller.dart';
 import 'services/session_service.dart';
 import 'utils/overlay_stats_tracker.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -39,59 +37,18 @@ void main() async {
 
   // Initialize overlay statistics tracking
   try {
-    log('🔧 Initializing overlay statistics tracker...');
+    log('Initializing overlay statistics tracker...');
     await OverlayStatsTracker.initialize().timeout(
       Duration(seconds: 10),
       onTimeout: () =>
           throw TimeoutException('Statistics initialization timed out'),
     );
-    log('✅ Overlay statistics tracker initialized successfully');
+    log('Overlay statistics tracker initialized successfully');
   } catch (e) {
-    log('⚠️ Failed to initialize overlay statistics tracker: $e');
+    log('Failed to initialize overlay statistics tracker: $e');
     // Don't block app startup for statistics issues
   }
-
-  _setupGlobalMethodChannel();
   runApp(const MyApp());
-}
-
-void _setupGlobalMethodChannel() {
-  const MethodChannel overlayChannel = MethodChannel(
-    'emoticoach_overlay_channel',
-  );
-
-  overlayChannel.setMethodCallHandler((call) async {
-    log('Global method channel received call: ${call.method}');
-    log('Call arguments: ${call.arguments}');
-
-    if (call.method == 'showOverlay') {
-      log('Triggering overlay from global method channel');
-      try {
-        // Add a delay to ensure everything is ready
-        await Future.delayed(const Duration(milliseconds: 200));
-
-        final appMonitor = AppMonitorController();
-
-        // Ensure the overlay is enabled before triggering
-        if (appMonitor.overlayEnabled) {
-          await appMonitor.triggerOverlay();
-          log('✅ Overlay triggered successfully!');
-          return {'success': true, 'message': 'Overlay triggered'};
-        } else {
-          log('⚠️ Overlay is disabled, not showing');
-          return {'success': false, 'error': 'Overlay is disabled'};
-        }
-      } catch (e) {
-        log('❌ Error triggering overlay: $e');
-        log('Error stack trace: ${StackTrace.current}');
-        return {'success': false, 'error': e.toString()};
-      }
-    }
-
-    return {'success': false, 'error': 'Unknown method: ${call.method}'};
-  });
-
-  log('✅ Global method channel set up successfully');
 }
 
 class MyApp extends StatelessWidget {
@@ -132,7 +89,6 @@ class MainScreen extends StatefulWidget {
 
 class MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
-  // final AppMonitorController _appMonitor = AppMonitorController(); // Commented out app monitoring
 
   final List<Widget> _pages = const [
     HomePage(), // index 0
@@ -151,31 +107,10 @@ class MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    // _initializeAppMonitoring(); // Commented out app monitoring
   }
-
-  // Commented out app monitoring initialization
-  /*
-  Future<void> _initializeAppMonitoring() async {
-    try {
-      log('🚀 Initializing app monitoring...');
-
-      // Check if auto-launch is enabled before starting monitoring
-      if (_appMonitor.overlayEnabled) {
-        await _appMonitor.startMonitoring();
-        log('✅ App monitoring started successfully');
-      } else {
-        log('⚠️ Overlay disabled, skipping monitoring initialization');
-      }
-    } catch (e) {
-      log('❌ Error initializing app monitoring: $e');
-    }
-  }
-  */
 
   @override
   void dispose() {
-    // _appMonitor.dispose(); // Commented out app monitoring disposal
     super.dispose();
   }
 
