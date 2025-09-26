@@ -27,7 +27,8 @@ class _OverlayScreenState extends State<OverlayScreen>
   // Platform channel for native overlay integration
   static const MethodChannel _platform = MethodChannel('emoticoach_service');
   bool _isNativeOverlayActive = false;
-  bool _isOverlayExpanded = false; // Track overlay state: false = bubble, true = expanded
+  bool _isOverlayExpanded =
+      false; // Track overlay state: false = bubble, true = expanded
 
   // Add preference keys
   static const String _messageAnalysisKey = 'message_analysis_enabled';
@@ -568,9 +569,9 @@ class _OverlayScreenState extends State<OverlayScreen>
                                       SizedBox(height: 2),
                                       Text(
                                         _isNativeOverlayActive
-                                            ? _isOverlayExpanded 
-                                                ? 'Active - Expanded View'
-                                                : 'Active - Bubble View'
+                                            ? _isOverlayExpanded
+                                                  ? 'Active - Expanded View'
+                                                  : 'Active - Bubble View'
                                             : 'Inactive - Tap to show',
                                         style: TextStyle(
                                           color: Colors.white70,
@@ -595,22 +596,34 @@ class _OverlayScreenState extends State<OverlayScreen>
 
                             if (_isNativeOverlayActive) ...[
                               const SizedBox(height: 12),
-                              
+
                               // State control buttons
                               Row(
                                 children: [
                                   Expanded(
                                     child: ElevatedButton.icon(
-                                      onPressed: _isOverlayExpanded ? _collapseOverlay : _expandOverlay,
+                                      onPressed: _isOverlayExpanded
+                                          ? _collapseOverlay
+                                          : _expandOverlay,
                                       icon: Icon(
-                                        _isOverlayExpanded ? Icons.compress : Icons.expand,
+                                        _isOverlayExpanded
+                                            ? Icons.compress
+                                            : Icons.expand,
                                         size: 16,
                                       ),
-                                      label: Text(_isOverlayExpanded ? 'Collapse' : 'Expand'),
+                                      label: Text(
+                                        _isOverlayExpanded
+                                            ? 'Collapse'
+                                            : 'Expand',
+                                      ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: _isOverlayExpanded ? Colors.orange : Colors.green,
+                                        backgroundColor: _isOverlayExpanded
+                                            ? Colors.orange
+                                            : Colors.green,
                                         foregroundColor: Colors.white,
-                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
                                         textStyle: TextStyle(fontSize: 12),
                                       ),
                                     ),
@@ -624,16 +637,18 @@ class _OverlayScreenState extends State<OverlayScreen>
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.blue,
                                         foregroundColor: Colors.white,
-                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
                                         textStyle: TextStyle(fontSize: 12),
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              
+
                               const SizedBox(height: 8),
-                              
+
                               // Focus control buttons
                               Row(
                                 children: [
@@ -645,7 +660,9 @@ class _OverlayScreenState extends State<OverlayScreen>
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white,
                                         foregroundColor: Colors.purple[600],
-                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
                                         textStyle: TextStyle(fontSize: 12),
                                       ),
                                     ),
@@ -654,12 +671,17 @@ class _OverlayScreenState extends State<OverlayScreen>
                                   Expanded(
                                     child: ElevatedButton.icon(
                                       onPressed: _makeOverlayNonFocusable,
-                                      icon: Icon(Icons.touch_app_outlined, size: 16),
+                                      icon: Icon(
+                                        Icons.touch_app_outlined,
+                                        size: 16,
+                                      ),
                                       label: Text('Non-Focusable'),
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white70,
                                         foregroundColor: Colors.purple[600],
-                                        padding: EdgeInsets.symmetric(vertical: 8),
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
                                         textStyle: TextStyle(fontSize: 12),
                                       ),
                                     ),
@@ -819,7 +841,8 @@ class _OverlayScreenState extends State<OverlayScreen>
                       _settingsTile(
                         icon: Icons.layers,
                         title: "Native Overlay (Two-State)",
-                        subtitle: "Bubble & expanded views with keyboard support",
+                        subtitle:
+                            "Bubble & expanded views with keyboard support",
                         switchValue: _isNativeOverlayActive,
                         onChanged: (v) async {
                           if (v) {
