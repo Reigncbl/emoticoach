@@ -43,9 +43,12 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+
+
 flutter:
   uses-material-design: true
   assets:
+    - backend/.env
     - assets/images/
     - assets/icons/
     - assets/epub/

@@ -1,9 +1,8 @@
 class ApiConfig {
   // Change this IP address when needed
+  static const String baseUrl = 'http://192.168.100.144:8000';
 
-  static const String baseUrl = 'http://192.168.100.199:8000';
-
-  // API endpoints
+  // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';
   static String get createFirebaseUser => '$baseUrl/users/create-firebase-user';
   static String get sendSms => '$baseUrl/users/send-sms';
@@ -13,7 +12,11 @@ class ApiConfig {
   static String get loginEmail => '$baseUrl/users/login-email';
   static String get loginMobile => '$baseUrl/users/login-mobile';
 
-  // Scenario endpoints
+  // === EXPERIENCE ENDPOINTS ===
+  static String get myExperience => '$baseUrl/experience';
+  static String get addXp => '$baseUrl/experience/add';
+
+  // === SCENARIO ENDPOINTS ===
   static String get scenariosList => '$baseUrl/scenarios/list';
   static String scenarioStart(int scenarioId) =>
       '$baseUrl/scenarios/start/$scenarioId';
@@ -24,21 +27,20 @@ class ApiConfig {
   static String get scenarioComplete => '$baseUrl/scenarios/complete';
   static String scenarioCompleted(String userId) =>
       '$baseUrl/scenarios/completed/$userId';
-  // Suggestion endpoints
+
+  // === SUGGESTIONS ===
   static String get analyzeSuggestion => '$baseUrl/suggestion/analyze';
 
-  // RAG endpoints
+  // === RAG === 
   static String get ragContext => '$baseUrl/rag/rag-context';
 
-  // Telegram endpoints
+  // === TELEGRAM ===
   static String get telegramRequestCode => '$baseUrl/telegram/request_code';
-  // Add more Telegram endpoints as needed
 
-  // Messages endpoints
+  // === MESSAGES ===
   static String get getMessages => '$baseUrl/messages/messages';
-  // Add more Messages endpoints as needed
 
-  // Books endpoints
+  // === BOOKS ===
   static String get getAllBooks => '$baseUrl/books/resources/all';
   static String getBookPage(String readingsId, int page) =>
       '$baseUrl/books/book/$readingsId/$page';
