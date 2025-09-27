@@ -21,13 +21,18 @@ import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.content.SharedPreferences
 import android.util.DisplayMetrics
+import android.widget.FrameLayout
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterView
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.engine.FlutterEngineCache
+import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "emoticoach_service"
     private val OVERLAY_CHANNEL = "emoticoach_overlay_channel"
+    private val OVERLAY_COMM_CHANNEL = "overlay_communication"
     private val USAGE_STATS_REQUEST_CODE = 1001
     
     private lateinit var overlayMethodChannel: MethodChannel
@@ -47,6 +52,12 @@ class MainActivity : FlutterActivity() {
     private var initialTouchY = 0f
     private var touchSlop = 0
     private lateinit var sharedPrefs: SharedPreferences
+    
+    // Flutter overlay integration
+    private var overlayFlutterEngine: FlutterEngine? = null
+    private var overlayFlutterView: FlutterView? = null
+    private var overlayCommChannel: MethodChannel? = null
+    private var currentOverlayView: String = "bubble" // "bubble", "contacts", "analysis", "edit"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -55,7 +66,7 @@ class MainActivity : FlutterActivity() {
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
         sharedPrefs = getSharedPreferences("overlay_prefs", Context.MODE_PRIVATE)
         
-        // Set up overlay method channel
+        // Set up overlay method channel for main app communication
         overlayMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OVERLAY_CHANNEL)
         
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -98,6 +109,12 @@ class MainActivity : FlutterActivity() {
                 "toggleOverlayState" -> {
                     toggleOverlayState()
                     result.success("Overlay state toggled")
+                }
+                "switchOverlayView" -> {
+                    val viewType = call.argument<String>("viewType") ?: "bubble"
+                    val data = call.argument<Map<String, Any>>("data")
+                    switchOverlayView(viewType, data)
+                    result.success("Overlay view switched to $viewType")
                 }
                 else -> {
                     result.notImplemented()
@@ -305,8 +322,196 @@ class MainActivity : FlutterActivity() {
         return Pair(x, y)
     }
 
-    private fun addDragFunctionality(view: View) {
-        view.setOnTouchListener { _, event ->
+    private fun createOverlayFlutterEngine() {
+        try {
+            // Create a dedicated Flutter engine for overlay
+            overlayFlutterEngine = FlutterEngine(this@MainActivity)
+            
+            // Start executing Dart code with overlay entry point
+            overlayFlutterEngine?.dartExecutor?.executeDartEntrypoint(
+                DartExecutor.DartEntrypoint("package:emoticoach/main.dart", "overlayMain")
+            )
+            
+            // Create method channel for overlay communication
+            overlayCommChannel = MethodChannel(
+                overlayFlutterEngine!!.dartExecutor.binaryMessenger,
+                OVERLAY_COMM_CHANNEL
+            )
+            
+            // Set up method call handler for overlay-specific methods
+            overlayCommChannel?.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "switchToContacts" -> {
+                        switchOverlayView("contacts")
+                        result.success(true)
+                    }
+                    "switchToAnalysis" -> {
+                        val contactData = call.arguments as? Map<String, Any>
+                        switchOverlayView("analysis", contactData)
+                        result.success(true)
+                    }
+                    "switchToEdit" -> {
+                        switchOverlayView("edit")
+                        result.success(true)
+                    }
+                    "switchToBubble" -> {
+                        switchOverlayView("bubble")
+                        result.success(true)
+                    }
+                    "switchContacts" -> {
+                        switchOverlayView("contacts")
+                        result.success(true)
+                    }
+                    "switchAnalysis" -> {
+                        val contactData = call.arguments as? Map<String, Any>
+                        switchOverlayView("analysis", contactData)
+                        result.success(true)
+                    }
+                    "switchEdit" -> {
+                        switchOverlayView("edit")
+                        result.success(true)
+                    }
+                    "switchBubble" -> {
+                        switchOverlayView("bubble")
+                        result.success(true)
+                    }
+                    "closeOverlay" -> {
+                        hideNativeOverlay()
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+            
+            Log.d("MainActivity", "Overlay Flutter engine created successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error creating overlay Flutter engine", e)
+        }
+    }
+
+    private fun switchOverlayView(viewType: String, data: Map<String, Any>? = null) {
+        try {
+            Log.d("MainActivity", "switchOverlayView called with viewType: $viewType")
+            
+            // Determine the size based on view type
+            val (width, height) = when (viewType) {
+                "bubble" -> Pair(200, 200)
+                "contacts" -> Pair(1000, 1000)
+                "analysis" -> Pair(1000, 1000)
+                "edit" -> Pair(1000, 1000)
+                else -> Pair(400, 550)
+            }
+            
+            // Update overlay size
+            params?.width = width
+            params?.height = height
+            windowManager?.updateViewLayout(overlayView, params)
+            
+            // Clear current overlay content
+            (overlayView as? FrameLayout)?.removeAllViews()
+            
+            // Send view switch message to Flutter overlay
+            overlayCommChannel?.invokeMethod("setOverlayView", mapOf(
+                "viewType" to viewType,
+                "data" to data
+            ))
+            
+            // Create and add Flutter view
+            createFlutterOverlayView(overlayView as FrameLayout, viewType, data)
+            
+            // Update state tracking
+            currentOverlayView = viewType
+            isExpanded = viewType != "bubble"
+            
+            Log.d("MainActivity", "Successfully switched overlay view to: $viewType with size ${width}x${height}")
+            
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error switching overlay view", e)
+        }
+    }
+
+
+
+    private fun createFlutterOverlayView(container: FrameLayout, viewType: String, data: Map<String, Any>? = null) {
+        try {
+            // Create Flutter engine if not exists
+            if (overlayFlutterEngine == null) {
+                createOverlayFlutterEngine()
+                // Wait a bit for the engine to initialize
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    setupFlutterView(container, viewType, data)
+                }, 500)
+            } else {
+                setupFlutterView(container, viewType, data)
+            }
+            
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error creating Flutter overlay view", e)
+        }
+    }
+    
+    private fun setupFlutterView(container: FrameLayout, viewType: String, data: Map<String, Any>? = null) {
+        try {
+            // Detach previous Flutter view if exists
+            overlayFlutterView?.detachFromFlutterEngine()
+            
+            // Create new Flutter view
+            overlayFlutterView = FlutterView(this@MainActivity)
+            overlayFlutterView?.attachToFlutterEngine(overlayFlutterEngine!!)
+            
+            // For bubble view, add Flutter view and a transparent drag overlay
+            if (viewType == "bubble") {
+                container.addView(overlayFlutterView, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ))
+                
+                // Add transparent drag overlay on top for bubble dragging
+                val dragOverlay = createBubbleDragOverlay()
+                container.addView(dragOverlay)
+            } else {
+                // For expanded views, create a drag handle at the top
+                val dragHandle = createDragHandle()
+                container.addView(dragHandle)
+                
+                // Add Flutter view below the drag handle
+                val flutterParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                ).apply {
+                    topMargin = 40 // Space for drag handle
+                }
+                container.addView(overlayFlutterView, flutterParams)
+            }
+            
+            // Send initial view configuration after a short delay to ensure Flutter is ready
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                overlayCommChannel?.invokeMethod("setOverlayView", mapOf(
+                    "viewType" to viewType,
+                    "data" to data
+                ))
+            }, 200)
+            
+            Log.d("MainActivity", "Flutter overlay view setup complete: $viewType")
+            
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error setting up Flutter overlay view", e)
+        }
+    }
+    
+    private fun createDragHandle(): View {
+        val dragHandle = View(this@MainActivity).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                40
+            ).apply {
+                gravity = Gravity.TOP
+            }
+            setBackgroundColor(0x88000000.toInt()) // Semi-transparent dark background
+        }
+        
+        // Add drag functionality specifically to the drag handle
+        dragHandle.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     isDragging = false
@@ -320,7 +525,6 @@ class MainActivity : FlutterActivity() {
                     val deltaX = event.rawX - initialTouchX
                     val deltaY = event.rawY - initialTouchY
                     
-                    // Check if user has moved finger enough to be considered dragging
                     if (!isDragging && (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop)) {
                         isDragging = true
                     }
@@ -329,9 +533,8 @@ class MainActivity : FlutterActivity() {
                         val newX = initialX + deltaX.toInt()
                         val newY = initialY + deltaY.toInt()
                         
-                        // Constrain to screen boundaries
-                        val overlayWidth = if (isExpanded) 400 else 200
-                        val overlayHeight = if (isExpanded) 300 else 200
+                        val overlayWidth = params?.width ?: 400
+                        val overlayHeight = params?.height ?: 600
                         val screenWidth = getScreenWidth()
                         val screenHeight = getScreenHeight()
                         
@@ -344,7 +547,85 @@ class MainActivity : FlutterActivity() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (isDragging) {
-                        // Snap to side
+                        saveOverlayPosition(params?.x ?: 0, params?.y ?: 0)
+                        Log.d("MainActivity", "Overlay dragged via handle to (${params?.x}, ${params?.y})")
+                        isDragging = false
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        return dragHandle
+    }
+    
+    private fun createBubbleDragOverlay(): View {
+        val dragOverlay = View(this@MainActivity).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            setBackgroundColor(0x00000000) // Completely transparent
+        }
+        
+        var longPressDetected = false
+        val longPressHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val longPressRunnable = Runnable {
+            longPressDetected = true
+            Log.d("MainActivity", "Long press detected - enabling drag mode")
+        }
+        
+        dragOverlay.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isDragging = false
+                    longPressDetected = false
+                    initialX = params?.x ?: 0
+                    initialY = params?.y ?: 0
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    
+                    // Start long press timer
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    longPressHandler.postDelayed(longPressRunnable, 500) // 500ms for long press
+                    
+                    false // Don't consume initially, let Flutter handle taps
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    
+                    // Check if user has moved finger enough to be considered dragging OR long press was detected
+                    if (!isDragging && (longPressDetected || (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop))) {
+                        isDragging = true
+                        longPressHandler.removeCallbacks(longPressRunnable)
+                        Log.d("MainActivity", "Started dragging bubble")
+                    }
+                    
+                    if (isDragging) {
+                        val newX = initialX + deltaX.toInt()
+                        val newY = initialY + deltaY.toInt()
+                        
+                        val overlayWidth = params?.width ?: 200
+                        val overlayHeight = params?.height ?: 200
+                        val screenWidth = getScreenWidth()
+                        val screenHeight = getScreenHeight()
+                        
+                        params?.x = Math.max(0, Math.min(newX, screenWidth - overlayWidth))
+                        params?.y = Math.max(0, Math.min(newY, screenHeight - overlayHeight))
+                        
+                        windowManager?.updateViewLayout(overlayView, params)
+                        true // Consume the event when dragging
+                    } else {
+                        false // Let Flutter handle the event
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    
+                    if (isDragging) {
+                        // Snap to side for bubble view
                         val snappedX = snapToSide(params?.x ?: 0)
                         params?.x = snappedX
                         windowManager?.updateViewLayout(overlayView, params)
@@ -352,12 +633,101 @@ class MainActivity : FlutterActivity() {
                         // Save position
                         saveOverlayPosition(params?.x ?: 0, params?.y ?: 0)
                         
-                        Log.d("MainActivity", "Overlay dragged and snapped to side at (${params?.x}, ${params?.y})")
+                        Log.d("MainActivity", "Bubble dragged and snapped to (${params?.x}, ${params?.y})")
+                        isDragging = false
+                        true // Consume the event
+                    } else {
+                        false // Let Flutter handle taps
+                    }
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    longPressHandler.removeCallbacks(longPressRunnable)
+                    if (isDragging) {
                         isDragging = false
                         true
                     } else {
-                        // If not dragging, handle as click
                         false
+                    }
+                }
+                else -> false
+            }
+        }
+        
+        return dragOverlay
+    }
+
+    private fun addDragFunctionality(view: View) {
+        val gestureDetector = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                // Allow single taps to pass through to Flutter
+                return false
+            }
+            
+            override fun onLongPress(e: MotionEvent) {
+                // Handle long press for dragging or other functionality
+                Log.d("MainActivity", "Long press detected on overlay")
+            }
+        })
+        
+        view.setOnTouchListener { _, event ->
+            // Let gesture detector handle taps and long presses first
+            gestureDetector.onTouchEvent(event)
+            
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isDragging = false
+                    initialX = params?.x ?: 0
+                    initialY = params?.y ?: 0
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    false // Don't consume the event yet, let Flutter handle it
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val deltaX = event.rawX - initialTouchX
+                    val deltaY = event.rawY - initialTouchY
+                    
+                    // Check if user has moved finger enough to be considered dragging
+                    if (!isDragging && (Math.abs(deltaX) > touchSlop || Math.abs(deltaY) > touchSlop)) {
+                        isDragging = true
+                        Log.d("MainActivity", "Started dragging overlay")
+                    }
+                    
+                    if (isDragging) {
+                        val newX = initialX + deltaX.toInt()
+                        val newY = initialY + deltaY.toInt()
+                        
+                        // Constrain to screen boundaries
+                        val overlayWidth = params?.width ?: 200
+                        val overlayHeight = params?.height ?: 200
+                        val screenWidth = getScreenWidth()
+                        val screenHeight = getScreenHeight()
+                        
+                        params?.x = Math.max(0, Math.min(newX, screenWidth - overlayWidth))
+                        params?.y = Math.max(0, Math.min(newY, screenHeight - overlayHeight))
+                        
+                        windowManager?.updateViewLayout(overlayView, params)
+                        true // Consume the event when dragging
+                    } else {
+                        false // Let Flutter handle the event
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (isDragging) {
+                        // Snap to side only for bubble view
+                        if (currentOverlayView == "bubble") {
+                            val snappedX = snapToSide(params?.x ?: 0)
+                            params?.x = snappedX
+                            windowManager?.updateViewLayout(overlayView, params)
+                        }
+                        
+                        // Save position
+                        saveOverlayPosition(params?.x ?: 0, params?.y ?: 0)
+                        
+                        Log.d("MainActivity", "Overlay dragged and positioned at (${params?.x}, ${params?.y})")
+                        isDragging = false
+                        true // Consume the event
+                    } else {
+                        false // Let Flutter handle taps
                     }
                 }
                 else -> false
@@ -365,7 +735,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // Native overlay management with two-state system (bubble and expanded)
+    // Native overlay management with Flutter content
     private fun showNativeOverlay() {
         try {
             if (overlayView != null) {
@@ -375,10 +745,10 @@ class MainActivity : FlutterActivity() {
 
             windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-            // Start in non-focusable mode (default)
+            // Configure window parameters - start with bubble size
             params = WindowManager.LayoutParams(
-                200, // Fixed width for better visibility
-                200, // Fixed height for better visibility
+                200, // Start with bubble size
+                200,
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
@@ -386,168 +756,42 @@ class MainActivity : FlutterActivity() {
                 PixelFormat.TRANSLUCENT
             )
 
-            // Use saved position or default to right side
-            val savedPosition = getSavedOverlayPosition()
-            params?.gravity = Gravity.TOP or Gravity.LEFT
-            params?.x = savedPosition.first
-            params?.y = savedPosition.second
+            // Get saved position or use default
+            val (savedX, savedY) = getSavedOverlayPosition()
+            params?.gravity = Gravity.TOP or Gravity.START
+            params?.x = savedX
+            params?.y = savedY
+            
+            Log.d("MainActivity", "Setting overlay position to ($savedX, $savedY)")
 
-            // Create the overlay container
-            overlayView = createBubbleView()
+            // Create container for overlay content
+            val container = FrameLayout(this@MainActivity)
+            overlayView = container
+            
+            // Initialize Flutter engine
+            createOverlayFlutterEngine()
+            
+            // Start with bubble view after a short delay to ensure Flutter engine is ready
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                switchOverlayView("bubble")
+            }, 300)
 
             windowManager?.addView(overlayView, params)
             isOverlayFocusable = false
             isExpanded = false
-            Log.d("MainActivity", "Native overlay shown in bubble mode at center (${params?.x}, ${params?.y}) with size (${params?.width}, ${params?.height})")
+            
+            Log.d("MainActivity", "Native overlay with Flutter content shown")
+            Log.d("MainActivity", "Position: x=${params?.x}, y=${params?.y}")
+            Log.d("MainActivity", "Size: ${params?.width}x${params?.height}")
 
         } catch (e: Exception) {
             Log.e("MainActivity", "Error showing native overlay", e)
         }
     }
 
-    private fun createBubbleView(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(20, 20, 20, 20)
 
-            // Create rounded background
-            val drawable = GradientDrawable().apply {
-                cornerRadius = 50f
-                setColor(0xFF2196F3.toInt()) // Blue background
-                setStroke(3, 0xFFFFFFFF.toInt()) // White border
-            }
-            background = drawable
 
-            // Add emoji/icon
-            addView(TextView(this@MainActivity).apply {
-                text = "💬"
-                textSize = 24f
-                gravity = Gravity.CENTER
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    gravity = Gravity.CENTER
-                }
-            })
 
-            // Add drag functionality first
-            addDragFunctionality(this)
-
-            // Click listener to toggle states (only if not dragging)
-            setOnClickListener {
-                if (!isDragging) {
-                    Log.d("MainActivity", "Bubble tapped - toggling state")
-                    toggleOverlayState()
-                }
-            }
-
-            // Long click to make focusable
-            setOnLongClickListener {
-                if (!isDragging) {
-                    Log.d("MainActivity", "Bubble long pressed - switching focus mode")
-                    makeOverlayFocusable()
-                    true
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
-    private fun createExpandedView(): View {
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(30, 30, 30, 30)
-
-            // Create rounded background
-            val drawable = GradientDrawable().apply {
-                cornerRadius = 20f
-                setColor(0xFF2196F3.toInt()) // Blue background
-                setStroke(3, 0xFFFFFFFF.toInt()) // White border
-            }
-            background = drawable
-
-            // Add drag functionality
-            addDragFunctionality(this)
-
-            // Title
-            addView(TextView(this@MainActivity).apply {
-                text = "EmotiCoach"
-                textSize = 18f
-                setTextColor(0xFFFFFFFF.toInt())
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, 20)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            })
-
-            // Status text
-            addView(TextView(this@MainActivity).apply {
-                text = if (isOverlayFocusable) "Focusable Mode" else "Non-Focusable Mode"
-                textSize = 14f
-                setTextColor(0xFFE1F5FE.toInt())
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, 20)
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            })
-
-            // Buttons container
-            val buttonsLayout = LinearLayout(this@MainActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-            }
-
-            // Collapse button
-            buttonsLayout.addView(Button(this@MainActivity).apply {
-                text = "Collapse"
-                textSize = 12f
-                setPadding(20, 10, 20, 10)
-                setOnClickListener {
-                    if (!isDragging) {
-                        collapseOverlay()
-                    }
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginEnd = 20
-                }
-            })
-
-            // Focus toggle button
-            buttonsLayout.addView(Button(this@MainActivity).apply {
-                text = if (isOverlayFocusable) "Non-Focusable" else "Focusable"
-                textSize = 12f
-                setPadding(20, 10, 20, 10)
-                setOnClickListener {
-                    if (!isDragging) {
-                        if (isOverlayFocusable) {
-                            makeOverlayNonFocusable()
-                        } else {
-                            makeOverlayFocusable()
-                        }
-                        // Refresh the expanded view to update button text
-                        if (isExpanded) {
-                            expandOverlay()
-                        }
-                    }
-                }
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-            })
-
-            addView(buttonsLayout)
-        }
-    }
 
     private fun hideNativeOverlay() {
         try {
@@ -555,9 +799,19 @@ class MainActivity : FlutterActivity() {
                 windowManager?.removeView(overlayView)
                 overlayView = null
                 windowManager = null
+                params = null
+                
+                // Clean up Flutter overlay components
+                overlayFlutterView?.detachFromFlutterEngine()
+                overlayFlutterView = null
+                overlayFlutterEngine?.destroy()
+                overlayFlutterEngine = null
+                overlayCommChannel = null
+                
                 isOverlayFocusable = false
                 isExpanded = false
-                Log.d("MainActivity", "Native overlay hidden")
+                currentOverlayView = "bubble"
+                Log.d("MainActivity", "Native overlay hidden and Flutter engine cleaned up")
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error hiding native overlay", e)
@@ -571,18 +825,8 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            // Remove current view
-            windowManager?.removeView(overlayView)
-
-            // Update layout params for expanded view
-            params?.width = 400 // Larger width for expanded view
-            params?.height = 300 // Larger height for expanded view
-
-            // Create expanded view
-            overlayView = createExpandedView()
-            
-            // Add the new expanded view
-            windowManager?.addView(overlayView, params)
+            // Switch to contacts view (expanded state)
+            switchOverlayView("contacts")
             isExpanded = true
             
             Log.d("MainActivity", "Overlay expanded successfully with size (${params?.width}, ${params?.height})")
@@ -598,18 +842,8 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            // Remove current view
-            windowManager?.removeView(overlayView)
-
-            // Update layout params for bubble view
-            params?.width = 200 // Fixed width for bubble view
-            params?.height = 200 // Fixed height for bubble view
-
-            // Create bubble view
-            overlayView = createBubbleView()
-            
-            // Add the new bubble view
-            windowManager?.addView(overlayView, params)
+            // Switch back to bubble view (collapsed state)
+            switchOverlayView("bubble")
             isExpanded = false
             
             Log.d("MainActivity", "Overlay collapsed successfully with size (${params?.width}, ${params?.height})")

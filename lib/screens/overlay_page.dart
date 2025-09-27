@@ -126,6 +126,21 @@ class _OverlayScreenState extends State<OverlayScreen>
     }
   }
 
+  Future<void> _switchOverlayView(
+    String viewType, [
+    Map<String, dynamic>? data,
+  ]) async {
+    try {
+      await _platform.invokeMethod('switchOverlayView', {
+        'viewType': viewType,
+        'data': data,
+      });
+      debugPrint('Switched overlay view to: $viewType');
+    } catch (e) {
+      debugPrint('Error switching overlay view: $e');
+    }
+  }
+
   Future<void> _makeOverlayFocusable() async {
     try {
       await _platform.invokeMethod('makeOverlayFocusable');
@@ -679,6 +694,91 @@ class _OverlayScreenState extends State<OverlayScreen>
                                       style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white70,
                                         foregroundColor: Colors.purple[600],
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              // Overlay View Test Buttons
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _switchOverlayView('contacts'),
+                                      icon: Icon(Icons.contacts, size: 16),
+                                      label: Text('Contacts'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.lightBlue,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _switchOverlayView('analysis', {
+                                            'id': 1,
+                                            'name': 'John Doe',
+                                            'phone': '+1234567890',
+                                          }),
+                                      icon: Icon(Icons.analytics, size: 16),
+                                      label: Text('Analysis'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.green,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _switchOverlayView('edit'),
+                                      icon: Icon(Icons.edit, size: 16),
+                                      label: Text('Edit'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.orange,
+                                        foregroundColor: Colors.white,
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: 8,
+                                        ),
+                                        textStyle: TextStyle(fontSize: 12),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: () =>
+                                          _switchOverlayView('bubble'),
+                                      icon: Icon(Icons.circle, size: 16),
+                                      label: Text('Bubble'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.teal,
+                                        foregroundColor: Colors.white,
                                         padding: EdgeInsets.symmetric(
                                           vertical: 8,
                                         ),
