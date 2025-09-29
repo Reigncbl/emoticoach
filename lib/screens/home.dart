@@ -7,6 +7,8 @@ import '../controllers/learning_navigation_controller.dart';
 import '../services/telegram_service.dart';
 import '../services/session_service.dart';
 import '../widgets/telegram_verification_widget.dart';
+import '../controllers/badge_controller.dart';
+import '../models/badge_model.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,12 +23,34 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
   bool _isCheckingTelegramAuth = true;
   String? _userPhoneNumber;
 
+  // == Badge Initialization ==
+  final BadgeController _badgeController = BadgeController();
+  List<BadgeModel> _recentBadges = [];
+  bool _loadingBadges = true;
+  bool _showAllBadges = false;
+
   @override
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
+    _loadRecentBadges();
     _checkTelegramAuthentication();
   }
+  Future<void> _loadRecentBadges() async {
+  try {
+    final userId = await AuthUtils.getSafeUserId();
+    if (userId != null) {
+      final allBadges = await _badgeController.getUserBadges(userId);
+      setState(() {
+        _recentBadges = allBadges.take(3).toList(); // show latest 3
+        _loadingBadges = false;
+      });
+    }
+  } catch (e) {
+    print("Error loading badges: $e");
+    setState(() => _loadingBadges = false);
+  }
+}
 
   Future<void> _checkTelegramAuthentication() async {
     try {
@@ -223,6 +247,13 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
       ),
     );
   }
+  String _formatTimeAgo(DateTime time) {
+  final diff = DateTime.now().difference(time);
+  if (diff.inDays > 0) return '${diff.inDays}d ago';
+  if (diff.inHours > 0) return '${diff.inHours}h ago';
+  if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+  return 'Just now';
+}
 
   @override
   Widget build(BuildContext context) {
@@ -562,15 +593,14 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // Recent Achievements (Image 3 UI)
+                        // Recent Achievements Section with slide-down View All
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Header row
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
+                                const Text(
                                   'Recent Achievements',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
@@ -578,36 +608,54 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                                     color: Colors.black87,
                                   ),
                                 ),
-                                Text(
-                                  'View All',
-                                  style: TextStyle(
-                                    color: kPrimaryBlue,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 14,
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _showAllBadges = !_showAllBadges;
+                                    });
+                                  },
+                                  child: Text(
+                                    _showAllBadges ? 'Show Less' : 'View All',
+                                    style: const TextStyle(
+                                      color: kPrimaryBlue,
+                                      fontWeight: FontWeight.w500,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                             const SizedBox(height: 16),
-                            // Achievement cards
-                            AchievementCard(
-                              icon: Icons.emoji_emotions_outlined,
-                              iconBgColor: const Color(0xFFCADCF3),
-                              iconColor: const Color(0xFF1666C4),
-                              title: 'Empathy Explorer',
-                              subtitle: 'Completed empathy scenario',
-                              timeAgo: '2h ago',
-                            ),
-                            const SizedBox(height: 12),
-                            AchievementCard(
-                              icon: Icons.groups_outlined,
-                              iconBgColor: const Color(0xFFF0E3E1),
-                              iconColor: const Color(0xFFE66C47),
-                              title: 'Team Player',
-                              subtitle: 'Aced group communication',
-                              timeAgo: '1d ago',
-                            ),
-                            const SizedBox(height: 16),
+
+                            if (_loadingBadges)
+                              const Center(child: CircularProgressIndicator())
+                            else if (_recentBadges.isEmpty)
+                              const Text(
+                                'No achievements yet. Complete a reading or scenario!',
+                                style: TextStyle(color: Colors.grey, fontSize: 14),
+                              )
+                            else
+                              Column(
+                                children: (_showAllBadges
+                                        ? _recentBadges
+                                        : _recentBadges.take(3).toList())
+                                    .map((badge) {
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: AchievementCard(
+                                      // Use backend badge image if available
+                                      icon: Icons.emoji_events,
+                                      iconBgColor: const Color(0xFFCADCF3),
+                                      iconColor: kBrightBlue,
+                                      title: badge.title ?? 'Badge',
+                                      subtitle: badge.description ?? '',
+                                      timeAgo: _formatTimeAgo(
+                                        badge.attainedTime ?? DateTime.now(),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
                           ],
                         ),
                       ],
@@ -814,6 +862,7 @@ class AchievementCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String timeAgo;
+  final String? badgeImageUrl;
 
   const AchievementCard({
     super.key,
@@ -823,6 +872,7 @@ class AchievementCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.timeAgo,
+    this.badgeImageUrl,
   });
 
   @override
@@ -843,12 +893,20 @@ class AchievementCard extends StatelessWidget {
       ),
       child: Row(
         children: [
+          // 🟢 Show badge image if available, fallback to icon
           CircleAvatar(
             backgroundColor: iconBgColor,
             radius: 22,
-            child: Icon(icon, color: iconColor, size: 26),
+            backgroundImage: (badgeImageUrl != null && badgeImageUrl!.isNotEmpty)
+                ? NetworkImage(badgeImageUrl!)
+                : null,
+            child: (badgeImageUrl == null || badgeImageUrl!.isEmpty)
+                ? Icon(icon, color: iconColor, size: 26)
+                : null,
           ),
           const SizedBox(width: 12),
+
+          // 🟢 Text content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -864,13 +922,25 @@ class AchievementCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(color: Colors.black87, fontSize: 13),
+                  style: const TextStyle(
+                    color: Colors.black87,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
           ),
+
           const SizedBox(width: 8),
-          Text(timeAgo, style: TextStyle(color: Colors.black54, fontSize: 13)),
+
+          // 🟢 Time label
+          Text(
+            timeAgo,
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
     );

@@ -12,6 +12,9 @@ class ApiConfig {
   static String get loginEmail => '$baseUrl/users/login-email';
   static String get loginMobile => '$baseUrl/users/login-mobile';
 
+  // === Badge ENDPOINTS ===
+  static String getUserBadges(String userId) =>'$baseUrl/achievements/user/$userId';
+
   // === EXPERIENCE ENDPOINTS ===
   static String get myExperience => '$baseUrl/experience';
   static String get addXp => '$baseUrl/experience/add';
