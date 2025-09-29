@@ -12,6 +12,9 @@ import '../services/telegram_service.dart';
 import '../controllers/experience_controller.dart';
 import '../services/experience_service.dart';
 import '../models/user_experience.dart';
+import '../controllers/badge_controller.dart';
+import '../models/badge_model.dart';
+
 late final ExperienceController _xpController;
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted }
@@ -26,6 +29,16 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   final TelegramService _telegramService = TelegramService();
   final ExperienceController _xpController = ExperienceController(ExperienceService());
+  final BadgeController _badgeController = BadgeController();
+
+  // === ACTIVITY STATE ===
+  List<Map<String, dynamic>> _activities = [];
+  bool _loadingActivities = true;
+
+  // === BADGES STATE ===
+  List<BadgeModel> _badges = [];
+  bool _loadingBadges = true;
+  bool _showAllBadges = false;
 
   // === TELEGRAM INTEGRATION STATE ===
   bool _isTelegramVerified = false; // Track verification status
@@ -178,6 +191,41 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
   // == SPECIFIC FUNCTIONS ===
 
+  Future<void> _loadActivities() async {
+  try {
+    final userId = await AuthUtils.getSafeUserId();
+    if (userId != null) {
+      final achievements = await _badgeController.getUserBadges(userId);
+
+      // Transform each achievement into activity item
+      final List<Map<String, dynamic>> activityItems = achievements.map((a) {
+        final bool isLevelBadge =
+            (a.title?.toLowerCase().contains('bronze') == true ||
+             a.title?.toLowerCase().contains('silver') == true ||
+             a.title?.toLowerCase().contains('gold') == true ||
+             a.title?.toLowerCase().contains('level') == true);
+
+        return {
+          'type': isLevelBadge
+              ? ActivityType.levelReached
+              : ActivityType.badgeEarned,
+          'title': a.title ?? 'Badge',
+          'date': a.attainedTime ?? DateTime.now(),
+        };
+      }).toList();
+
+      setState(() {
+        _activities = activityItems;
+        _loadingActivities = false;
+      });
+    }
+  } catch (e) {
+    print("Error loading activities: $e");
+    setState(() => _loadingActivities = false);
+  }
+}
+
+
   // Keep track of selected badge details
   IconData? selectedIcon;
   String? selectedName;
@@ -205,15 +253,31 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
-
-
+    _loadBadges();
+    _loadActivities(); 
     _loadExperience();
     _checkTelegramAuthentication(); // Check Telegram authentication status
   }
-   // 👇 place this here
+
   Future<void> _loadExperience() async {
     await _xpController.loadExperience();
     setState(() {}); 
+  }
+
+  Future<void> _loadBadges() async {
+    try {
+      final userId = await AuthUtils.getSafeUserId();
+      if (userId != null) {
+        final badges = await _badgeController.getUserBadges(userId);
+        setState(() {
+          _badges = badges;
+          _loadingBadges = false;
+        });
+      }
+    } catch (e) {
+      print("Error fetching badges: $e");
+      setState(() => _loadingBadges = false);
+    }
   }
 
   // Activity Section Subtitle
@@ -820,68 +884,65 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   }
 
   // Badge Component
-  Widget _badgeComponent({
-    required Icon icon,
-    required String badgeName,
-    required bool status,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: status ? onTap : null, // Only allow tap if badge is earned
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: SizedBox(
-            width: 80,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(top: 10),
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: status
-                        ? const Color(
-                            0xFFE3F2FD,
-                          ) // Light blue background when owned
-                        : const Color(
-                            0xFFE0E0E0,
-                          ), // Grey background when unowned
-                  ),
-                  child: Center(
-                    child: Icon(
+ Widget _badgeComponent({
+  required Icon icon,
+  required String badgeName,
+  required bool status,
+  required VoidCallback onTap,
+  String? imageUrl,
+}) {
+  return GestureDetector(
+    onTap: status ? onTap : null,
+    child: SizedBox(
+      width: 80,
+      child: Column(
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 10),
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: status ? const Color(0xFFE3F2FD) : const Color(0xFFE0E0E0),
+            ),
+            child: Center(
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? ClipOval(
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        width: 50,
+                        height: 50,
+                      ),
+                    )
+                  : Icon(
                       icon.icon,
                       size: 28,
                       color: status
-                          ? const Color(0xFF1976D2) // Blue icon when owned
-                          : const Color(0xFF9E9E9E), // Grey icon when unowned
+                          ? const Color(0xFF1976D2)
+                          : const Color(0xFF9E9E9E),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  badgeName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: status
-                        ? const Color(0xFF333333) // Dark text when owned
-                        : const Color(0xFF9E9E9E), // Grey text when unowned
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 10),
-              ],
             ),
           ),
-        ),
+          const SizedBox(height: 8),
+          Text(
+            badgeName,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: status ? const Color(0xFF333333) : const Color(0xFF9E9E9E),
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 10),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   // Activity Component
   Widget _activityComponent({
@@ -1087,122 +1148,67 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
                   // === BADGES SECTION ===
                   _title(title: 'Badges'),
-
                   const SizedBox(height: 12),
 
-                  // Badge Component ROW 1
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Top Performer',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
-                            ),
-                            rarityText: 'Only 12% of users have this',
-                          ),
+                  if (_loadingBadges)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_badges.isEmpty)
+                    const Center(
+                      child: Text(
+                        "No badges yet. Finish a scenario or reading to earn your first badge!",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
                         ),
+                        textAlign: TextAlign.center,
                       ),
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Badge 3',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
-                            ),
-                            rarityText: 'Only 12% of users have this',
-                          ),
+                    )
+                  else
+                    Column(
+                      children: [
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: (_showAllBadges ? _badges : _badges.take(6))
+                              .map((badge) {
+                            return _badgeComponent(
+                              icon: const Icon(Icons.emoji_events),
+                              badgeName: badge.title ?? 'Badge',
+                              status: true,
+                              imageUrl: badge.imageUrl,
+                              onTap: () => _updateSelectedBadge(
+                                iconData: Icons.emoji_events,
+                                badgeName: badge.title ?? '',
+                                badgeDescription: badge.description ?? '',
+                                dateEarned: badge.attainedTime ?? DateTime.now(),
+                                rarityText: 'Unlocked',
+                              ),
+                            );
+                          }).toList(),
                         ),
-                      ),
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Badge 4',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
-                            ),
-                            rarityText: 'Only 12% of users have this',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
 
-                  // Badge Component ROW 2
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Badge 6',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
+                        const SizedBox(height: 12),
+
+                        if (_badges.length > 6)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAllBadges = !_showAllBadges; // Toggle between show all/less
+                              });
+                            },
+                            child: Text(
+                              _showAllBadges ? "Show Less" : "Show All",
+                              style: const TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            rarityText: 'Only 12% of users have this',
                           ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Badge 1',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
-                            ),
-                            rarityText: 'Only 12% of users have this',
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _badgeComponent(
-                          icon: const Icon(Icons.emoji_emotions),
-                          badgeName: 'Top Performer',
-                          status: true,
-                          onTap: () => _updateSelectedBadge(
-                            iconData: Icons.psychology_outlined,
-                            badgeName: 'Badge 8',
-                            badgeDescription:
-                                'Successfully demonstrated exceptional empathy in 10 difficult scenarios.',
-                            dateEarned: DateTime.now().subtract(
-                              const Duration(days: 14),
-                            ),
-                            rarityText: 'Only 12% of users have this',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+
+
 
                   const SizedBox(height: 12),
 
@@ -1225,43 +1231,43 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
                   // === ACTIVITY SECTION ===
                   _title(title: 'Activity'),
-
                   const SizedBox(height: 12),
+                    if (_loadingActivities)
+                      const Center(child: CircularProgressIndicator())
+                    else if (_activities.isEmpty)
+                      const Center(
+                        child: Text(
+                          "No activities yet. Earn a badge or level up to see your progress here!",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      Column(
+                        children: _activities.map((activity) {
+                          final type = activity['type'] as ActivityType;
+                          final title = activity['title'] as String;
+                          final date = activity['date'] as DateTime;
 
-                  _activityComponent(
-                    icon: const Icon(Icons.emoji_events),
-                    activityType: ActivityType.levelReached,
-                    subtitle: 'Level 7',
-                    date: DateTime.now().subtract(const Duration(hours: 1)),
-                    backgroundColor: Colors.amber.shade50,
-                    accentColor: Colors.amber.shade600,
-                  ),
-
-                  _activityComponent(
-                    icon: const Icon(Icons.emoji_events),
-                    activityType: ActivityType.badgeEarned,
-                    subtitle: 'Apology Master',
-                    date: DateTime.now().subtract(const Duration(hours: 1)),
-                    backgroundColor: Colors.amber.shade50,
-                    accentColor: Colors.amber.shade600,
-                  ),
-
-                  _activityComponent(
-                    icon: const Icon(Icons.emoji_events),
-                    activityType: ActivityType.badgeEarned,
-                    subtitle: 'Apology Master',
-                    date: DateTime.now().subtract(const Duration(hours: 1)),
-                    backgroundColor: Colors.amber.shade50,
-                    accentColor: Colors.amber.shade600,
-                  ),
-
-                  _activityComponent(
-                    icon: const Icon(Icons.emoji_events),
-                    activityType: ActivityType.badgeEarned,
-                    subtitle: 'Apology Master',
-                    date: DateTime.now().subtract(const Duration(hours: 1)),
-                    backgroundColor: Colors.amber.shade50,
-                    accentColor: Colors.amber.shade600,
+                          return _activityComponent(
+                            icon: Icon(
+                              type == ActivityType.levelReached
+                                  ? Icons.star
+                                  : Icons.emoji_events,
+                            ),
+                            activityType: type,
+                            subtitle: title,
+                            date: date,
+                            backgroundColor: Colors.amber.shade50,
+                            accentColor: type == ActivityType.levelReached
+                                ? Colors.amber.shade600
+                                : Colors.green.shade600,
+                      );
+                    }).toList(),
                   ),
                 ],
               ),
