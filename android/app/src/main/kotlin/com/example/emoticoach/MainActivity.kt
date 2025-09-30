@@ -33,14 +33,14 @@ class MainActivity : FlutterActivity() {
                     requestUsageStatsPermission()
                     result.success(null)
                 }
-                "startMonitoringService" -> {
-                    startMonitoringService()
-                    result.success(null)
-                }
-                "stopMonitoringService" -> {
-                    stopMonitoringService()
-                    result.success(null)
-                }
+                "openOverlaySettings" -> {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                        startActivity(intent)
+                        result.success(true)
+                    }
                 else -> {
                     result.notImplemented()
                 }
@@ -85,30 +85,6 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun startMonitoringService() {
-        try {
-            val serviceIntent = Intent(this, ForegroundAppMonitorService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
-            Log.d("MainActivity", "Monitoring service started")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error starting monitoring service", e)
-        }
-    }
-
-    private fun stopMonitoringService() {
-        try {
-            val serviceIntent = Intent(this, ForegroundAppMonitorService::class.java)
-            stopService(serviceIntent)
-            Log.d("MainActivity", "Monitoring service stopped")
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error stopping monitoring service", e)
-        }
-    }
-    
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         Log.d("MainActivity", "onNewIntent called with action: ${intent.action}")

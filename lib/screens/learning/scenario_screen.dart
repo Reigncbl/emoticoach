@@ -35,6 +35,9 @@ class _LearningScreenState extends State<LearningScreen>
       initialIndex: _navController.currentTabIndex,
     );
 
+    // Listen to tab controller changes
+    _tabController.addListener(_onTabChanged);
+
     // Listen to navigation controller changes
     _navController.addListener(_handleNavigationChange);
 
@@ -46,69 +49,95 @@ class _LearningScreenState extends State<LearningScreen>
     if (_tabController.index != _navController.currentTabIndex) {
       _tabController.animateTo(_navController.currentTabIndex);
     }
-    _loadScenarios();
+    // Only reload scenarios when switching TO the Chat Scenarios tab (index 0)
+    if (_navController.currentTabIndex == 0) {
+      _loadScenarios();
+    }
+  }
+
+  void _onTabChanged() {
+    debugPrint('DEBUG: Tab changed to index: ${_tabController.index}');
+    // Only reload scenarios when the Chat Scenarios tab (index 0) is selected
+    if (_tabController.index == 0) {
+      debugPrint('DEBUG: Chat Scenarios tab selected, loading scenarios...');
+      _loadScenarios();
+    }
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _navController.removeListener(_handleNavigationChange);
     _tabController.dispose();
     super.dispose();
   }
 
   Future<void> _loadScenarios() async {
-    print('🔍 DEBUG: Starting to load scenarios...');
+    // Prevent multiple simultaneous loads
+    if (_isLoading) {
+      return;
+    }
+
     try {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
       });
 
-      print('🔍 DEBUG: Calling ScenarioService.getScenarios()...');
       final scenarioData = await ScenarioService.getScenarios();
-      print('🔍 DEBUG: Received ${scenarioData.length} scenario records');
+      debugPrint(' DEBUG: Received ${scenarioData.length} scenario records');
 
       final scenarios = scenarioData.map((data) {
-        print('🔍 DEBUG: Processing scenario data: $data');
+        debugPrint(' DEBUG: Processing scenario data: $data');
         return Scenario.fromJson(data);
       }).toList();
-
-      print('🔍 DEBUG: Successfully parsed ${scenarios.length} scenarios');
 
       // Load completed scenarios for current user
       List<CompletedScenario> completedScenarios = [];
       try {
         final userId = await UserApiService.getCurrentUserId();
+        debugPrint(' DEBUG: Current user ID: $userId');
+
         final completedData = await ScenarioService.getCompletedScenarios(
           userId,
         );
+
         completedScenarios = completedData.map((data) {
           return CompletedScenario.fromJson(data);
         }).toList();
-        print(
-          '🔍 DEBUG: Loaded ${completedScenarios.length} completed scenarios',
+
+        debugPrint(
+          ' DEBUG: Successfully parsed ${completedScenarios.length} completed scenarios',
         );
       } catch (e) {
-        print('🔍 DEBUG: Error loading completed scenarios: $e');
+        debugPrint('DEBUG: Error loading completed scenarios: $e');
+        debugPrint('DEBUG: Error type: ${e.runtimeType}');
+        debugPrint('DEBUG: Stack trace: ${StackTrace.current}');
         // Don't fail the whole load if completed scenarios fail
       }
 
       setState(() {
         _scenarios = scenarios.where((s) => s.isActive).toList();
         _completedScenarios = completedScenarios;
-        print('🔍 DEBUG: Filtered to ${_scenarios.length} active scenarios');
+        debugPrint(' DEBUG: Filtered to ${_scenarios.length} active scenarios');
+        debugPrint(
+          ' DEBUG: Set _completedScenarios to ${_completedScenarios.length} items',
+        );
+        debugPrint(
+          ' DEBUG: _completedScenarios.isNotEmpty = ${_completedScenarios.isNotEmpty}',
+        );
         _isLoading = false;
       });
 
-      print('🔍 DEBUG: Successfully loaded scenarios!');
+      debugPrint(' DEBUG: Successfully loaded scenarios!');
     } catch (e) {
-      print('🔍 DEBUG: Error loading scenarios: $e');
-      print('🔍 DEBUG: Error type: ${e.runtimeType}');
+      debugPrint(' DEBUG: Error loading scenarios: $e');
+      debugPrint(' DEBUG: Error type: ${e.runtimeType}');
       setState(() {
         _isLoading = false;
         _errorMessage = 'Failed to load scenarios: ${e.toString()}';
       });
-      print('Error loading scenarios: $e');
+      debugPrint('Error loading scenarios: $e');
     }
   }
 
@@ -323,19 +352,13 @@ class _LearningScreenState extends State<LearningScreen>
   Widget _buildCompletedScenarioCard(CompletedScenario completedScenario) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: ScenarioCard(
-        title: completedScenario.title,
-        description: completedScenario.description,
+      child: CompletedScenarioCard(
+        completedScenario: completedScenario,
         persona: _getPersonaFromCategory(completedScenario.category),
-        difficulty: _capitalizeFirst(completedScenario.difficulty),
-        isReplay: true,
-        scenarioRuns: completedScenario.completionCount,
-        rating: completedScenario.averageScore ?? 4.2,
-        totalRatings: 150, // Default - can be enhanced with actual data
-        duration: completedScenario.formattedDuration,
         icon: _getIconFromCategory(completedScenario.category),
         color: _getColorFromCategory(completedScenario.category),
-        onTap: () => _replayScenario(completedScenario),
+        onReplay: () => _replayScenario(completedScenario),
+        onViewDetails: () => _showCompletionDetails(completedScenario),
       ),
     );
   }
@@ -455,6 +478,7 @@ class _LearningScreenState extends State<LearningScreen>
     );
   }
 
+  // Temporary test method to debug completed scenarios
   void _showScenarioFilterDialog() {
     showDialog(
       context: context,
@@ -495,6 +519,152 @@ class _LearningScreenState extends State<LearningScreen>
           ],
         );
       },
+    );
+  }
+
+  void _showCompletionDetails(CompletedScenario completedScenario) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('${completedScenario.title} - Results'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetailRow(
+                  'Completed',
+                  '${completedScenario.completedAt.day}/${completedScenario.completedAt.month}/${completedScenario.completedAt.year}',
+                ),
+                _buildDetailRow(
+                  'Duration',
+                  completedScenario.formattedCompletionTime,
+                ),
+                _buildDetailRow(
+                  'Messages Sent',
+                  '${completedScenario.totalMessages ?? 'N/A'}',
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Communication Scores:',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                if (completedScenario.finalClarityScore != null)
+                  _buildScoreRow(
+                    'Clarity',
+                    completedScenario.finalClarityScore!,
+                  ),
+                if (completedScenario.finalEmpathyScore != null)
+                  _buildScoreRow(
+                    'Empathy',
+                    completedScenario.finalEmpathyScore!,
+                  ),
+                if (completedScenario.finalAssertivenessScore != null)
+                  _buildScoreRow(
+                    'Assertiveness',
+                    completedScenario.finalAssertivenessScore!,
+                  ),
+                if (completedScenario.finalAppropriatenessScore != null)
+                  _buildScoreRow(
+                    'Appropriateness',
+                    completedScenario.finalAppropriatenessScore!,
+                  ),
+                const SizedBox(height: 12),
+                if (completedScenario.averageScore != null)
+                  _buildDetailRow(
+                    'Overall Score',
+                    completedScenario.formattedAverageScore,
+                  ),
+                if (completedScenario.userRating != null)
+                  _buildDetailRow(
+                    'Your Rating',
+                    completedScenario.formattedRating,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _replayScenario(completedScenario);
+              },
+              child: const Text('Replay'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreRow(String skill, int score) {
+    Color scoreColor;
+    if (score >= 8) {
+      scoreColor = Colors.green;
+    } else if (score >= 6) {
+      scoreColor = Colors.orange;
+    } else {
+      scoreColor = Colors.red;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(skill, style: const TextStyle(fontSize: 14)),
+          ),
+          Container(
+            width: 100,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: FractionallySizedBox(
+              widthFactor: score / 10.0,
+              alignment: Alignment.centerLeft,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: scoreColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$score/10',
+            style: TextStyle(fontWeight: FontWeight.bold, color: scoreColor),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -746,6 +916,287 @@ class ScenarioCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class CompletedScenarioCard extends StatelessWidget {
+  final CompletedScenario completedScenario;
+  final String persona;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onReplay;
+  final VoidCallback onViewDetails;
+
+  const CompletedScenarioCard({
+    super.key,
+    required this.completedScenario,
+    required this.persona,
+    required this.icon,
+    required this.color,
+    required this.onReplay,
+    required this.onViewDetails,
+  });
+
+  Color _getDifficultyColor(String level) {
+    switch (level.toLowerCase()) {
+      case 'hard':
+        return const Color(0xFFF5D8CB);
+      case 'medium':
+        return const Color(0xFFC7D3E2);
+      case 'easy':
+        return const Color(0xFFC4DCC6);
+      default:
+        return Colors.grey.shade200;
+    }
+  }
+
+  Color _getDifficultyTextColor(String level) {
+    switch (level.toLowerCase()) {
+      case 'hard':
+        return Colors.red;
+      case 'medium':
+        return Colors.orange;
+      case 'easy':
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.withOpacity(0.2),
+            blurRadius: 6,
+            offset: const Offset(2, 3),
+          ),
+        ],
+      ),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onViewDetails,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with completion badge
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(icon, color: color, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        completedScenario.title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.green, width: 1),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Completed',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Description
+                Text(
+                  completedScenario.description,
+                  style: const TextStyle(fontSize: 14, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+
+                // Completion stats
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildStatItem(
+                            'Completed',
+                            '${completedScenario.completedAt.day}/${completedScenario.completedAt.month}',
+                          ),
+                          _buildStatItem(
+                            'Duration',
+                            completedScenario.formattedCompletionTime,
+                          ),
+                          if (completedScenario.averageScore != null)
+                            _buildStatItem(
+                              'Score',
+                              completedScenario.formattedAverageScore,
+                            ),
+                        ],
+                      ),
+                      if (completedScenario.userRating != null)
+                        Column(
+                          children: [
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.star, color: Colors.amber, size: 16),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Your Rating: ${completedScenario.userRating}/5',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // Persona line
+                Row(
+                  children: [
+                    const Icon(Icons.person_outline, size: 18),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'AI Persona: $persona',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontStyle: FontStyle.italic,
+                          color: color,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Action buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: color),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: onViewDetails,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.analytics_outlined,
+                              size: 16,
+                              color: color,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'View Details',
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: kBrightBlue,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: onReplay,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.replay, size: 16),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'Replay',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+      ],
     );
   }
 }

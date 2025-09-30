@@ -35,20 +35,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
 
-  // Fixed: Only initialize Firebase if it hasn't been initialized yet
-
-  // Initialize overlay statistics tracking
   try {
-    log('🔧 Initializing overlay statistics tracker...');
     await OverlayStatsTracker.initialize().timeout(
       Duration(seconds: 10),
       onTimeout: () =>
           throw TimeoutException('Statistics initialization timed out'),
     );
-    log('✅ Overlay statistics tracker initialized successfully');
   } catch (e) {
-    log('⚠️ Failed to initialize overlay statistics tracker: $e');
-    // Don't block app startup for statistics issues
+    log('Failed to initialize overlay statistics tracker: $e');
   }
 
   _setupGlobalMethodChannel();
@@ -75,14 +69,14 @@ void _setupGlobalMethodChannel() {
         // Ensure the overlay is enabled before triggering
         if (appMonitor.overlayEnabled) {
           await appMonitor.triggerOverlay();
-          log('✅ Overlay triggered successfully!');
+          log('Overlay triggered successfully!');
           return {'success': true, 'message': 'Overlay triggered'};
         } else {
-          log('⚠️ Overlay is disabled, not showing');
+          log('Overlay is disabled, not showing');
           return {'success': false, 'error': 'Overlay is disabled'};
         }
       } catch (e) {
-        log('❌ Error triggering overlay: $e');
+        log('Error triggering overlay: $e');
         log('Error stack trace: ${StackTrace.current}');
         return {'success': false, 'error': e.toString()};
       }
@@ -91,7 +85,7 @@ void _setupGlobalMethodChannel() {
     return {'success': false, 'error': 'Unknown method: ${call.method}'};
   });
 
-  log('✅ Global method channel set up successfully');
+  log('Global method channel set up successfully');
 }
 
 class MyApp extends StatelessWidget {
@@ -151,31 +145,10 @@ class MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
-    // _initializeAppMonitoring(); // Commented out app monitoring
   }
-
-  // Commented out app monitoring initialization
-  /*
-  Future<void> _initializeAppMonitoring() async {
-    try {
-      log('🚀 Initializing app monitoring...');
-
-      // Check if auto-launch is enabled before starting monitoring
-      if (_appMonitor.overlayEnabled) {
-        await _appMonitor.startMonitoring();
-        log('✅ App monitoring started successfully');
-      } else {
-        log('⚠️ Overlay disabled, skipping monitoring initialization');
-      }
-    } catch (e) {
-      log('❌ Error initializing app monitoring: $e');
-    }
-  }
-  */
 
   @override
   void dispose() {
-    // _appMonitor.dispose(); // Commented out app monitoring disposal
     super.dispose();
   }
 

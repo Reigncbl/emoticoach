@@ -378,23 +378,70 @@ class CompletedScenario {
   });
 
   factory CompletedScenario.fromJson(Map<String, dynamic> json) {
+    int? _toInt(dynamic v) {
+      if (v is int) return v;
+      if (v is double) return v.toInt();
+      if (v is String) return int.tryParse(v);
+      return null;
+    }
+
+    double? _toDouble(dynamic v) {
+      if (v is double) return v;
+      if (v is int) return v.toDouble();
+      if (v is String) return double.tryParse(v);
+      return null;
+    }
+
+    final scenarioId = _toInt(json['scenario_id']) ?? _toInt(json['id']) ?? 0;
+    final title = json['title']?.toString() ?? 'Scenario #$scenarioId';
+    final description = json['description']?.toString() ?? 'No description available.';
+    final category = json['category']?.toString() ?? 'general';
+    final difficulty = json['difficulty']?.toString() ?? 'easy';
+    final estimatedDuration = _toInt(json['estimated_duration']);
+
+    DateTime completedAt;
+    final completedAtRaw = json['completed_at'];
+    if (completedAtRaw is String) {
+      completedAt = DateTime.tryParse(completedAtRaw) ?? DateTime.now();
+    } else if (completedAtRaw is DateTime) {
+      completedAt = completedAtRaw;
+    } else {
+      completedAt = DateTime.now();
+    }
+
+    final clarity = _toInt(json['final_clarity_score'] ?? json['clarity_score']);
+    final empathy = _toInt(json['final_empathy_score'] ?? json['empathy_score']);
+    final assertiveness = _toInt(json['final_assertiveness_score'] ?? json['assertiveness_score']);
+    final appropriateness = _toInt(json['final_appropriateness_score'] ?? json['appropriateness_score']);
+
+    double? averageScore = _toDouble(json['average_score']);
+    if (averageScore == null) {
+      final scores = [clarity, empathy, assertiveness, appropriateness]
+          .where((e) => e != null)
+          .cast<int>()
+          .toList();
+      if (scores.isNotEmpty) {
+        averageScore = scores.reduce((a, b) => a + b) / scores.length;
+      }
+    }
+
     return CompletedScenario(
-      scenarioId: json['scenario_id'] as int,
-      title: json['title'] as String,
-      description: json['description'] as String,
-      category: json['category'] as String,
-      difficulty: json['difficulty'] as String,
-      estimatedDuration: json['estimated_duration'] as int?,
-      completedAt: DateTime.parse(json['completed_at'] as String),
-      completionTimeMinutes: json['completion_time_minutes'] as int?,
-      finalClarityScore: json['final_clarity_score'] as int?,
-      finalEmpathyScore: json['final_empathy_score'] as int?,
-      finalAssertivenessScore: json['final_assertiveness_score'] as int?,
-      finalAppropriatenessScore: json['final_appropriateness_score'] as int?,
-      averageScore: (json['average_score'] as num?)?.toDouble(),
-      userRating: json['user_rating'] as int?,
-      totalMessages: json['total_messages'] as int?,
-      completionCount: json['completion_count'] as int? ?? 1,
+      scenarioId: scenarioId,
+      title: title,
+      description: description,
+      category: category,
+      difficulty: difficulty,
+      estimatedDuration: estimatedDuration,
+      completedAt: completedAt,
+      completionTimeMinutes: _toInt(json['completion_time_minutes']),
+      finalClarityScore: clarity,
+      finalEmpathyScore: empathy,
+      finalAssertivenessScore: assertiveness,
+      finalAppropriatenessScore: appropriateness,
+      averageScore: averageScore,
+      userRating: _toInt(json['user_rating']),
+      totalMessages: _toInt(json['total_messages']),
+      completionCount: _toInt(json['completion_count']) ?? 1,
     );
   }
 

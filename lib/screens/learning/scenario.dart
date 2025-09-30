@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
-import '../../services/scenario_service.dart';
 import '../../models/scenario_models.dart';
 import '../../services/api_service.dart';
 import 'evaluation.dart';

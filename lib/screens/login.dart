@@ -4,7 +4,7 @@ import '../utils/colors.dart';
 import '../config/api_config.dart';
 import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
-import 'package:iconify_flutter/icons/ic.dart'; 
+import 'package:iconify_flutter/icons/ic.dart';
 import 'signup.dart';
 import 'otp_verification.dart';
 import 'package:http/http.dart' as http;
@@ -57,7 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
       });
     });
 
-
     // Initialize device info
     _initializeDeviceInfo();
   }
@@ -73,7 +72,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _initializeDeviceInfo() async {
     try {
       DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-
 
       if (Platform.isAndroid) {
         AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
@@ -103,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
         .replaceAll('(', '')
         .replaceAll(')', '');
 
-
     // Handle different input formats
     if (cleaned.startsWith('0') && cleaned.length == 11) {
       // 09955578757 -> +639955578757
@@ -115,7 +112,6 @@ class _LoginScreenState extends State<LoginScreen> {
       // Any 10-digit number -> +63 prefix
       return '+63$cleaned';
     }
-
 
     // If already has +63 or other format, return as is
     return phoneInput.startsWith('+') ? phoneInput : '+63$cleaned';
@@ -171,7 +167,6 @@ class _LoginScreenState extends State<LoginScreen> {
         phoneNumber: phoneNumber,
         timeout: const Duration(seconds: 120),
 
-
         verificationCompleted: (PhoneAuthCredential credential) async {
           try {
             // Auto-verification completed
@@ -181,7 +176,6 @@ class _LoginScreenState extends State<LoginScreen> {
             if (result.user != null) {
               // Notify backend
               await _notifyBackendOfVerification(phoneNumber, result.user!.uid);
-
 
               // Navigate to OTP screen (or home if auto-verified)
               Navigator.push(
@@ -203,7 +197,6 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         },
 
-
         verificationFailed: (FirebaseAuthException e) {
           print('Verification failed: ${e.code} - ${e.message}');
           setState(() {
@@ -221,16 +214,13 @@ class _LoginScreenState extends State<LoginScreen> {
           });
         },
 
-
         codeSent: (String verificationId, int? resendToken) {
           print('SMS code sent successfully');
           _verificationId = verificationId;
 
-
           setState(() {
             _isPhoneAuthInProgress = false;
           });
-
 
           // Navigate to OTP verification screen
           Navigator.push(
@@ -244,7 +234,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
 
-
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification code sent successfully!'),
@@ -252,7 +241,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         },
-
 
         codeAutoRetrievalTimeout: (String verificationId) {
           _verificationId = verificationId;
@@ -274,7 +262,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // Format to +63 format for backend
       String formattedMobile = _formatPhoneNumber(phoneInput);
-
 
       print("Send SMS to: $formattedMobile (Formatted with +63)");
       print("Using Firebase Auth instead of custom backend SMS");
@@ -869,47 +856,53 @@ class _LoginScreenState extends State<LoginScreen> {
 
                                 const SizedBox(height: 20),
 
-                      // Divider Text
-                      const Text(
-                        "or",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Social Login Buttons
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          // Google Login
-                          GestureDetector(
-                            onTap: _isLoading || _isPhoneAuthInProgress
-                                ? null
-                                : _handleGoogleLogin,
-                            child: Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: _isLoading || _isPhoneAuthInProgress
-                                      ? Colors.grey
-                                      : Colors.blueAccent,
+                                // Divider Text
+                                const Text(
+                                  "or",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey,
+                                  ),
                                 ),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Iconify(
-                                Ri.google_fill,
-                                size: 28,
-                                color: _isLoading || _isPhoneAuthInProgress
-                                    ? Colors.grey
-                                    : Colors.blueAccent,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 24),
-                        ],
-                      ),
+                                const SizedBox(height: 16),
+
+                                // Social Login Buttons
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // Google Login
+                                    GestureDetector(
+                                      onTap:
+                                          _isLoading || _isPhoneAuthInProgress
+                                          ? null
+                                          : _handleGoogleLogin,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                            color:
+                                                _isLoading ||
+                                                    _isPhoneAuthInProgress
+                                                ? Colors.grey
+                                                : Colors.blueAccent,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
+                                        ),
+                                        child: Iconify(
+                                          Ri.google_fill,
+                                          size: 28,
+                                          color:
+                                              _isLoading ||
+                                                  _isPhoneAuthInProgress
+                                              ? Colors.grey
+                                              : Colors.blueAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
 
                                 const Spacer(),
 
@@ -1015,4 +1008,3 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
-

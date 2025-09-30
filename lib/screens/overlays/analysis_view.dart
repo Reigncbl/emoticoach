@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:emoticoach/services/api_service.dart';
+import 'package:emoticoach/services/rag_service.dart';
 import 'package:emoticoach/services/telegram_service.dart';
 import 'package:emoticoach/utils/colors.dart';
 import 'package:emoticoach/utils/overlay_stats_tracker.dart';
@@ -34,7 +34,7 @@ class AnalysisView extends StatefulWidget {
 }
 
 class _AnalysisViewState extends State<AnalysisView> {
-  final APIService _apiService = APIService();
+  final RagService _ragService = RagService();
   final TelegramService _telegramService = TelegramService();
   bool _isLoading = true;
   String _errorMessage = '';
@@ -44,6 +44,7 @@ class _AnalysisViewState extends State<AnalysisView> {
   bool _isAnalyzing = false;
   Map<String, dynamic>? _emotionAnalysis;
   String _analysisError = '';
+  int _contextLimit = 20;
 
   // Toggle settings from overlay page
   bool _messageAnalysisEnabled = false;
@@ -59,6 +60,7 @@ class _AnalysisViewState extends State<AnalysisView> {
   static const String _messageAnalysisKey = 'message_analysis_enabled';
   static const String _smartSuggestionsKey = 'smart_suggestions_enabled';
   static const String _toneAdjusterKey = 'tone_adjuster_enabled';
+  static const String _ragContextLimitKey = 'rag_context_limit';
 
   @override
   void initState() {
@@ -106,23 +108,40 @@ class _AnalysisViewState extends State<AnalysisView> {
       final newAnalysis = prefs.getBool(_messageAnalysisKey) ?? false;
       final newSuggestions = prefs.getBool(_smartSuggestionsKey) ?? false;
       final newTone = prefs.getBool(_toneAdjusterKey) ?? false;
+      final newLimit = prefs.getInt(_ragContextLimitKey) ?? _contextLimit;
 
       // Only update if something changed
-      if (newAnalysis != _messageAnalysisEnabled ||
+      final settingsChanged =
+          newAnalysis != _messageAnalysisEnabled ||
           newSuggestions != _smartSuggestionsEnabled ||
-          newTone != _toneAdjusterEnabled) {
+          newTone != _toneAdjusterEnabled ||
+          newLimit != _contextLimit;
+
+      if (settingsChanged) {
         debugPrint('🔄 Settings changed detected! Updating UI...');
         debugPrint('  Analysis: $_messageAnalysisEnabled -> $newAnalysis');
         debugPrint(
           '  Suggestions: $_smartSuggestionsEnabled -> $newSuggestions',
         );
         debugPrint('  Tone: $_toneAdjusterEnabled -> $newTone');
+        if (newLimit != _contextLimit) {
+          debugPrint('  Context limit: $_contextLimit -> $newLimit');
+        }
 
+        final oldLimit = _contextLimit;
         setState(() {
           _messageAnalysisEnabled = newAnalysis;
           _smartSuggestionsEnabled = newSuggestions;
           _toneAdjusterEnabled = newTone;
+          _contextLimit = newLimit;
         });
+
+        // If the limit changed and we have a message, re-run analysis
+        if (newLimit != oldLimit &&
+            _latestMessage.isNotEmpty &&
+            _latestMessage != 'No recent messages found') {
+          _analyzeEmotion(_latestMessage);
+        }
       }
     } catch (e) {
       debugPrint('❌ Error checking settings: $e');
@@ -142,10 +161,11 @@ class _AnalysisViewState extends State<AnalysisView> {
         _messageAnalysisEnabled = prefs.getBool(_messageAnalysisKey) ?? false;
         _smartSuggestionsEnabled = prefs.getBool(_smartSuggestionsKey) ?? false;
         _toneAdjusterEnabled = prefs.getBool(_toneAdjusterKey) ?? false;
+        _contextLimit = prefs.getInt(_ragContextLimitKey) ?? _contextLimit;
         _settingsLoaded = true; // Mark settings as loaded
       });
       debugPrint(
-        '✅ Analysis view settings loaded - Analysis: $_messageAnalysisEnabled, Suggestions: $_smartSuggestionsEnabled, Tone: $_toneAdjusterEnabled',
+        '✅ Analysis view settings loaded - Analysis: $_messageAnalysisEnabled, Suggestions: $_smartSuggestionsEnabled, Tone: $_toneAdjusterEnabled, Limit: $_contextLimit',
       );
     } catch (e) {
       debugPrint('❌ Error loading analysis view settings: $e');
@@ -250,11 +270,62 @@ class _AnalysisViewState extends State<AnalysisView> {
         _analysisError = '';
       });
 
-      final analysisResponse = await _apiService.analyzeText(text);
-
-      if (analysisResponse['success'] == true) {
+      // Use RAG recent-emotion-context which expects user_id, contact_id, and limit
+      final userId = await AuthUtils.getSafeUserId();
+      if (userId == null || userId.isEmpty) {
         setState(() {
-          _emotionAnalysis = analysisResponse['data'];
+          _isAnalyzing = false;
+          _analysisError = 'Missing user session.';
+        });
+        return;
+      }
+
+      final ragData = await _ragService.getRecentEmotionContext(
+        userId: userId,
+        contactId: widget.contactId,
+        limit: _contextLimit,
+      );
+
+      if (ragData['success'] != false) {
+        final last = ragData['last_message'] as Map<String, dynamic>?;
+        final lastEmotion =
+            (last != null ? last['emotion_analysis'] : null)
+                as Map<String, dynamic>?;
+        final suggestionEmotion =
+            ragData['rag_suggestion_emotion'] as Map<String, dynamic>?;
+
+        final dom =
+            lastEmotion?['dominant_emotion'] ??
+            suggestionEmotion?['dominant_emotion'] ??
+            'neutral';
+        final domScore =
+            (lastEmotion?['dominant_score'] ??
+                    suggestionEmotion?['dominant_score'] ??
+                    0.0)
+                as num;
+
+        final suggestion = (ragData['rag_suggestion'] ?? '') as String;
+        final interp =
+            lastEmotion?['interpretation'] ??
+            suggestionEmotion?['interpretation'] ??
+            'Based on recent context.';
+
+        final data = <String, dynamic>{
+          'emotion': dom,
+          'confidence': domScore.toDouble(),
+          'emoji': null,
+          'analysis': {
+            'analysis': {'primary_emotion': dom, 'interpretation': interp},
+            'coaching': {
+              'suggested_response': suggestion,
+              'empathetic_statement': suggestion,
+              'suggestions': suggestion.isNotEmpty ? [suggestion] : [],
+            },
+          },
+        };
+
+        setState(() {
+          _emotionAnalysis = data;
           _isAnalyzing = false;
         });
 
@@ -264,12 +335,10 @@ class _AnalysisViewState extends State<AnalysisView> {
           analysisType: 'emotion_analysis',
           sessionId: 'analysis_${DateTime.now().millisecondsSinceEpoch}',
         );
-
-        debugPrint('✅ Tracked message analysis event');
       } else {
         setState(() {
           _analysisError =
-              analysisResponse['error'] ?? 'Failed to analyze emotion';
+              ragData['error']?.toString() ?? 'Failed to analyze emotion';
           _isAnalyzing = false;
         });
       }
@@ -470,70 +539,6 @@ class _AnalysisViewState extends State<AnalysisView> {
                   ),
                 )
               else ...[
-                // Debug: Show current toggle states
-                if (const bool.fromEnvironment('dart.vm.product') == false)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      border: Border.all(color: Colors.orange[300]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              '🛠️ Debug: Toggle States',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.orange[800],
-                                fontSize: 12,
-                              ),
-                            ),
-                            Spacer(),
-                            GestureDetector(
-                              onTap: () async {
-                                debugPrint(
-                                  '🔄 Manually refreshing settings...',
-                                );
-                                await _loadSettings();
-                              },
-                              child: Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange[200],
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  '🔄 Refresh',
-                                  style: TextStyle(
-                                    color: Colors.orange[800],
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Analysis: $_messageAnalysisEnabled | Suggestions: $_smartSuggestionsEnabled | Tone: $_toneAdjusterEnabled',
-                          style: TextStyle(
-                            color: Colors.orange[700],
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 // Show sections based on toggle settings
                 if (_messageAnalysisEnabled) ...[
                   _buildToneSection(),
@@ -705,26 +710,7 @@ class _AnalysisViewState extends State<AnalysisView> {
                 style: const TextStyle(fontSize: 12, color: Colors.black87),
               ),
               const SizedBox(height: 8),
-              // Simple copy button
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton.icon(
-                    onPressed: () => _copyToClipboard(responseText, context),
-                    icon: const Icon(Icons.copy, size: 16),
-                    label: const Text('Copy', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  ),
-                  const Spacer(),
-                ],
-              ),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -869,7 +855,7 @@ class _AnalysisViewState extends State<AnalysisView> {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             'This field tests keyboard input functionality in the overlay.',
             style: TextStyle(

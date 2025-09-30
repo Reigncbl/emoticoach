@@ -148,21 +148,30 @@ class ScenarioService {
     int? totalMessages,
   }) async {
     try {
+      final url = ApiConfig.scenarioComplete;
+      final payload = {
+        'user_id': userId,
+        'scenario_id': scenarioId,
+        'completion_time_minutes': completionTimeMinutes,
+        'final_clarity_score': finalClarityScore,
+        'final_empathy_score': finalEmpathyScore,
+        'final_assertiveness_score': finalAssertivenessScore,
+        'final_appropriateness_score': finalAppropriatenessScore,
+        'user_rating': userRating,
+        'total_messages': totalMessages,
+      };
+
+      print('DEBUG: POST $url');
+      print('DEBUG: completeScenario payload: ${json.encode(payload)}');
+
       final response = await http.post(
-        Uri.parse(ApiConfig.scenarioComplete),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'user_id': userId,
-          'scenario_id': scenarioId,
-          'completion_time_minutes': completionTimeMinutes,
-          'final_clarity_score': finalClarityScore,
-          'final_empathy_score': finalEmpathyScore,
-          'final_assertiveness_score': finalAssertivenessScore,
-          'final_appropriateness_score': finalAppropriatenessScore,
-          'user_rating': userRating,
-          'total_messages': totalMessages,
-        }),
+        body: json.encode(payload),
       );
+
+      print('DEBUG: completeScenario response status: ${response.statusCode}');
+      print('DEBUG: completeScenario response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -181,23 +190,71 @@ class ScenarioService {
     String userId,
   ) async {
     try {
+      final url = ApiConfig.scenarioCompleted(userId);
+      print('DEBUG: Fetching completed scenarios from: $url');
+
       final response = await http.get(
-        Uri.parse(ApiConfig.scenarioCompleted(userId)),
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      print('DEBUG: Completed scenarios response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        print('DEBUG: Parsed completed scenarios data: $data');
+
+        if (data['success'] == true) {
+          final completedScenarios =
+              data['completed_scenarios'] ??
+              []; // Fixed: backend returns 'completed_scenarios'
+          print(
+            'DEBUG: Found ${completedScenarios.length} completed scenarios in response',
+          );
+          return List<Map<String, dynamic>>.from(completedScenarios);
+        } else {
+          print('DEBUG: API returned success=false for completed scenarios');
+        }
+      } else {
+        print(
+          'DEBUG: Non-200 status code for completed scenarios: ${response.statusCode}',
+        );
+      }
+      throw Exception(
+        'Failed to load completed scenarios - status: ${response.statusCode}',
+      );
+    } catch (e) {
+      print('DEBUG: Exception in getCompletedScenarios: $e');
+      print('Error fetching completed scenarios: $e');
+      throw Exception('Failed to load completed scenarios: $e');
+    }
+  }
+
+  // New method to get specific scenario completion
+  static Future<Map<String, dynamic>?> getScenarioCompletion({
+    required String userId,
+    required int scenarioId,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConfig.scenarioCompletion(userId, scenarioId)),
         headers: {'Content-Type': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {
-          return List<Map<String, dynamic>>.from(
-            data['completed_scenarios'] ?? [],
-          );
+          final value = data['completed_scenarios'];
+          if (value is Map<String, dynamic>) return value;
         }
+      } else if (response.statusCode == 404) {
+        // Scenario not completed yet
+        return null;
       }
-      throw Exception('Failed to load completed scenarios');
+      throw Exception('Failed to load scenario completion');
     } catch (e) {
-      print('Error fetching completed scenarios: $e');
-      throw Exception('Failed to load completed scenarios');
+      print('Error fetching scenario completion: $e');
+      throw Exception('Failed to load scenario completion');
     }
   }
 }
