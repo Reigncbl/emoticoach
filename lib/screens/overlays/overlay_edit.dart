@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../utils/colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/telegram_service.dart';
+import '../../utils/overlay_clipboard_helper.dart';
 
 class EditOverlayScreen extends StatefulWidget {
   final String initialText;
@@ -390,13 +391,12 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
                     "Copy Text",
                     style: TextStyle(color: Colors.white, fontSize: 12),
                   ),
-                  onPressed: () {
-                    Clipboard.setData(
-                      ClipboardData(text: _responseController.text),
-                    );
+                  onPressed: () async {
+                    final text = _responseController.text;
+                    final copied = await copyTextFromOverlay(text);
                     _showCopyFeedbackDialog(
-                      'Text copied to clipboard!',
-                      Colors.green,
+                      copied ? 'Text copied to clipboard!' : 'Failed to copy',
+                      copied ? Colors.green : Colors.red,
                     );
                   },
                 ),

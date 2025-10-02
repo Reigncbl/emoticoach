@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:developer';
 import 'dart:async';
+import 'dart:isolate';
+import 'dart:ui' as ui;
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/home.dart';
 import 'screens/overlay_page.dart';
@@ -13,12 +15,14 @@ import 'controllers/app_monitor_controller.dart';
 import 'services/session_service.dart';
 import 'utils/overlay_stats_tracker.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'utils/overlay_clipboard_helper.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
 @pragma("vm:entry-point")
 void overlayMain() {
   WidgetsFlutterBinding.ensureInitialized();
+  ui.DartPluginRegistrant.ensureInitialized();
   runApp(
     const MaterialApp(debugShowCheckedModeBanner: false, home: OverlayUI()),
   );
@@ -34,6 +38,8 @@ class LearnScreen extends StatelessWidget {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
+  _registerOverlayClipboardPort();
 
   try {
     await OverlayStatsTracker.initialize().timeout(
@@ -86,6 +92,39 @@ void _setupGlobalMethodChannel() {
   });
 
   log('Global method channel set up successfully');
+}
+
+void _registerOverlayClipboardPort() {
+  final existing = ui.IsolateNameServer.lookupPortByName(
+    overlayClipboardPortName,
+  );
+  if (existing != null) {
+    ui.IsolateNameServer.removePortNameMapping(overlayClipboardPortName);
+  }
+
+  final receivePort = ReceivePort();
+  ui.IsolateNameServer.registerPortWithName(
+    receivePort.sendPort,
+    overlayClipboardPortName,
+  );
+
+  receivePort.listen((message) async {
+    if (message is Map && message['action'] == 'copy') {
+      final text = message['text'] as String? ?? '';
+      bool success = false;
+      try {
+        await Clipboard.setData(ClipboardData(text: text));
+        success = true;
+      } catch (_) {
+        success = false;
+      }
+
+      final SendPort? replyPort = message['replyPort'] as SendPort?;
+      if (replyPort != null) {
+        replyPort.send({'success': success});
+      }
+    }
+  });
 }
 
 class MyApp extends StatelessWidget {

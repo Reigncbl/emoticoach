@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io';
 import '../main.dart';
 import '../config/api_config.dart';
 import '../services/authenticated_api_service.dart';
@@ -344,12 +343,16 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
             return '$firstName $lastName'.trim();
           }
         } else {
-          print('❌ Backend API call failed: ${response.statusCode} - ${response.body}');
+          print(
+            '❌ Backend API call failed: ${response.statusCode} - ${response.body}',
+          );
         }
 
         // Fallback to Firebase displayName if backend fails
         if (user.displayName != null && user.displayName!.isNotEmpty) {
-          print('🔄 Using Firebase displayName as fallback: ${user.displayName}');
+          print(
+            '🔄 Using Firebase displayName as fallback: ${user.displayName}',
+          );
           return user.displayName!;
         }
       }
@@ -360,7 +363,6 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       return 'User';
     }
   }
-
 
   // Handle successful signup - simplified
   Future<void> _handleSuccessfulSignup() async {

@@ -7,6 +7,9 @@ import android.provider.Settings
 import android.app.AppOpsManager
 import android.content.Context
 import android.util.Log
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -14,6 +17,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "emoticoach_service"
     private val OVERLAY_CHANNEL = "emoticoach_overlay_channel"
+    private val CLIPBOARD_CHANNEL = "com.example.emoticoach/clipboard"
+    private val OVERLAY_CONFIG_CHANNEL = "com.example.emoticoach/overlay"
     private val USAGE_STATS_REQUEST_CODE = 1001
     
     private lateinit var overlayMethodChannel: MethodChannel
@@ -23,6 +28,54 @@ class MainActivity : FlutterActivity() {
         
         // Set up overlay method channel
         overlayMethodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OVERLAY_CHANNEL)
+        // Overlay config channel to match Dart calls in overlay_edit.dart
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, OVERLAY_CONFIG_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "configureOverlayFlags" -> {
+                    try {
+                        // We cannot directly tweak the system overlay window from here,
+                        // but we can ensure our activity isn't focus-blocked if brought to front.
+                        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "configureOverlayFlags handler failed", e)
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // Clipboard channel for reliable copy from overlay context
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CLIPBOARD_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "copyText" -> {
+                    try {
+                        val text = call.argument<String>("text") ?: ""
+                        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("emoticoach", text)
+                        clipboard.setPrimaryClip(clip)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Clipboard copy failed", e)
+                        result.error("CLIPBOARD_ERROR", e.message, null)
+                    }
+                }
+                // Optional: accept overlay flag configuration to avoid 'not implemented'
+                "configureOverlayFlags" -> {
+                    try {
+                        // Best-effort: ensure activity window can receive input if it is used
+                        window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                        result.success(true)
+                    } catch (e: Exception) {
+                        Log.w("MainActivity", "configureOverlayFlags no-op", e)
+                        result.success(false)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
         
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

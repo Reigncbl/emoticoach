@@ -7,6 +7,7 @@ import 'package:emoticoach/services/telegram_service.dart';
 import 'package:emoticoach/utils/colors.dart';
 import 'package:emoticoach/utils/overlay_stats_tracker.dart';
 import 'package:emoticoach/utils/auth_utils.dart';
+import 'package:emoticoach/utils/overlay_clipboard_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AnalysisView extends StatefulWidget {
@@ -66,6 +67,10 @@ class _AnalysisViewState extends State<AnalysisView> {
   void initState() {
     super.initState();
     _initializeView();
+    // Ensure overlay window is configured for reliable input/gestures
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _configureAndroidOverlayFlags();
+    });
   }
 
   @override
@@ -152,6 +157,18 @@ class _AnalysisViewState extends State<AnalysisView> {
     await _loadSettings();
     _fetchMessages();
     _startPeriodicSettingsCheck(); // Start checking for changes
+  }
+
+  Future<void> _configureAndroidOverlayFlags() async {
+    try {
+      const platform = MethodChannel('com.example.emoticoach/overlay');
+      await platform.invokeMethod('configureOverlayFlags');
+      debugPrint('✅ AnalysisView overlay flags configured');
+    } catch (e) {
+      // In overlay isolate/engine, this channel may not be registered. That's OK; skip silently.
+      // Avoid noisy logs: copying and UI will still work without this best-effort call.
+      // debugPrint('ℹ️ AnalysisView: overlay flags not available in this context, skipping');
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -552,9 +569,6 @@ class _AnalysisViewState extends State<AnalysisView> {
                 ],
                 if (_toneAdjusterEnabled) ...[_buildChecklist()],
 
-                // Test TextField for keyboard input validation
-                _buildTestInputSection(),
-
                 // Show a message if no features are enabled
                 if (!_messageAnalysisEnabled &&
                     !_smartSuggestionsEnabled &&
@@ -724,8 +738,8 @@ class _AnalysisViewState extends State<AnalysisView> {
                             _getSuggestedResponseForContact(
                               widget.selectedContact,
                             );
-                        await Clipboard.setData(
-                          ClipboardData(text: suggestedResponse),
+                        final copied = await copyTextFromOverlay(
+                          suggestedResponse,
                         );
 
                         // Track suggestion usage
@@ -738,8 +752,10 @@ class _AnalysisViewState extends State<AnalysisView> {
                         );
 
                         _showCopyFeedbackDialog(
-                          'Copied to clipboard!',
-                          Colors.green,
+                          copied
+                              ? 'Copied to clipboard!'
+                              : 'Failed to copy to clipboard',
+                          copied ? Colors.green : Colors.red,
                         );
 
                         debugPrint('✅ Tracked suggestion usage event');
@@ -791,116 +807,6 @@ class _AnalysisViewState extends State<AnalysisView> {
     );
   }
 
-  Widget _buildTestInputSection() {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '🎹 Keyboard Input Test',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _testInputController,
-                  decoration: const InputDecoration(
-                    hintText: 'Type here to test keyboard input...',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    isDense: true,
-                  ),
-                  style: const TextStyle(fontSize: 12),
-                  maxLines: 2,
-                  onChanged: (value) {
-                    print('💬 Keyboard input: $value');
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  final text = _testInputController.text;
-                  if (text.isNotEmpty) {
-                    _copyToClipboard(text, context);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Nothing to copy!'),
-                        duration: Duration(seconds: 1),
-                      ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.copy, size: 18),
-                tooltip: 'Copy input text',
-                padding: const EdgeInsets.all(4),
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This field tests keyboard input functionality in the overlay.',
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.blue.shade600,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper method for copying text to clipboard
-  Future<void> _copyToClipboard(String text, BuildContext context) async {
-    try {
-      await Clipboard.setData(ClipboardData(text: text));
-      print(
-        '📋 Copied to clipboard: ${text.length > 50 ? text.substring(0, 50) + "..." : text}',
-      );
-
-      // Show feedback
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('📋 Copied to clipboard!'),
-            duration: Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      print('❌ Error copying to clipboard: $e');
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Failed to copy'),
-            duration: Duration(seconds: 1),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
-  }
-
   Widget _buildSection({
     required String icon,
     required String title,
@@ -937,20 +843,25 @@ class _AnalysisViewState extends State<AnalysisView> {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
