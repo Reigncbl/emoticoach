@@ -5,6 +5,8 @@ import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import '../models/overlay_statistics.dart';
 import '../services/overlay_stats_service.dart';
 import '../utils/overlay_stats_tracker.dart';
+import '../utils/overlay_bubble_helper.dart';
+import '../controllers/app_monitor_controller.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:developer';
 import 'package:flutter/services.dart';
@@ -24,6 +26,8 @@ class _OverlayScreenState extends State<OverlayScreen>
   bool messageAnalysisEnabled = false;
   bool smartSuggestionsEnabled = false;
   bool toneAdjusterEnabled = false;
+  bool _bubbleActive = false;
+  final AppMonitorController _appMonitor = AppMonitorController();
   // bool autoLaunchEnabled = false; // Commented out - not implementing
 
   // Add preference keys
@@ -48,6 +52,7 @@ class _OverlayScreenState extends State<OverlayScreen>
   }
 
   Future<void> _loadSettingsAndInitialize() async {
+    debugPrint('[OverlayScreen] Loading settings and initializing');
     await _loadSavedSettings();
     await _checkPermissions();
     await _refreshOverlayPermission();
@@ -71,10 +76,26 @@ class _OverlayScreenState extends State<OverlayScreen>
   }
 
   Future<void> _refreshOverlayPermission() async {
+    debugPrint('[OverlayScreen] Refreshing overlay permission');
     final hasOverlayPermission =
         await FlutterOverlayWindow.isPermissionGranted();
     if (mounted) {
-      setState(() => messagingOverlayEnabled = hasOverlayPermission);
+      setState(() {
+        messagingOverlayEnabled = hasOverlayPermission;
+        if (!hasOverlayPermission) {
+          _bubbleActive = false;
+        }
+      });
+    }
+
+    if (hasOverlayPermission) {
+      await _syncBubbleState();
+    } else {
+      await FlutterOverlayWindow.closeOverlay();
+      await hideBubble();
+      await stopBubbleService();
+      _appMonitor.setOverlayEnabled(false);
+      await _appMonitor.stopMonitoring();
     }
   }
 
@@ -94,6 +115,7 @@ class _OverlayScreenState extends State<OverlayScreen>
 
   Future<void> _checkPermissions() async {
     try {
+      debugPrint('[OverlayScreen] Checking permissions');
       // Check overlay permission
       final hasOverlayPermission =
           await FlutterOverlayWindow.isPermissionGranted();
@@ -183,6 +205,17 @@ class _OverlayScreenState extends State<OverlayScreen>
         });
       }
     }
+  }
+
+  Future<bool> _syncBubbleState() async {
+    debugPrint('[OverlayScreen] Syncing bubble state');
+    final active = await isBubbleActive();
+    if (mounted) {
+      setState(() {
+        _bubbleActive = messagingOverlayEnabled && active;
+      });
+    }
+    return messagingOverlayEnabled && active;
   }
 
   Future<void> _onPeriodChanged(StatisticsPeriod newPeriod) async {
@@ -391,85 +424,132 @@ class _OverlayScreenState extends State<OverlayScreen>
                     horizontal: 16,
                     vertical: 10,
                   ),
-                  child: FutureBuilder<bool>(
-                    future: FlutterOverlayWindow.isActive(),
-                    builder: (context, snapshot) {
-                      final isOverlayActive = snapshot.data ?? false;
-
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: kPrimaryBlue,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Overlay Status',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    isOverlayActive
-                                        ? 'Enabled (Tap icon to disable)'
-                                        : 'Disabled (Tap icon to enable)',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ],
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: kPrimaryBlue,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bubble Status',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                ),
                               ),
-                            ),
-
-                            _BounceGlowIcon(
-                              isActive: isOverlayActive,
-                              onTap: () async {
-                                final isActive =
-                                    await FlutterOverlayWindow.isActive();
-                                if (isActive) {
-                                  await FlutterOverlayWindow.closeOverlay();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Overlay Disabled')),
-                                  );
-                                } else {
-                                  await FlutterOverlayWindow.showOverlay(
-                                    enableDrag: true,
-                                    overlayTitle: "Emoticoach",
-                                    overlayContent: 'Overlay Enabled',
-                                    flag: OverlayFlag
-                                        .focusPointer, // Enable keyboard input and focus
-                                    alignment: OverlayAlignment.topLeft,
-                                    positionGravity: PositionGravity.left,
-                                    height: 200,
-                                    width: 200,
-                                    startPosition: const OverlayPosition(
-                                      0,
-                                      200,
-                                    ),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Overlay Enabled')),
-                                  );
-                                }
-                                setState(() {});
-                              },
-                            ),
-                          ],
+                              SizedBox(height: 2),
+                              Text(
+                !messagingOverlayEnabled
+                  ? 'Permission required (enable toggle below)'
+                  : (_bubbleActive
+                      ? 'Active (tap bubble to launch analysis)'
+                      : 'Inactive (tap icon to show bubble)'),
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      );
-                    },
+                        _BounceGlowIcon(
+                          isActive: _bubbleActive,
+                          onTap: () async {
+                            debugPrint('[OverlayScreen] Lightning icon tapped. messagingOverlayEnabled=$messagingOverlayEnabled, _bubbleActive=$_bubbleActive');
+                            if (!messagingOverlayEnabled) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Grant overlay permission before toggling the bubble',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+
+                            if (_bubbleActive) {
+                              if (mounted) {
+                                setState(() => _bubbleActive = false);
+                              }
+                              debugPrint('[OverlayScreen] Attempting to hide bubble and stop service');
+                              try {
+                                await FlutterOverlayWindow.closeOverlay();
+                                final stillActiveBeforeHide = await isBubbleActive();
+                                debugPrint('[OverlayScreen] Bubble active before hide: $stillActiveBeforeHide');
+                                await hideBubble();
+                                await stopBubbleService();
+                              } catch (e) {
+                                debugPrint('Error stopping bubble: $e');
+                              }
+                              final active = await _syncBubbleState();
+                              debugPrint('[OverlayScreen] Bubble stop result: active=$active');
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      active
+                                          ? 'Bubble still running — please try again'
+                                          : 'Floating bubble hidden',
+                                    ),
+                                    backgroundColor:
+                                        active ? Colors.red : Colors.orange,
+                                  ),
+                                );
+                              }
+                            } else {
+                              if (mounted) {
+                                setState(() => _bubbleActive = true);
+                              }
+                              debugPrint('[OverlayScreen] Attempting to start bubble service');
+                              try {
+                                await FlutterOverlayWindow.closeOverlay();
+                                _appMonitor.setOverlayEnabled(true);
+                                await startBubbleService();
+                                await showBubble();
+                              } catch (e) {
+                                debugPrint('Error starting bubble: $e');
+                              }
+                              final active = await _syncBubbleState();
+                              debugPrint('[OverlayScreen] Bubble start result: active=$active');
+                              if (!active) {
+                                debugPrint('[OverlayScreen] Bubble failed to appear');
+                                const methodChannel = MethodChannel('emoticoach_service');
+                                try {
+                                  final details = await methodChannel.invokeMapMethod<String, dynamic>('getBubbleDebugInfo');
+                                  debugPrint('[OverlayScreen] Bubble debug info: $details');
+                                } catch (e) {
+                                  debugPrint('Failed to fetch bubble debug info: $e');
+                                }
+                              }
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      active
+                                          ? 'Bubble active — tap it to open the coach'
+                                          : 'Failed to activate bubble, please try again',
+                                    ),
+                                    backgroundColor:
+                                        active ? Colors.green : Colors.orange,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 // Supported App
@@ -618,31 +698,85 @@ class _OverlayScreenState extends State<OverlayScreen>
                         switchValue: messagingOverlayEnabled,
                         onChanged: (v) async {
                           if (v) {
-                            // ✅ Enable flow
-                            final hasPermission =
+                            debugPrint('[OverlayScreen] Messaging overlay toggle ON pressed');
+                            bool granted =
                                 await FlutterOverlayWindow.isPermissionGranted();
 
-                            if (!hasPermission) {
+                            if (!granted) {
                               final bool? res =
                                   await FlutterOverlayWindow.requestPermission();
                               log("Overlay permission request result: $res");
+                              granted = res == true;
+                            }
 
-                              if (res == true) {
+                            if (granted) {
+                              if (mounted) {
                                 setState(() => messagingOverlayEnabled = true);
-                              } else {
-                                setState(() => messagingOverlayEnabled = false);
+                              }
+                              _appMonitor.setOverlayEnabled(true);
+                              debugPrint('[OverlayScreen] Overlay permission granted, syncing bubble state');
+                              await _syncBubbleState();
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Overlay permission granted — use the lightning icon to toggle the bubble',
+                                    ),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
                               }
                             } else {
-                              setState(() => messagingOverlayEnabled = true);
+                              if (mounted) {
+                                setState(() => messagingOverlayEnabled = false);
+                              }
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Overlay permission is required for the floating bubble',
+                                    ),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
                             }
                           } else {
-                            // ❌ Disable flow
-                            setState(() => messagingOverlayEnabled = false);
+                            debugPrint('[OverlayScreen] Messaging overlay toggle OFF pressed');
+                            if (mounted) {
+                              setState(() {
+                                messagingOverlayEnabled = false;
+                                _bubbleActive = false;
+                              });
+                            }
 
-                            final isActive =
-                                await FlutterOverlayWindow.isActive();
-                            if (isActive) {
-                              await FlutterOverlayWindow.closeOverlay();
+                            try {
+                              debugPrint('[OverlayScreen] Closing overlay because permission toggled off');
+                              final isActive =
+                                  await FlutterOverlayWindow.isActive();
+                              if (isActive) {
+                                await FlutterOverlayWindow.closeOverlay();
+                              }
+                            } catch (e) {
+                              log('Error closing overlay: $e');
+                            }
+
+                            debugPrint('[OverlayScreen] Stopping bubble service and disabling AppMonitorController after permission off');
+                            await hideBubble();
+                            await stopBubbleService();
+                            _appMonitor.setOverlayEnabled(false);
+                            await _appMonitor.stopMonitoring();
+                            await _syncBubbleState();
+
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Overlay disabled — disable permission in system settings to complete',
+                                  ),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
                             }
 
                             // 🚀 Launch system settings so user can manually disable overlay permission

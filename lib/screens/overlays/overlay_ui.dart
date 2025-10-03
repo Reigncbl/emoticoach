@@ -1,10 +1,10 @@
-import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'overlay_edit.dart';
 import 'contacts_list.dart';
 import 'analysis_view.dart';
 import '../../services/session_service.dart';
+import '../../utils/overlay_bubble_helper.dart';
 
 class OverlayUI extends StatefulWidget {
   const OverlayUI({super.key});
@@ -14,19 +14,21 @@ class OverlayUI extends StatefulWidget {
 }
 
 class _OverlayUIState extends State<OverlayUI> {
-  BoxShape _currentShape = BoxShape.circle; // Start with circle
   bool _showEditScreen = false; // Add this state variable
-  bool _showContactsList = false; // Add contacts list state
+  bool _showContactsList = true; // Add contacts list state
   String _selectedContact = ''; // Track selected contact
   String _selectedContactPhone = ''; // Track selected contact phone
   int _selectedContactId = 0; // Track selected contact ID
   String _userPhoneNumber = ''; // User's phone number from session
-  SendPort? homePort;
 
   @override
   void initState() {
     super.initState();
     _loadUserPhoneNumber();
+    Future.microtask(hideBubble);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureExpandedLayout();
+    });
   }
 
   // Load user phone number from session
@@ -39,34 +41,48 @@ class _OverlayUIState extends State<OverlayUI> {
     }
   }
 
+  Future<void> _ensureExpandedLayout() async {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final overlayWidth = (screenWidth * 0.95).clamp(400.0, 520.0);
+    try {
+      await FlutterOverlayWindow.resizeOverlay(
+        overlayWidth.toInt(),
+        550,
+        false,
+      );
+    } catch (e) {
+      debugPrint('Failed to resize overlay: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: _showEditScreen
-          ? EditOverlayScreen(
-              initialText: 'User text not loaded',
-              selectedContact: _selectedContact,
-              contactPhone: _selectedContactPhone,
-              userPhoneNumber: _userPhoneNumber,
-              onBack: _goBackToMainScreen,
-            )
-          : (_currentShape == BoxShape.circle
-                ? _buildCircleView()
-                : (_showContactsList
-                      ? _buildContactsListView()
-                      : _buildAnalysisView())),
+      child: Center(
+        child: _showEditScreen
+            ? EditOverlayScreen(
+                initialText: 'User text not loaded',
+                selectedContact: _selectedContact,
+                contactPhone: _selectedContactPhone,
+                userPhoneNumber: _userPhoneNumber,
+                onBack: _goBackToMainScreen,
+              )
+            : (_showContactsList
+                  ? _buildContactsListView()
+                  : _buildAnalysisView()),
+      ),
     );
   }
 
   // Add this method to handle going back to main screen
   void _goBackToMainScreen() async {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final overlayWidth = (screenWidth).clamp(400.0, 500.0);
-    await FlutterOverlayWindow.resizeOverlay(overlayWidth.toInt(), 550, false);
-    setState(() {
-      _showEditScreen = false;
-    });
+    await _ensureExpandedLayout();
+    if (mounted) {
+      setState(() {
+        _showEditScreen = false;
+      });
+    }
   }
 
   // Add this method to handle going to edit screen
@@ -79,40 +95,6 @@ class _OverlayUIState extends State<OverlayUI> {
     });
   }
 
-  Widget _buildCircleView() {
-    return GestureDetector(
-      onTap: () async {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final overlayWidth = (screenWidth * 0.95).clamp(400.0, 500.0);
-        await FlutterOverlayWindow.resizeOverlay(
-          overlayWidth.toInt(),
-          550,
-          false,
-        );
-        setState(() {
-          _currentShape = BoxShape.rectangle;
-          _showContactsList = true; // Show contacts list first
-        });
-      },
-      child: Container(
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
-        child: Center(
-          child: SizedBox(
-            height: 80,
-            width: 80,
-            child: Icon(
-              Icons.chat_bubble_outline,
-              color: Colors.white,
-              size: 40,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   // Add method to select contact and show analysis
   void _selectContact(Map<String, dynamic> contact) async {
     setState(() {
@@ -121,6 +103,7 @@ class _OverlayUIState extends State<OverlayUI> {
       _selectedContactId = contact['id'] ?? 0;
       _showContactsList = false;
     });
+    await _ensureExpandedLayout();
   }
 
   // Add method to go back to contacts list
@@ -128,17 +111,27 @@ class _OverlayUIState extends State<OverlayUI> {
     setState(() {
       _showContactsList = true;
     });
+    _ensureExpandedLayout();
   }
 
   // Helper method to close overlay
   void _closeOverlay() async {
-    await FlutterOverlayWindow.resizeOverlay(80, 80, true);
-    setState(() {
-      _currentShape = BoxShape.circle;
-      _showContactsList = false;
-      _selectedContact = '';
-      _selectedContactId = 0;
-    });
+    try {
+      await FlutterOverlayWindow.closeOverlay();
+    } catch (e) {
+      debugPrint('Failed to close overlay: $e');
+    } finally {
+      await showBubble();
+      if (mounted) {
+        setState(() {
+          _showEditScreen = false;
+          _showContactsList = true;
+          _selectedContact = '';
+          _selectedContactPhone = '';
+          _selectedContactId = 0;
+        });
+      }
+    }
   }
 
   Widget _buildContactsListView() {

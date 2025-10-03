@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:developer';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
+import 'package:emoticoach/utils/overlay_bubble_helper.dart';
+import 'dart:ui' as ui;
 
 class AppMonitorController {
   static final AppMonitorController _instance =
@@ -104,24 +107,55 @@ class AppMonitorController {
 
       log('Attempting to show overlay...');
 
+      await hideBubble();
+
+      final platformDispatcher = WidgetsBinding.instance.platformDispatcher;
+      final ui.FlutterView? view = platformDispatcher.views.isNotEmpty
+          ? platformDispatcher.views.first
+          : platformDispatcher.implicitView;
+      final double deviceWidth = view != null
+          ? view.physicalSize.width / view.devicePixelRatio
+          : 480.0;
+      final double deviceHeight = view != null
+          ? view.physicalSize.height / view.devicePixelRatio
+          : 800.0;
+
+      final double desiredWidth = (deviceWidth * 0.95).clamp(400.0, 520.0);
+      final int overlayWidth = desiredWidth.round();
+      const int overlayHeight = 550;
+
+      int startX = ((deviceWidth - desiredWidth) / 2).round();
+      if (startX < 0) {
+        startX = 0;
+      }
+      int startY = (deviceHeight * 0.15).round();
+      if (startY < 0) {
+        startY = 0;
+      }
+      final int maxY = (deviceHeight - overlayHeight).round();
+      if (maxY >= 0 && startY > maxY) {
+        startY = maxY;
+      }
+
       // Show the overlay with the proper entry point
       await FlutterOverlayWindow.showOverlay(
-        enableDrag: true,
+        enableDrag: false,
         overlayTitle: "Emoticoach",
         overlayContent: 'Overlay Enabled',
         flag: OverlayFlag.defaultFlag,
         visibility: NotificationVisibility.visibilityPublic,
-        alignment: OverlayAlignment.topLeft,
+        alignment: OverlayAlignment.center,
         positionGravity: PositionGravity.left,
-        height: 200,
-        width: 200,
-        startPosition: const OverlayPosition(0, 300),
+        height: overlayHeight,
+        width: overlayWidth,
+        startPosition: OverlayPosition(startX.toDouble(), startY.toDouble()),
       );
 
       log('✅ Overlay shown successfully for Telegram!');
     } catch (e) {
       log('❌ Error showing overlay: $e');
       log('Error type: ${e.runtimeType}');
+      await showBubble();
     }
   }
 

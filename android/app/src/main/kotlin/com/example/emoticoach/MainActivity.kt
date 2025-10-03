@@ -10,6 +10,8 @@ import android.util.Log
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.view.WindowManager
+import androidx.core.content.ContextCompat
+import com.example.emoticoach.overlay.StickyBubbleService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -94,6 +96,49 @@ class MainActivity : FlutterActivity() {
                         startActivity(intent)
                         result.success(true)
                     }
+                "startBubbleService" -> {
+                    Log.d("MainActivity", "MethodChannel startBubbleService called")
+                    val serviceIntent = Intent(this, StickyBubbleService::class.java)
+                    ContextCompat.startForegroundService(this, serviceIntent)
+                    result.success(true)
+                }
+                "stopBubbleService" -> {
+                    Log.d("MainActivity", "MethodChannel stopBubbleService called")
+                    val serviceIntent = Intent(this, StickyBubbleService::class.java)
+                    stopService(serviceIntent)
+                    result.success(true)
+                }
+                "showBubble" -> {
+                    Log.d("MainActivity", "MethodChannel showBubble called")
+                    val intent = Intent(this, StickyBubbleService::class.java).apply {
+                        action = StickyBubbleService.ACTION_SHOW_BUBBLE
+                    }
+                    ContextCompat.startForegroundService(this, intent)
+                    result.success(true)
+                }
+                "hideBubble" -> {
+                    Log.d("MainActivity", "MethodChannel hideBubble called")
+                    val intent = Intent(this, StickyBubbleService::class.java).apply {
+                        action = StickyBubbleService.ACTION_HIDE_BUBBLE
+                    }
+                    ContextCompat.startForegroundService(this, intent)
+                    result.success(true)
+                }
+                "isBubbleVisible" -> {
+                    val isVisible = StickyBubbleService.isBubbleVisible
+                    Log.d("MainActivity", "MethodChannel isBubbleVisible called -> ${'$'}isVisible")
+                    result.success(isVisible)
+                }
+                "getBubbleDebugInfo" -> {
+                    Log.d("MainActivity", "MethodChannel getBubbleDebugInfo called")
+                    result.success(
+                        mapOf(
+                            "serviceRunning" to StickyBubbleService.isServiceRunning,
+                            "bubbleVisible" to StickyBubbleService.isBubbleVisible,
+                            "lastAttachError" to StickyBubbleService.lastAttachErrorMessage,
+                        ),
+                    )
+                }
                 else -> {
                     result.notImplemented()
                 }
