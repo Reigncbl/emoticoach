@@ -3,12 +3,15 @@ import 'package:flutter/services.dart';
 import '../../utils/colors.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/telegram_service.dart';
+import '../../services/rag_service.dart';
 import '../../utils/overlay_clipboard_helper.dart';
+import '../../utils/auth_utils.dart';
 
 class EditOverlayScreen extends StatefulWidget {
   final String initialText;
   final String selectedContact;
   final String contactPhone;
+  final int contactId;
   final String userPhoneNumber;
   final VoidCallback onBack;
 
@@ -17,6 +20,7 @@ class EditOverlayScreen extends StatefulWidget {
     required this.initialText,
     required this.selectedContact,
     required this.contactPhone,
+    required this.contactId,
     required this.userPhoneNumber,
     required this.onBack,
   });
@@ -27,10 +31,13 @@ class EditOverlayScreen extends StatefulWidget {
 
 class _EditOverlayScreenState extends State<EditOverlayScreen> {
   final TelegramService _telegramService = TelegramService();
+  final RagService _ragService = RagService();
   late TextEditingController _responseController;
   late TextEditingController _shortenController;
   late FocusNode _textFieldFocusNode;
-  String _selectedTone = "Empathetic";
+  String _selectedTone = "Neutral";
+  bool _isGenerating = false;
+  String _lastInstruction = '';
   String _latestMessage = "No message available";
   bool _isLoading = true;
 
@@ -70,6 +77,76 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
           SystemChannels.textInput.invokeMethod('TextInput.show');
         }
       });
+    }
+  }
+
+  Future<void> _generateResponse({
+    String instruction = '',
+    bool showFeedback = false,
+  }) async {
+    if (_isGenerating) {
+      return;
+    }
+
+    final safeUserId = await AuthUtils.getSafeUserId();
+    final effectiveUserId =
+        (safeUserId != null && safeUserId.isNotEmpty)
+            ? safeUserId
+            : widget.userPhoneNumber;
+
+    if (effectiveUserId.isEmpty) {
+      if (showFeedback) {
+        _showCopyFeedbackDialog(
+          'Missing user session. Please log in again.',
+          Colors.red,
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _isGenerating = true;
+      });
+    }
+
+    try {
+      final result = await _ragService.generateContextualReply(
+        userId: effectiveUserId,
+        contactId: widget.contactId,
+        query: instruction,
+        desiredTone: _selectedTone,
+      );
+
+      if (result['success'] == true) {
+        final responseText = result['response']?.toString() ?? '';
+        if (responseText.isNotEmpty && mounted) {
+          setState(() {
+            _responseController.text = responseText;
+          });
+        }
+        if (showFeedback) {
+          _showCopyFeedbackDialog('Response updated!', Colors.green);
+          _shortenController.clear();
+        }
+      } else if (showFeedback) {
+        final message = result['error']?.toString() ??
+            'Failed to generate a new response.';
+        _showCopyFeedbackDialog(message, Colors.red);
+      }
+    } catch (e) {
+      if (showFeedback) {
+        _showCopyFeedbackDialog(
+          'Error generating response: $e',
+          Colors.red,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerating = false;
+        });
+      }
     }
   }
 
@@ -125,41 +202,18 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
   }
 
   Future<void> _modifyResponse(String instruction) async {
-    try {
-      // Show loading feedback
-      _showCopyFeedbackDialog('Modifying response...', Colors.blue);
-
-      // Simulate API call or implement actual modification logic
-      await Future.delayed(const Duration(seconds: 1));
-
-      // For now, just add the instruction as a prefix
-      String currentText = _responseController.text;
-      String modifiedText = "";
-
-      if (instruction.toLowerCase().contains('shorter') ||
-          instruction.toLowerCase().contains('brief')) {
-        // Simulate shortening
-        List<String> sentences = currentText.split('. ');
-        modifiedText = sentences.take(1).join('. ');
-        if (!modifiedText.endsWith('.')) modifiedText += '.';
-      } else if (instruction.toLowerCase().contains('formal')) {
-        modifiedText = "I appreciate your message. $currentText";
-      } else if (instruction.toLowerCase().contains('casual')) {
-        modifiedText = "Hey! $currentText 😊";
-      } else {
-        // Generic modification
-        modifiedText = "$currentText (Modified: $instruction)";
-      }
-
-      setState(() {
-        _responseController.text = modifiedText;
-      });
-
-      _shortenController.clear();
-      _showCopyFeedbackDialog('Response modified successfully!', Colors.green);
-    } catch (e) {
-      _showCopyFeedbackDialog('Failed to modify response', Colors.red);
+    final trimmedInstruction = instruction.trim();
+    if (trimmedInstruction.isEmpty && _responseController.text.isNotEmpty) {
+      // No extra guidance provided; just regenerate with current tone
+      await _generateResponse(showFeedback: true);
+      return;
     }
+
+    _lastInstruction = trimmedInstruction;
+    await _generateResponse(
+      instruction: trimmedInstruction,
+      showFeedback: true,
+    );
   }
 
   @override
@@ -356,7 +410,7 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "put the tone of the response here",
+                      'Tone: $_selectedTone',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
@@ -371,6 +425,10 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
                   ],
                 ),
               ),
+              if (_isGenerating) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(minHeight: 2),
+              ],
               const SizedBox(height: 12),
               // COPY BUTTON
               Align(
@@ -552,10 +610,7 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
   Widget _buildToneChip(String label) {
     final bool selected = _selectedTone == label;
     return GestureDetector(
-      onTap: () {
-        setState(() => _selectedTone = label);
-        _applyToneToResponse(label);
-      },
+      onTap: () => _applyToneToResponse(label),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -578,32 +633,17 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
   }
 
   void _applyToneToResponse(String tone) {
-    String baseText = widget.initialText;
-    String modifiedText = baseText;
-
-    switch (tone.toLowerCase()) {
-      case 'empathetic':
-        modifiedText = "I understand how you feel. $baseText";
-        break;
-      case 'formal':
-        modifiedText = "Thank you for your message. $baseText";
-        break;
-      case 'casual':
-        modifiedText = "Hey! $baseText 😊";
-        break;
-      case 'direct':
-        // Keep it short and to the point
-        List<String> sentences = baseText.split('. ');
-        modifiedText = sentences.first;
-        if (!modifiedText.endsWith('.')) modifiedText += '.';
-        break;
-      case 'neutral':
-        modifiedText = baseText;
-        break;
+    if (_selectedTone == tone && _lastInstruction.isEmpty) {
+      return;
     }
 
     setState(() {
-      _responseController.text = modifiedText;
+      _selectedTone = tone;
     });
+
+    _generateResponse(
+      instruction: _lastInstruction,
+      showFeedback: false,
+    );
   }
 }

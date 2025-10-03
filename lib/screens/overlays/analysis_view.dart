@@ -16,7 +16,7 @@ class AnalysisView extends StatefulWidget {
   final int contactId;
   final String userPhoneNumber;
   final VoidCallback onClose;
-  final VoidCallback onEdit;
+  final ValueChanged<String> onEdit;
   final VoidCallback onBackToContacts;
 
   const AnalysisView({
@@ -774,10 +774,12 @@ class _AnalysisViewState extends State<AnalysisView> {
                     color: Colors.blue,
                     onTap: () async {
                       // Track response rephrasing intent
+                      final suggestedResponse = _getSuggestedResponseForContact(
+                        widget.selectedContact,
+                      );
+
                       await OverlayStatsTracker.trackResponseRephrased(
-                        originalText: _getSuggestedResponseForContact(
-                          widget.selectedContact,
-                        ),
+                        originalText: suggestedResponse,
                         toneAdjustment: 'user_edit_requested',
                         sessionId:
                             'analysis_${DateTime.now().millisecondsSinceEpoch}',
@@ -786,7 +788,7 @@ class _AnalysisViewState extends State<AnalysisView> {
                       debugPrint('✅ Tracked response rephrasing event');
 
                       // Call the original edit callback
-                      widget.onEdit();
+                      widget.onEdit(suggestedResponse);
                     },
                   ),
                 ],

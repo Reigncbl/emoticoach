@@ -22,6 +22,7 @@ class _OverlayUIState extends State<OverlayUI> {
   String _selectedContactPhone = ''; // Track selected contact phone
   int _selectedContactId = 0; // Track selected contact ID
   String _userPhoneNumber = ''; // User's phone number from session
+  String _draftResponse = 'User text not loaded';
   SendPort? homePort;
 
   @override
@@ -125,9 +126,10 @@ class _OverlayUIState extends State<OverlayUI> {
       color: Colors.transparent,
       child: _showEditScreen
           ? EditOverlayScreen(
-              initialText: 'User text not loaded',
+              initialText: _draftResponse,
               selectedContact: _selectedContact,
               contactPhone: _selectedContactPhone,
+              contactId: _selectedContactId,
               userPhoneNumber: _userPhoneNumber,
               onBack: _goBackToMainScreen,
             )
@@ -149,10 +151,13 @@ class _OverlayUIState extends State<OverlayUI> {
   }
 
   // Add this method to handle going to edit screen
-  void _goToEditScreen() async {
+  void _goToEditScreen(String initialText) async {
     final overlayWidth = _expandedOverlayWidth();
     await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
     setState(() {
+      _draftResponse = initialText.isNotEmpty
+          ? initialText
+          : 'User text not loaded';
       _showEditScreen = true;
     });
   }
@@ -193,6 +198,7 @@ class _OverlayUIState extends State<OverlayUI> {
       _selectedContactPhone = contact['phone'] ?? '';
       _selectedContactId = contact['id'] ?? 0;
       _showContactsList = false;
+      _draftResponse = 'User text not loaded';
     });
   }
 
@@ -211,6 +217,7 @@ class _OverlayUIState extends State<OverlayUI> {
       _showContactsList = false;
       _selectedContact = '';
       _selectedContactId = 0;
+      _draftResponse = 'User text not loaded';
     });
   }
 

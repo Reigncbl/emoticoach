@@ -59,12 +59,25 @@ def get_true_name_from_userid(user_id):
 def rag_sender_context(
     user_id: str = Query(..., description="The Firebase user ID"),
     contact_id: int = Query(..., description="Contact ID of the contact (Sender or Receiver)"),
-    query: str = Query(..., description="User query"),
+    query: str = Query("", description="Optional user instruction or query"),
     limit: int = Query(10, description="Number of messages to fetch"),
     start_time: str = Query(None, description="Start timestamp (YYYY-MM-DD HH:MM:SS)"),
     end_time: str = Query(None, description="End timestamp (YYYY-MM-DD HH:MM:SS)"),
+    desired_tone: str | None = Query(
+        None,
+        description="Desired tone for the generated reply (e.g., Formal, Casual)",
+    ),
 ):
-    messages = get_messages_for_conversation(user_id, contact_id, limit, start_time, end_time)
+    try:
+        messages = get_messages_for_conversation(
+            user_id, contact_id, limit, start_time, end_time
+        )
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            messages = []
+        else:
+            raise
+
     context = "\n".join([f"{m.Sender}: {m.MessageContent}" for m in messages])
 
     # Get user's previous messages for style
@@ -76,12 +89,38 @@ def rag_sender_context(
         last_message = messages[0]
         reply_query = last_message.MessageContent
     else:
-        reply_query = query
+        reply_query = query or ""
 
-    enhanced_query = f"Conversation context:\n{context}\n\nReply to the last message: {reply_query}"
-    response = rag.generate_response(enhanced_query, user_messages=user_messages)
+    tone_instruction = ""
+    if desired_tone:
+        tone_instruction = (
+            f"\nDesired reply tone: Respond in a {desired_tone.lower()} tone while remaining genuine and helpful."
+        )
+
+    user_instruction = ""
+    if query:
+        user_instruction = f"\nAdditional user instructions: {query}"
+
+    enhanced_query = (
+        "Conversation context:\n"
+        f"{context if context else 'No prior context available.'}\n\n"
+        f"Reply to the last message: {reply_query or 'Please craft a helpful response.'}"
+        f"{tone_instruction}{user_instruction}"
+    )
+
+    try:
+        response = rag.generate_response(enhanced_query, user_messages=user_messages)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to generate response: {exc}")
+
     emotion_analysis = analyze_emotion(response, user_name=user_id)
-    return emotion_analysis
+    return {
+        "success": True,
+        "response": response,
+        "emotion_analysis": emotion_analysis,
+        "requested_tone": desired_tone,
+        "context_used": context,
+    }
 
 
 
