@@ -1,7 +1,10 @@
 import 'dart:convert';
 import 'dart:math';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../config/api_config.dart';
 import '../models/overlay_statistics.dart';
+import 'session_service.dart';
 
 /// Abstract interface for overlay statistics storage and retrieval
 abstract class OverlayStatsRepository {
@@ -55,6 +58,7 @@ class OverlayStatsService implements OverlayStatsRepository {
   OverlayStatsService._();
 
   SharedPreferences? _prefs;
+  final http.Client _httpClient = http.Client();
   final List<OverlayStatsListener> _listeners = [];
   bool _isInitializing = false;
   bool _isInitialized = false;
@@ -163,21 +167,139 @@ class OverlayStatsService implements OverlayStatsRepository {
   }
 
   /// Refresh statistics cache for all periods
-  Future<void> _refreshStatisticsCache() async {
+  Future<void> _refreshStatisticsCache({bool preferBackend = true}) async {
     try {
       _statisticsCache = {};
 
       for (final period in StatisticsPeriod.values) {
-        final events = await getEventsForPeriod(period);
-        _statisticsCache![period] = OverlayStatistics.fromEvents(
-          events,
+        OverlayStatistics? stats;
+        if (preferBackend) {
+          stats = await _fetchStatisticsFromBackend(period);
+        }
+
+        stats ??= OverlayStatistics.fromEvents(
+          await getEventsForPeriod(period),
           period,
         );
+
+        _statisticsCache![period] = stats;
       }
       print('Statistics cache refreshed for all periods');
     } catch (e) {
       print('Error refreshing statistics cache: $e');
       _statisticsCache = {};
+    }
+  }
+
+  Future<String?> _getCurrentUserId() async {
+    try {
+      final firebaseUid = await SimpleSessionService.getFirebaseUid();
+      if (firebaseUid != null && firebaseUid.isNotEmpty) {
+        return firebaseUid;
+      }
+
+      final phoneNumber = await SimpleSessionService.getUserPhone();
+      if (phoneNumber != null && phoneNumber.isNotEmpty) {
+        return phoneNumber;
+      }
+    } catch (e) {
+      print('Error retrieving user identifier for overlay stats: $e');
+    }
+    return null;
+  }
+
+  String _periodToApiValue(StatisticsPeriod period) {
+    switch (period) {
+      case StatisticsPeriod.today:
+        return 'today';
+      case StatisticsPeriod.pastWeek:
+        return 'past_week';
+      case StatisticsPeriod.pastMonth:
+        return 'past_month';
+      case StatisticsPeriod.allTime:
+        return 'all_time';
+    }
+  }
+
+  Future<OverlayStatistics?> _fetchStatisticsFromBackend(
+    StatisticsPeriod period,
+  ) async {
+    final userId = await _getCurrentUserId();
+    if (userId == null) {
+      return null;
+    }
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}/overlay-stats/aggregate')
+        .replace(
+          queryParameters: {
+            'user_id': userId,
+            'period': _periodToApiValue(period),
+          },
+        );
+
+    try {
+      final response = await _httpClient.get(uri);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final dynamic body = jsonDecode(response.body);
+        if (body is Map<String, dynamic> && body['success'] == true) {
+          final data = body['data'];
+          if (data is Map<String, dynamic>) {
+            return OverlayStatistics(
+              messagesAnalyzed:
+                  (data['messagesAnalyzed'] as num?)?.toInt() ?? 0,
+              suggestionsUsed: (data['suggestionsUsed'] as num?)?.toInt() ?? 0,
+              responsesRephrased:
+                  (data['responsesRephrased'] as num?)?.toInt() ?? 0,
+              period: period,
+              lastUpdated:
+                  DateTime.tryParse(data['lastUpdated'] as String? ?? '') ??
+                  DateTime.now(),
+            );
+          }
+        }
+      } else {
+        print(
+          'Failed to fetch overlay statistics for period ${period.name}: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('Error fetching overlay statistics from backend: $e');
+    }
+
+    return null;
+  }
+
+  Future<void> _syncEventToBackend(OverlayUsageEvent event) async {
+    final userId = await _getCurrentUserId();
+    if (userId == null) {
+      return;
+    }
+
+    final int messagesAnalyzedIncrement =
+        event.type == OverlayEventType.messageAnalyzed ? 1 : 0;
+    final int suggestionsUsedIncrement =
+        event.type == OverlayEventType.suggestionUsed ? 1 : 0;
+    final int responsesRephrasedIncrement =
+        event.type == OverlayEventType.responseRephrased ? 1 : 0;
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}/overlay-stats/upsert').replace(
+      queryParameters: {
+        'user_id': userId,
+        'messages_analyzed': messagesAnalyzedIncrement.toString(),
+        'suggestions_used': suggestionsUsedIncrement.toString(),
+        'responses_rephrased': responsesRephrasedIncrement.toString(),
+      },
+    );
+
+    try {
+      final response = await _httpClient.post(uri);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        print(
+          'Failed to sync overlay event with backend: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('Error syncing overlay event with backend: $e');
     }
   }
 
@@ -200,8 +322,10 @@ class OverlayStatsService implements OverlayStatsRepository {
 
       await _prefs!.setStringList(_eventsKey, eventsJson);
 
+      await _syncEventToBackend(event);
+
       // Refresh statistics cache
-      await _refreshStatisticsCache();
+      await _refreshStatisticsCache(preferBackend: true);
 
       // Notify listeners
       _notifyEventRecorded(event);
@@ -247,12 +371,17 @@ class OverlayStatsService implements OverlayStatsRepository {
   ) async {
     if (!_isInitialized) await initialize();
 
-    // Return cached statistics if available
+    final remoteStats = await _fetchStatisticsFromBackend(period);
+    if (remoteStats != null) {
+      _statisticsCache ??= {};
+      _statisticsCache![period] = remoteStats;
+      return remoteStats;
+    }
+
     if (_statisticsCache?.containsKey(period) == true) {
       return _statisticsCache![period]!;
     }
 
-    // Calculate and cache if not available
     final events = await getEventsForPeriod(period);
     final statistics = OverlayStatistics.fromEvents(events, period);
 
@@ -301,7 +430,7 @@ class OverlayStatsService implements OverlayStatsRepository {
       _configCache = OverlayStatsConfig.defaultConfig();
       _statisticsCache = {};
 
-      await _refreshStatisticsCache();
+      await _refreshStatisticsCache(preferBackend: false);
 
       print('Cleared all overlay statistics data');
     } catch (e) {
@@ -315,11 +444,7 @@ class OverlayStatsService implements OverlayStatsRepository {
   getAllPeriodStatistics() async {
     await initialize();
 
-    if (_statisticsCache?.isNotEmpty == true) {
-      return Map.from(_statisticsCache!);
-    }
-
-    await _refreshStatisticsCache();
+    await _refreshStatisticsCache(preferBackend: true);
     return Map.from(_statisticsCache ?? {});
   }
 

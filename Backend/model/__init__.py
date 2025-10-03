@@ -6,11 +6,10 @@ from .readingblock import ReadingBlock
 from .userinfo import UserInfo
 from .scenario_with_config import ScenarioWithConfig
 from .scenario_completion import ScenarioCompletion
-# from .badgeinfo import BadgeInfo
-# from .levelsystem import LevelSystem
-# from .userachievement import UserAchievement
-# from .experienceinfo import ExperienceInfo
-# from .skillinfo import SkillInfo
+from .badgeinfo import BadgeInfo
+from .levelsystem import LevelSystem
+from .userachievement import UserAchievement
+from .experienceinfo import ExperienceInfo
+from .skillinfo import SkillInfo
 
-__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "ScenarioWithConfig", "ScenarioCompletion"]
-        #    ,"BadgeInfo","LevelSystem","UserAchievement","ExperienceInfo","SkillInfo"]
+__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "ScenarioWithConfig", "ScenarioCompletion","BadgeInfo","LevelSystem","UserAchievement","ExperienceInfo","SkillInfo"]

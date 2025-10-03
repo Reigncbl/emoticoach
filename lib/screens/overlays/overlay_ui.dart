@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
 import 'overlay_edit.dart';
@@ -39,6 +40,85 @@ class _OverlayUIState extends State<OverlayUI> {
     }
   }
 
+  double? _deviceLogicalWidth() {
+    final dispatcher = WidgetsBinding.instance.platformDispatcher;
+    ui.FlutterView? view;
+    if (dispatcher.views.isNotEmpty) {
+      view = dispatcher.views.first;
+    } else {
+      view = dispatcher.implicitView;
+    }
+    if (view == null) {
+      return null;
+    }
+    return view.physicalSize.width / view.devicePixelRatio;
+  }
+
+  int _expandedOverlayWidth() {
+    final width = _deviceLogicalWidth() ?? MediaQuery.of(context).size.width;
+    final desiredWidth = width * 0.95;
+    final clampedWidth = desiredWidth.clamp(400.0, 500.0);
+    return clampedWidth.toInt();
+  }
+
+  Future<void> _resizeOverlaySafely(
+    int width,
+    int height, {
+    required bool enableDrag,
+  }) async {
+    OverlayPosition? originalPosition;
+    final screenWidth = _deviceLogicalWidth();
+
+    if (screenWidth != null) {
+      try {
+        originalPosition = await FlutterOverlayWindow.getOverlayPosition();
+      } catch (e) {
+        debugPrint('Failed to read overlay position before resize: $e');
+      }
+    }
+
+    await FlutterOverlayWindow.resizeOverlay(width, height, enableDrag);
+
+    if (screenWidth == null) {
+      return;
+    }
+
+    try {
+      OverlayPosition? currentPosition;
+      try {
+        currentPosition = await FlutterOverlayWindow.getOverlayPosition();
+      } catch (e) {
+        debugPrint('Failed to read overlay position after resize: $e');
+        currentPosition = originalPosition;
+      }
+
+      if (currentPosition == null) {
+        return;
+      }
+
+      double maxAllowedX = screenWidth - width;
+      if (maxAllowedX < 0) {
+        maxAllowedX = 0;
+      }
+
+      double targetX = currentPosition.x;
+      if (targetX > maxAllowedX) {
+        targetX = maxAllowedX;
+      }
+      if (targetX < 0) {
+        targetX = 0;
+      }
+
+      if ((targetX - currentPosition.x).abs() > 0.5) {
+        await FlutterOverlayWindow.moveOverlay(
+          OverlayPosition(targetX, currentPosition.y),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to adjust overlay position after resize: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -61,9 +141,8 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going back to main screen
   void _goBackToMainScreen() async {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final overlayWidth = (screenWidth).clamp(400.0, 500.0);
-    await FlutterOverlayWindow.resizeOverlay(overlayWidth.toInt(), 550, false);
+    final overlayWidth = _expandedOverlayWidth();
+    await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
     setState(() {
       _showEditScreen = false;
     });
@@ -71,9 +150,8 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going to edit screen
   void _goToEditScreen() async {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final overlayWidth = (screenWidth * 0.95).clamp(400.0, 500.0);
-    await FlutterOverlayWindow.resizeOverlay(overlayWidth.toInt(), 550, false);
+    final overlayWidth = _expandedOverlayWidth();
+    await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
     setState(() {
       _showEditScreen = true;
     });
@@ -82,13 +160,8 @@ class _OverlayUIState extends State<OverlayUI> {
   Widget _buildCircleView() {
     return GestureDetector(
       onTap: () async {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final overlayWidth = (screenWidth * 0.95).clamp(400.0, 500.0);
-        await FlutterOverlayWindow.resizeOverlay(
-          overlayWidth.toInt(),
-          550,
-          false,
-        );
+        final overlayWidth = _expandedOverlayWidth();
+        await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
         setState(() {
           _currentShape = BoxShape.rectangle;
           _showContactsList = true; // Show contacts list first
@@ -132,7 +205,7 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Helper method to close overlay
   void _closeOverlay() async {
-    await FlutterOverlayWindow.resizeOverlay(80, 80, true);
+    await _resizeOverlaySafely(80, 80, enableDrag: true);
     setState(() {
       _currentShape = BoxShape.circle;
       _showContactsList = false;

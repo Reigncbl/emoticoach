@@ -8,7 +8,17 @@ load_dotenv()
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import book_routes, userinfo_routes,scenario_routes,message_routes,rag_routes,multiuser_routes, experience_routes, achievement_routes
+from routes import (
+    book_routes,
+    userinfo_routes,
+    scenario_routes,
+    message_routes,
+    rag_routes,
+    multiuser_routes,
+    experience_routes,
+    overlay_stats_routes,
+    achievement_routes,
+)
 
 print("Done importing routes...")
 
@@ -36,6 +46,7 @@ app.include_router(scenario_routes)
 app.include_router(rag_routes)
 app.include_router(multiuser_routes)
 app.include_router(experience_routes)
+app.include_router(overlay_stats_routes)
 app.include_router(achievement_routes)
 # Health check endpoint
 @app.get("/")

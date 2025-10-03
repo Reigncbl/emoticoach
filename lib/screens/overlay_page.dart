@@ -451,7 +451,7 @@ class _OverlayScreenState extends State<OverlayScreen>
                                     flag: OverlayFlag
                                         .focusPointer, // Enable keyboard input and focus
                                     alignment: OverlayAlignment.topLeft,
-                                    positionGravity: PositionGravity.left,
+                                    positionGravity: PositionGravity.auto,
                                     height: 200,
                                     width: 200,
                                     startPosition: const OverlayPosition(

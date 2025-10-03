@@ -1,1 +1,17 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - lib/screens/Trash/**
+    - backup/**
+    - build/**
+    - ios/**
+    - android/**/generated/**
+  errors:
+    avoid_print: ignore
+    deprecated_member_use: ignore
+    use_build_context_synchronously: ignore
+
+linter:
+  rules:
+    avoid_print: false
