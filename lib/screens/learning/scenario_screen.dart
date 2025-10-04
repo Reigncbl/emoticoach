@@ -19,12 +19,16 @@ class _LearningScreenState extends State<LearningScreen>
   late TabController _tabController;
   final LearningNavigationController _navController =
       LearningNavigationController();
-
+  final TextEditingController _searchController = TextEditingController();
   // Missing state variables
   bool _isLoading = false;
   String? _errorMessage;
   List<Scenario> _scenarios = [];
+  List<Scenario> _filteredScenarios = [];
   List<CompletedScenario> _completedScenarios = [];
+
+  // Filter state
+  Set<String> _selectedDifficulties = {};
 
   @override
   void initState() {
@@ -43,6 +47,7 @@ class _LearningScreenState extends State<LearningScreen>
 
     // Load scenarios when screen initializes
     _loadScenarios();
+    _searchController.addListener(_filterScenario);
   }
 
   void _handleNavigationChange() {
@@ -53,6 +58,33 @@ class _LearningScreenState extends State<LearningScreen>
     if (_navController.currentTabIndex == 0) {
       _loadScenarios();
     }
+  }
+
+  void _filterScenario() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredScenarios = _scenarios.where((scenario) {
+        // Search filter
+        bool matchesSearch = true;
+        if (query.isNotEmpty) {
+          final t = scenario.title.toLowerCase();
+          final d = scenario.description.toLowerCase();
+          final c = scenario.category.toLowerCase();
+          matchesSearch =
+              t.contains(query) || d.contains(query) || c.contains(query);
+        }
+
+        // Difficulty filter
+        bool matchesDifficulty = true;
+        if (_selectedDifficulties.isNotEmpty) {
+          matchesDifficulty = _selectedDifficulties.contains(
+            scenario.difficulty.toLowerCase(),
+          );
+        }
+
+        return matchesSearch && matchesDifficulty;
+      }).toList();
+    });
   }
 
   void _onTabChanged() {
@@ -69,6 +101,7 @@ class _LearningScreenState extends State<LearningScreen>
     _tabController.removeListener(_onTabChanged);
     _navController.removeListener(_handleNavigationChange);
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -118,6 +151,8 @@ class _LearningScreenState extends State<LearningScreen>
 
       setState(() {
         _scenarios = scenarios.where((s) => s.isActive).toList();
+        _filteredScenarios =
+            _scenarios; // Initialize filtered list with all scenarios
         _completedScenarios = completedScenarios;
         debugPrint(' DEBUG: Filtered to ${_scenarios.length} active scenarios');
         debugPrint(
@@ -259,9 +294,17 @@ class _LearningScreenState extends State<LearningScreen>
             children: [
               Expanded(
                 child: TextField(
+                  controller: _searchController,
                   decoration: InputDecoration(
                     hintText: 'Search for specific chat scenarios...',
-                    suffixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          )
+                        : const Icon(Icons.search),
                     filled: true,
                     fillColor: const Color(0xFFF0F0F0),
                     border: OutlineInputBorder(
@@ -276,9 +319,33 @@ class _LearningScreenState extends State<LearningScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: _showScenarioFilterDialog,
+              Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.filter_list),
+                    onPressed: _showScenarioFilterDialog,
+                  ),
+                  if (_selectedDifficulties.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: kBrightBlue,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${_selectedDifficulties.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ],
           ),
@@ -299,18 +366,20 @@ class _LearningScreenState extends State<LearningScreen>
           _buildSectionHeader('Explore', Icons.explore),
           const SizedBox(height: 12),
 
-          if (_scenarios.isEmpty)
+          if (_filteredScenarios.isEmpty)
             const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Text(
-                  'No scenarios available at the moment.',
+                  'No scenarios found matching your search.',
                   style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
               ),
             )
           else
-            ..._scenarios.map((scenario) => _buildScenarioCard(scenario)),
+            ..._filteredScenarios.map(
+              (scenario) => _buildScenarioCard(scenario),
+            ),
         ],
       ),
     );
@@ -478,45 +547,114 @@ class _LearningScreenState extends State<LearningScreen>
     );
   }
 
-  // Temporary test method to debug completed scenarios
+  // Filter scenarios by difficulty
   void _showScenarioFilterDialog() {
+    // Create a temporary copy of selected difficulties
+    Set<String> tempSelectedDifficulties = Set.from(_selectedDifficulties);
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Filter Scenarios'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Filter by difficulty:'),
-              const SizedBox(height: 16),
-              CheckboxListTile(
-                title: const Text('Beginner'),
-                value: false,
-                onChanged: (value) {},
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Filter Scenarios'),
+                  if (tempSelectedDifficulties.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        setDialogState(() {
+                          tempSelectedDifficulties.clear();
+                        });
+                      },
+                      child: const Text(
+                        'Clear All',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                ],
               ),
-              CheckboxListTile(
-                title: const Text('Medium'),
-                value: false,
-                onChanged: (value) {},
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Filter by difficulty:',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    title: const Text('Beginner'),
+                    value: tempSelectedDifficulties.contains('beginner'),
+                    activeColor: Colors.green,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          tempSelectedDifficulties.add('beginner');
+                        } else {
+                          tempSelectedDifficulties.remove('beginner');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Intermediate'),
+                    value: tempSelectedDifficulties.contains('intermediate'),
+                    activeColor: Colors.orange,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          tempSelectedDifficulties.add('intermediate');
+                        } else {
+                          tempSelectedDifficulties.remove('intermediate');
+                        }
+                      });
+                    },
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Advanced'),
+                    value: tempSelectedDifficulties.contains('advanced'),
+                    activeColor: Colors.red,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        if (value == true) {
+                          tempSelectedDifficulties.add('advanced');
+                        } else {
+                          tempSelectedDifficulties.remove('advanced');
+                        }
+                      });
+                    },
+                  ),
+                ],
               ),
-              CheckboxListTile(
-                title: const Text('Hard'),
-                value: false,
-                onChanged: (value) {},
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Apply'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBrightBlue,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedDifficulties = tempSelectedDifficulties;
+                      _filterScenario(); // Apply filters
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: Text(
+                    tempSelectedDifficulties.isEmpty
+                        ? 'Show All'
+                        : 'Apply (${tempSelectedDifficulties.length})',
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
