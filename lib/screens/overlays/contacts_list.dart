@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:emoticoach/services/telegram_service.dart';
 import 'package:emoticoach/utils/colors.dart';
@@ -27,6 +26,7 @@ class _ContactsListViewState extends State<ContactsListView> {
   bool _isLoading = true;
   bool _isUsingTelegram = false;
   String? _errorMessage;
+  int? _updatingContactId;
 
   @override
   void initState() {
@@ -151,6 +151,53 @@ class _ContactsListViewState extends State<ContactsListView> {
 
   Future<void> _retryLoadContacts() async {
     await _loadContacts();
+  }
+
+  Future<void> _handleContactTap(Map<String, dynamic> contact) async {
+    final rawContactId = contact['id'];
+    final contactId = rawContactId is int
+        ? rawContactId
+        : int.tryParse(rawContactId?.toString() ?? '');
+
+    if (contactId == null) {
+      print('⚠️ Unable to parse contact id for ${contact['name']}');
+      widget.onContactSelected(contact);
+      return;
+    }
+
+    final userId = await AuthUtils.getSafeUserId();
+    if (userId == null || userId.isEmpty) {
+      print('⚠️ Unable to refresh latest message: missing user session');
+      widget.onContactSelected(contact);
+      return;
+    }
+
+    setState(() {
+      _updatingContactId = contactId;
+    });
+
+    try {
+      final result = await _telegramService.appendLatestContactMessage(
+        userId: userId,
+        contactId: contactId,
+      );
+
+      if (result['success'] != true) {
+        print('⚠️ appendLatestContactMessage failed: ${result['error']}');
+      } else {
+        print('✅ Latest message appended for contact $contactId');
+      }
+    } catch (e) {
+      print('❌ Error appending latest contact message: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingContactId = null;
+        });
+      }
+    }
+
+    widget.onContactSelected(contact);
   }
 
   void _openTutorial() {
@@ -514,7 +561,7 @@ class _ContactsListViewState extends State<ContactsListView> {
 
   Widget _buildContactItem(Map<String, dynamic> contact) {
     return GestureDetector(
-      onTap: () => widget.onContactSelected(contact),
+      onTap: () => _handleContactTap(contact),
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
@@ -631,22 +678,35 @@ class _ContactsListViewState extends State<ContactsListView> {
   }
 
   Widget _buildContactMeta(Map<String, dynamic> contact) {
+    final rawContactId = contact['id'];
+    final contactId = rawContactId is int
+        ? rawContactId
+        : int.tryParse(rawContactId?.toString() ?? '');
+    final isUpdating = contactId != null && contactId == _updatingContactId;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        Text(
-          contact['time'] ?? '',
-          style: TextStyle(
-            fontSize: 11,
-            color: contact['hasNewMessage'] == true
-                ? Colors.blue
-                : Colors.grey.shade500,
-            fontWeight: contact['hasNewMessage'] == true
-                ? FontWeight.w500
-                : FontWeight.normal,
+        if (isUpdating)
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        else
+          Text(
+            contact['time'] ?? '',
+            style: TextStyle(
+              fontSize: 11,
+              color: contact['hasNewMessage'] == true
+                  ? Colors.blue
+                  : Colors.grey.shade500,
+              fontWeight: contact['hasNewMessage'] == true
+                  ? FontWeight.w500
+                  : FontWeight.normal,
+            ),
           ),
-        ),
-        if (contact['hasNewMessage'] == true)
+        if (!isUpdating && contact['hasNewMessage'] == true)
           Container(
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
