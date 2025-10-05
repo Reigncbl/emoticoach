@@ -8,6 +8,14 @@ from huggingface_hub import InferenceClient
 
 load_dotenv()
 
+# Import cache for emotion analysis caching
+try:
+    from services.cache import MessageCache
+    CACHE_AVAILABLE = True
+except ImportError:
+    CACHE_AVAILABLE = False
+    print("Warning: Cache not available for emotion analysis")
+
 HF_MODEL = "j-hartmann/emotion-english-distilroberta-base"
 
 class EmotionEmbedder:
@@ -100,6 +108,13 @@ Text: {text}"""
         Returns:
             List of emotion probabilities corresponding to different emotions
         """
+        # Check cache first
+        if CACHE_AVAILABLE:
+            cached_emotion = MessageCache.get_cached_emotion_analysis(text)
+            if cached_emotion and 'vector' in cached_emotion:
+                print(f"✅ Cache hit for emotion embedding")
+                return cached_emotion['vector']
+        
         processed_text = text
         if translate_if_needed:
             processed_text = self._translate_text(text)
@@ -121,6 +136,16 @@ Text: {text}"""
             if 'neutral' in self.label_names:
                 neutral_idx = self.label_names.index('neutral')
                 embedding[neutral_idx] = max(0, embedding[neutral_idx] - 0.1) # Reduce confidence slightly
+            
+            # Cache the result
+            if CACHE_AVAILABLE:
+                emotion_data = {
+                    'vector': embedding,
+                    'labels': {label: score for label, score in zip(self.label_names, embedding)},
+                    'top': self.label_names[embedding.index(max(embedding))]
+                }
+                MessageCache.cache_emotion_analysis(text, emotion_data)
+                print(f"💾 Cached emotion embedding")
             
             return embedding
         except Exception as e:
@@ -158,6 +183,20 @@ Text: {text}"""
 
     def analyze_text_full(self, text: str, translate_if_needed: bool = True) -> Dict:
         """Get complete emotion analysis for text, using LLM fallback for dominant emotion if needed."""
+        # Check cache first for complete analysis
+        if CACHE_AVAILABLE:
+            cached_emotion = MessageCache.get_cached_emotion_analysis(text)
+            if cached_emotion and 'vector' in cached_emotion and 'labels' in cached_emotion:
+                print(f"✅ Cache hit for full emotion analysis")
+                return {
+                    "original_text": text,
+                    "processed_text": cached_emotion.get("processed_text"),
+                    "embedding": cached_emotion['vector'],
+                    "emotion_scores": cached_emotion['labels'],
+                    "dominant_emotion": cached_emotion['top'],
+                    "dominant_score": cached_emotion['labels'].get(cached_emotion['top'], 0.0)
+                }
+        
         processed_text = text
         if translate_if_needed:
             processed_text = self._translate_text(text)
@@ -169,7 +208,7 @@ Text: {text}"""
         dominant_emotion = self.get_final_emotion(processed_text)
         dominant_score = scores.get(dominant_emotion, 0.0)
 
-        return {
+        result = {
             "original_text": text,
             "processed_text": processed_text if processed_text != text else None,
             "embedding": embedding,
@@ -177,6 +216,19 @@ Text: {text}"""
             "dominant_emotion": dominant_emotion,
             "dominant_score": dominant_score
         }
+        
+        # Cache the complete analysis
+        if CACHE_AVAILABLE:
+            cache_data = {
+                'vector': embedding,
+                'labels': scores,
+                'top': dominant_emotion,
+                'processed_text': processed_text if processed_text != text else None
+            }
+            MessageCache.cache_emotion_analysis(text, cache_data)
+            print(f"💾 Cached full emotion analysis")
+        
+        return result
 
     def get_final_emotion(self, text: str, threshold: float = 0.6) -> str:
         """

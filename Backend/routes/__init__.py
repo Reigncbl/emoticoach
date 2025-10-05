@@ -7,6 +7,7 @@ from .scenario_route import scenario_router as scenario_routes
 from .experience_routes import experience_router as experience_routes
 from .overlay_stats_routes import overlay_stats_router as overlay_stats_routes
 from .user_achievement_routes import achievement_router as achievement_routes
+from .cache_routes import cache_router as cache_routes
 
 __all__ = [
 	"book_routes",
@@ -18,4 +19,5 @@ __all__ = [
 	"experience_routes",
 	"overlay_stats_routes",
 	"achievement_routes",
+	"cache_routes",
 ]

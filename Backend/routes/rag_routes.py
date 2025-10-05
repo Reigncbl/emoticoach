@@ -7,6 +7,7 @@ from sqlmodel import Session, select, or_
 from core.db_connection import engine
 from model.message import Message
 from model.userinfo import UserInfo
+from services.cache import MessageCache
 
 rag_router = APIRouter(prefix="/rag", tags=["RAG"])
 
@@ -48,9 +49,22 @@ def get_true_name_from_userid(user_id):
     """
     Fetch true name (FirstName LastName) from userinfo table using UserId.
     """
+    # Check cache first
+    cached_user = MessageCache.get_cached_user_info(user_id)
+    if cached_user and "first_name" in cached_user and "last_name" in cached_user:
+        return f"{cached_user['first_name']} {cached_user['last_name']}"
+    
     with Session(engine) as session:
         user = session.exec(select(UserInfo).where(UserInfo.UserId == user_id)).first()
         if user:
+            # Cache user info for future use
+            user_data = {
+                "user_id": user_id,
+                "first_name": user.FirstName,
+                "last_name": user.LastName,
+                "mobile_number": user.MobileNumber if hasattr(user, 'MobileNumber') else None
+            }
+            MessageCache.cache_user_info(user_id, user_data)
             return f"{user.FirstName} {user.LastName}"
         return user_id  # fallback to user_id if not found
 

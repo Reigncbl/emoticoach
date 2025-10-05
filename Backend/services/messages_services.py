@@ -26,6 +26,7 @@ from core.db_connection import engine
 from sqlmodel import Session, select
 from model.telegram_sessions import TelegramSession
 import http.client
+from services.cache import MessageCache
 
 from telethon.sessions import StringSession
 # Config
@@ -443,6 +444,14 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 print(f"ERROR - Failed to create embedding: {e}")
                 embedding = [0.0] * 1024
             embeddings.append(embedding)
+            
+            # Check cache first for emotion analysis
+            cached_emotion = MessageCache.get_cached_emotion_analysis(msg["text"])
+            if cached_emotion:
+                print(f"✅ Cache hit for emotion analysis in append_latest")
+                emotions.append(cached_emotion)
+                continue
+            
             try:
                 emotion_data = rag.get_emotion_data(msg["text"])
                 from services.emotion_pipeline import analyze_emotion, interpretation
@@ -452,6 +461,11 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                     emotion_data["interpretation"] = interpretation_text
                 else:
                     emotion_data["interpretation"] = "Failed to analyze emotion for this message."
+                
+                # Cache the emotion analysis result
+                MessageCache.cache_emotion_analysis(msg["text"], emotion_data)
+                print(f"💾 Cached emotion analysis in append_latest")
+                
             except Exception as e:
                 print(f"ERROR - Failed to analyze emotion: {e}")
                 emotion_data = {
@@ -481,6 +495,16 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 "emotion_labels": emotions[i].get("labels"),
                 "interpretation": emotions[i].get("interpretation")
             })
+        
+        # Cache the latest message
+        if analyzed_messages:
+            MessageCache.cache_latest_message(user_id, contact_id, analyzed_messages[0])
+            print(f"💾 Cached latest message for {user_id}:{contact_id}")
+        
+        # Invalidate conversation cache since new messages were added
+        MessageCache.invalidate_conversation(user_id, contact_id)
+        print(f"🗑️ Invalidated conversation cache for {user_id}:{contact_id}")
+        
         return {"messages": analyzed_messages}
     finally:
         if local_db:
@@ -550,6 +574,13 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
 
                 emotion_outputs = []
                 for text in message_texts:
+                    # Check cache first for emotion analysis
+                    cached_emotion = MessageCache.get_cached_emotion_analysis(text)
+                    if cached_emotion:
+                        print(f"✅ Cache hit for emotion analysis")
+                        emotion_outputs.append(cached_emotion)
+                        continue
+                    
                     try:
                         emotion_data = rag.get_emotion_data(text)
                         from services.emotion_pipeline import analyze_emotion, interpretation
@@ -559,6 +590,11 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
                             emotion_data["interpretation"] = interpretation_text
                         else:
                             emotion_data["interpretation"] = "Failed to analyze emotion for this message."
+                        
+                        # Cache the emotion analysis result
+                        MessageCache.cache_emotion_analysis(text, emotion_data)
+                        print(f"💾 Cached emotion analysis")
+                        
                         emotion_outputs.append(emotion_data)
                     except Exception as e:
                         print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")

@@ -15,6 +15,7 @@ from telethon.tl.functions.messages import GetHistoryRequest
 from pydantic import BaseModel
 
 from services.messages_services import get_contact_messages_by_id
+from services.cache import MessageCache
 
 import os
 
@@ -130,6 +131,18 @@ async def verify_code(
 # -----------------------------------------------------
 @multiuser_router.get("/me")
 async def get_me(user_id: str = Query(...), db: Session = Depends(get_db)):
+    # Check cache first with specific key for /me endpoint
+    cache_key_me = f"telegram_me:{user_id}"
+    try:
+        from services.cache import r
+        import json
+        cached_me = r.get(cache_key_me)
+        if cached_me:
+            print(f"✅ Cache hit for /me endpoint user {user_id}")
+            return json.loads(cached_me)
+    except Exception as e:
+        print(f"Cache read error: {e}")
+    
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -141,7 +154,17 @@ async def get_me(user_id: str = Query(...), db: Session = Depends(get_db)):
 
     try:
         me = await client.get_me()
-        return {"id": user_id, "username": me.username, "phone": me.phone}
+        user_data = {"id": user_id, "username": me.username, "phone": me.phone}
+        
+        # Cache the user data with specific key for /me endpoint
+        try:
+            import json
+            r.setex(cache_key_me, 1200, json.dumps(user_data))  # 20 minutes TTL
+            print(f"💾 Cached /me endpoint data for {user_id}")
+        except Exception as e:
+            print(f"Cache write error: {e}")
+        
+        return user_data
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error fetching user: {e}")
     finally:
@@ -150,6 +173,18 @@ async def get_me(user_id: str = Query(...), db: Session = Depends(get_db)):
 
 @multiuser_router.get("/contacts")
 async def get_contacts(user_id: str = Query(...), db: Session = Depends(get_db)):
+    # Check cache first
+    cache_key = f"contacts_list:{user_id}"
+    try:
+        from services.cache import r
+        cached_contacts = r.get(cache_key)
+        if cached_contacts:
+            import json
+            print(f"✅ Cache hit for contacts list of user {user_id}")
+            return json.loads(cached_contacts)
+    except Exception as e:
+        print(f"Cache read error: {e}")
+    
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -171,7 +206,17 @@ async def get_contacts(user_id: str = Query(...), db: Session = Depends(get_db))
             }
             for user in result.users
         ]
-        return {"contacts": contacts, "total": len(contacts)}
+        response = {"contacts": contacts, "total": len(contacts)}
+        
+        # Cache the contacts list for 10 minutes
+        try:
+            import json
+            r.setex(cache_key, 600, json.dumps(response))
+            print(f"💾 Cached contacts list for user {user_id}")
+        except Exception as e:
+            print(f"Cache write error: {e}")
+        
+        return response
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error fetching contacts: {e}")
     finally:
@@ -259,13 +304,33 @@ async def get_contact_messages_embed(
         user_id = data.get("user_id", user_id)
         contact_id = data.get("contact_id", contact_id)
     """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results. Includes contact_id in the response."""
+    
+    # Check cache first
+    cached_conversation = MessageCache.get_cached_conversation(user_id, contact_id)
+    if cached_conversation:
+        print(f"✅ Cache hit for conversation {user_id}:{contact_id}")
+        # Format the cached data to match expected response
+        result = {
+            "messages": cached_conversation,
+            "contact_id": contact_id
+        }
+        for msg in result["messages"]:
+            msg["contact_id"] = contact_id
+        return result
+    
     try:
         result = await get_contact_messages_by_id(user_id, contact_id, db)
+        
         # Add contact_id to each message and to the response
         if "messages" in result:
             for msg in result["messages"]:
                 msg["contact_id"] = contact_id
             result["contact_id"] = contact_id
+            
+            # Cache the conversation messages
+            MessageCache.cache_conversation_messages(user_id, contact_id, result["messages"])
+            print(f"💾 Cached conversation for {user_id}:{contact_id}")
+        
         return result
     except PermissionError as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -282,6 +347,11 @@ async def append_latest_contact_message_multiuser(data: AppendLatestContactMessa
             contact_id=data.contact_id,
             db=db
         )
+        
+        # Invalidate cache since new message was added
+        MessageCache.invalidate_conversation(data.user_id, data.contact_id)
+        print(f"🗑️ Invalidated cache for conversation {data.user_id}:{data.contact_id}")
+        
         return analyzed_message
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to append and analyze latest contact message: {e}")
