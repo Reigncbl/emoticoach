@@ -85,3 +85,6 @@ dist/
 ios/
 ios/Flutter/flutter_export_environment.sh
 web/
+
+
+lib/config/api_config.dart
