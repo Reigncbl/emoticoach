@@ -12,9 +12,11 @@ class ApiConfig {
   static String get loginEmail => '$baseUrl/users/login-email';
   static String get loginMobile => '$baseUrl/users/login-mobile';
 
+  // === Delete User Endpoint ===
+  static String deleteUser(String userId) => '$baseUrl/users/delete/$userId';
+
   // === Badge ENDPOINTS ===
-  static String getUserBadges(String userId) =>
-      '$baseUrl/achievements/user/$userId';
+  static String getUserBadges(String userId) => '$baseUrl/achievements/user/$userId';
 
   // === EXPERIENCE ENDPOINTS ===
   static String get myExperience => '$baseUrl/experience';
