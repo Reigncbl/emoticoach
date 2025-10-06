@@ -647,3 +647,13 @@ async def get_user(
             status_code=500,
             detail="Internal server error while fetching user"
         )
+    
+@userinfo_router.delete("/delete/{user_id}")
+def delete_user_account(user_id: str, session: Session = Depends(get_session)):
+    user = session.get(UserInfo, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    session.delete(user)
+    session.commit()
+    return {"message": "Account deleted successfully"}

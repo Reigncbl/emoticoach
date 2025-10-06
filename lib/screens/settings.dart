@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../services/session_service.dart';
 import 'login.dart';
+import '../utils/auth_utils.dart';
+import '../services/user_deletion.dart';
+
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -958,9 +961,42 @@ class SettingsDangerZone extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: TextButton(
-                        onPressed: () {
-                          // Handle account deletion
-                          Navigator.of(context).pop();
+                        onPressed: () async{
+                          Navigator.of(context).pop(); // close dialog first
+                            try {
+                              // 1. Get current userId
+                              final userId = await AuthUtils.getSafeUserId();
+
+                              if (userId != null) {
+                                // 2. Call your delete account API
+                                await UserService().deleteAccount(userId);
+
+                                // 3. Show confirmation
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Your account has been deleted successfully.'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+
+                                // 4. Redirect to login or welcome screen
+                                Navigator.pushReplacementNamed(context, '/login');
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('User ID not found.'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to delete account: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                         },
                         style: TextButton.styleFrom(
                           backgroundColor: Color(
