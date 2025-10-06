@@ -9,6 +9,7 @@ import '../services/session_service.dart';
 import '../widgets/telegram_verification_widget.dart';
 import '../controllers/badge_controller.dart';
 import '../models/badge_model.dart';
+import 'notifications/notification_screen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -36,6 +37,15 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
     _loadRecentBadges();
     _checkTelegramAuthentication();
   }
+
+  // === NAVIGATION FUNCTIONS ===
+  void _navigateToNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NotificationScreen()),
+    );
+  }
+
   Future<void> _loadRecentBadges() async {
   try {
     final userId = await AuthUtils.getSafeUserId();
@@ -288,10 +298,13 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                           ),
                         ),
                       ),
-                      Icon(
-                        Icons.notifications_outlined,
-                        color: kBlack,
-                        size: 28,
+                      GestureDetector(
+                        onTap: _navigateToNotifications,
+                        child: Icon(
+                          Icons.notifications_outlined,
+                          color: kBlack,
+                          size: 28,
+                        ), 
                       ),
                     ],
                   ),

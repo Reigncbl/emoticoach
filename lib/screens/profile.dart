@@ -464,7 +464,6 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                 const SizedBox(height: 6),
 
                 // Level Badge
-                // Level Badge
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -494,17 +493,21 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                       const SizedBox(width: 6),
 
                       // Dynamic font color based on level
-                      Text(
-                        "Level $level: $levelName",
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: () {
-                            if (level >= 1 && level <= 3) return Colors.brown[400]; // Bronze
-                            if (level >= 4 && level <= 6) return Colors.grey[300];  // Silver
-                            if (level >= 7 && level <= 10) return Colors.amber[400]; // Gold
-                            return Colors.white;
-                          }(),
+                      Flexible(
+                        child: Text(
+                          "Level $level: $levelName",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: () {
+                              if (level >= 1 && level <= 3) return Colors.white; // Bronze
+                              if (level >= 4 && level <= 6) return Colors.white;  // Silver
+                              if (level >= 7 && level <= 10) return Colors.white; // Gold
+                              return Colors.white;
+                            }(),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
                         ),
                       ),
                     ],
