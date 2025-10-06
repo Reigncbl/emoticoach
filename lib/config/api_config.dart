@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'http://192.168.100.199:8000';
+  static const String baseUrl = 'http://26.11.120.198:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -61,4 +61,6 @@ class ApiConfig {
   }) => '$baseUrl/books/progress/update/$userId/$bookId/$progress';
   static String bulkFetchProgress(String mobileNumber) =>
       '$baseUrl/books/progress-bulk/$mobileNumber';
+
+  // === NOTIFICATIONS ===
 }
