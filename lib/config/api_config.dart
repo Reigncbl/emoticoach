@@ -62,5 +62,9 @@ class ApiConfig {
   static String bulkFetchProgress(String mobileNumber) =>
       '$baseUrl/books/progress-bulk/$mobileNumber';
 
+  // === SUPPORT ===
+  static String get submitHelpRequest => '$baseUrl/api/support/help-request';
+  static String get submitFeedback => '$baseUrl/api/support/feedback';
+
   // === NOTIFICATIONS ===
 }

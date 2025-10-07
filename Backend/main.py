@@ -19,6 +19,7 @@ from routes import (
     overlay_stats_routes,
     achievement_routes,
     cache_routes,
+    support_routes,
 )
 
 print("Done importing routes...")
@@ -50,6 +51,7 @@ app.include_router(experience_routes)
 app.include_router(overlay_stats_routes)
 app.include_router(achievement_routes)
 app.include_router(cache_routes)
+app.include_router(support_routes)
 # Health check endpoint
 @app.get("/")
 async def root():

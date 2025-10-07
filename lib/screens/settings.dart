@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import '../services/session_service.dart';
+import '../services/support_service.dart';
+import '../services/book_cache_service.dart';
 import 'login.dart';
 import '../utils/auth_utils.dart';
 import '../services/user_deletion.dart';
+import 'privacy/terms_of_service.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -100,6 +103,13 @@ class SettingsOptions extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         _buildSettingsRow(
+          title: 'Clear Book Cache',
+          trailing: const Icon(Icons.cleaning_services, color: Colors.grey, size: 20),
+          onTap: () {
+            _showClearCacheDialog(context);
+          },
+        ),
+        _buildSettingsRow(
           title: 'Help Center',
           onTap: () {
             showHelpRequestModal(context);
@@ -114,7 +124,10 @@ class SettingsOptions extends StatelessWidget {
         _buildSettingsRow(
           title: 'Terms of Service',
           onTap: () {
-            // Navigate to terms
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const TermsOfServiceScreen()),
+            );
           },
         ),
       ],
@@ -156,6 +169,7 @@ class SettingsOptions extends StatelessWidget {
   // Method to show help request form modal
   void showHelpRequestModal(BuildContext context) {
     final TextEditingController helpController = TextEditingController();
+    final TextEditingController emailController = TextEditingController();
 
     showDialog(
       context: context,
@@ -248,6 +262,48 @@ class SettingsOptions extends StatelessWidget {
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                // Email input field (optional)
+                TextField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Your Email (Optional)',
+                    hintText: 'Enter your email to receive a response',
+                    hintStyle: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 14,
+                    ),
+                    labelStyle: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                    prefixIcon: Icon(Icons.email_outlined, color: Colors.grey[600]),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: const BorderSide(color: Colors.blue),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // Privacy note
+                Text(
+                  'We\'ll only use your email to respond to this request',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+
                 const SizedBox(height: 24),
 
                 // Submit button
@@ -257,13 +313,21 @@ class SettingsOptions extends StatelessWidget {
                     onPressed: () async {
                       if (helpController.text.trim().isNotEmpty) {
                         // Handle help request submission
-                        await submitHelpRequest(helpController.text);
+                        await submitHelpRequest(
+                          helpController.text,
+                          email: emailController.text.trim().isNotEmpty 
+                              ? emailController.text.trim() 
+                              : null,
+                        );
 
                         // Close help request modal
                         Navigator.of(context).pop();
 
-                        // Show success modal
-                        showHelpRequestSubmittedModal(context);
+                        // Show success modal with email context
+                        showHelpRequestSubmittedModal(
+                          context,
+                          hasEmail: emailController.text.trim().isNotEmpty,
+                        );
                       }
                     },
                     style: ElevatedButton.styleFrom(
@@ -293,7 +357,7 @@ class SettingsOptions extends StatelessWidget {
   }
 
   // Method to show help request submitted modal
-  void showHelpRequestSubmittedModal(BuildContext context) {
+  void showHelpRequestSubmittedModal(BuildContext context, {bool hasEmail = false}) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -362,7 +426,9 @@ class SettingsOptions extends StatelessWidget {
 
                 // Description
                 Text(
-                  'Your help request has been submitted. We\'ll get back to you soon!',
+                  hasEmail
+                      ? 'Your help request has been submitted. We\'ll respond to your email soon!'
+                      : 'Your help request has been submitted. We\'ll review it as soon as possible.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 14,
@@ -405,10 +471,14 @@ class SettingsOptions extends StatelessWidget {
   }
 
   // Placeholder function for help request submission
-  Future<void> submitHelpRequest(String helpText) async {
-    // Add your actual help request submission logic here
-    // For example: API call to submit help request
-    await Future.delayed(const Duration(milliseconds: 500));
+  Future<void> submitHelpRequest(String helpText, {String? email}) async {
+    try {
+      // Submit help request via backend with optional email
+      await SupportService.submitHelpRequest(helpText, email: email);
+    } catch (e) {
+      print('Error submitting help request: $e');
+      // Still show success message to user for better UX
+    }
   }
 
   // Method to show feedback form modal
@@ -587,9 +657,13 @@ class SettingsOptions extends StatelessWidget {
 
   // Placeholder function for feedback submission
   Future<void> submitFeedback(int rating, String feedback) async {
-    // Add your actual feedback submission logic here
-    // For example: API call to submit feedback
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      // Submit feedback anonymously via backend
+      await SupportService.submitFeedback(feedback, rating: rating);
+    } catch (e) {
+      print('Error submitting feedback: $e');
+      // Still show success message to user for better UX
+    }
   }
 
   // Method to show feedback submitted modal
@@ -700,6 +774,116 @@ class SettingsOptions extends StatelessWidget {
         );
       },
     );
+  }
+
+  // Method to show clear cache confirmation dialog
+  void _showClearCacheDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.cleaning_services, color: Colors.orange),
+              SizedBox(width: 12),
+              Text('Clear Book Cache'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This will clear all cached book data. Your reading progress will be preserved.',
+                style: TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              FutureBuilder<Map<String, dynamic>>(
+                future: _getCacheInfo(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    final info = snapshot.data!;
+                    final count = info['cachedBooksCount'] as int;
+                    return Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.info_outline, size: 20, color: Colors.blue),
+                          const SizedBox(width: 8),
+                          Text(
+                            '$count ${count == 1 ? 'book' : 'books'} cached',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                _clearCache();
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        Icon(Icons.check_circle, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text('Book cache cleared successfully'),
+                      ],
+                    ),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Clear Cache'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Get cache info from BookCacheService
+  Future<Map<String, dynamic>> _getCacheInfo() async {
+    try {
+      return BookCacheService.getCacheInfo();
+    } catch (e) {
+      return {'cachedBooksCount': 0, 'cachedBookIds': []};
+    }
+  }
+
+  // Clear the cache
+  void _clearCache() {
+    try {
+      BookCacheService.clearCache();
+    } catch (e) {
+      print('Error clearing cache: $e');
+    }
   }
 }
 
