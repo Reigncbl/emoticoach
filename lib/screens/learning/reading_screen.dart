@@ -4,7 +4,6 @@ import 'reading_card.dart';
 import './reading_detail_screen.dart';
 import '../../controllers/reading_content_controller.dart';
 import '../../services/session_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api_service.dart';
 
 class ReadingScreen extends StatefulWidget {
@@ -105,13 +104,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
               } else {
                 // Check if this reading has an EPUB file
                 if (rwp.reading.hasEpubFile) {
-                  // For EPUB files, use stored total pages information
+                  // For EPUB files, use a simple estimation based on current page
+                  // Assuming most EPUB books have 100-300 pages
+                  progressPercentage = (currentPage / 150).clamp(0.0, 0.95);
                   print(
-                    'EPUB file detected for ${rwp.reading.title}, using EPUB progress calculation',
-                  );
-                  progressPercentage = await _getEpubProgress(
-                    rwp.reading.id,
-                    currentPage,
+                    'EPUB file detected for ${rwp.reading.title}, estimated progress: ${(progressPercentage * 100).toStringAsFixed(1)}%',
                   );
                 } else {
                   // For regular content, fetch total pages
@@ -267,6 +264,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
       );
     }
 
+    final isSearching = _searchController.text.isNotEmpty;
     final catA = _getCatA();
     final catB = _getCatB();
     final hasAny = _filteredReadings.isNotEmpty;
@@ -279,7 +277,6 @@ class _ReadingScreenState extends State<ReadingScreen> {
           children: [
             const SizedBox(height: 12),
 
-            // ...existing code...
             // Search bar with filter icon
             Row(
               children: [
@@ -287,7 +284,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
-                      hintText: 'Search for specific chat scenarios...',
+                      hintText: 'Search by title, author, or skill...',
                       suffixIcon: const Icon(Icons.search),
                       filled: true,
                       fillColor: const Color(0xFFF0F0F0),
@@ -307,54 +304,70 @@ class _ReadingScreenState extends State<ReadingScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Continue Reading Section
-            if (_getContinueReadingItems().isNotEmpty) ...[
+            // Show search results when user is searching
+            if (isSearching) ...[
               _sectionHeader(
-                "Continue Reading",
-                onViewAll: () => _showAllReadings('continue'),
+                "Search Results (${_filteredReadings.length})",
+                onViewAll: () => _showAllReadings('search'),
               ),
-              _horizontalReadingCards(
-                _getContinueReadingItems(),
-                isContinueReading: true,
-              ),
+              if (_filteredReadings.isEmpty)
+                _emptyState()
+              else
+                _searchResultsGrid(_filteredReadings),
               const SizedBox(height: 24),
             ],
 
-            // Cat-A (Articles)
-            _sectionHeader(
-              "Articles",
-              onViewAll: () => _showAllReadings('CAT-A'),
-            ),
-            _horizontalReadingCards(catA),
-            const SizedBox(height: 24),
+            // Show categorized sections when not searching
+            if (!isSearching) ...[
+              // Continue Reading Section
+              if (_getContinueReadingItems().isNotEmpty) ...[
+                _sectionHeader(
+                  "Continue Reading",
+                  onViewAll: () => _showAllReadings('continue'),
+                ),
+                _horizontalReadingCards(
+                  _getContinueReadingItems(),
+                  isContinueReading: true,
+                ),
+                const SizedBox(height: 24),
+              ],
 
-            // Cat-B (Books)
-            _sectionHeader("Books", onViewAll: () => _showAllReadings('CAT-B')),
-            _horizontalReadingCards(catB),
-            const SizedBox(height: 24),
-
-            // Completed Section
-            if (_getCompletedItems().isNotEmpty) ...[
+              // Cat-A (Articles)
               _sectionHeader(
-                "Completed",
-                onViewAll: () => _showAllReadings('completed'),
+                "Articles",
+                onViewAll: () => _showAllReadings('CAT-A'),
               ),
-              _horizontalReadingCards(_getCompletedItems()),
+              _horizontalReadingCards(catA),
               const SizedBox(height: 24),
-            ],
 
-            // Fallback: if both Cat-A and Cat-B are empty but we do have data, show all
-            if (catA.isEmpty && catB.isEmpty && hasAny) ...[
-              _sectionHeader(
-                "All Readings",
-                onViewAll: () => _showAllReadings('all'),
-              ),
-              _horizontalReadingCards(_filteredReadings),
+              // Cat-B (Books)
+              _sectionHeader("Books", onViewAll: () => _showAllReadings('CAT-B')),
+              _horizontalReadingCards(catB),
               const SizedBox(height: 24),
-            ],
 
-            // Absolute empty state
-            if (!hasAny) _emptyState(),
+              // Completed Section
+              if (_getCompletedItems().isNotEmpty) ...[
+                _sectionHeader(
+                  "Completed",
+                  onViewAll: () => _showAllReadings('completed'),
+                ),
+                _horizontalReadingCards(_getCompletedItems()),
+                const SizedBox(height: 24),
+              ],
+
+              // Fallback: if both Cat-A and Cat-B are empty but we do have data, show all
+              if (catA.isEmpty && catB.isEmpty && hasAny) ...[
+                _sectionHeader(
+                  "All Readings",
+                  onViewAll: () => _showAllReadings('all'),
+                ),
+                _horizontalReadingCards(_filteredReadings),
+                const SizedBox(height: 24),
+              ],
+
+              // Absolute empty state
+              if (!hasAny) _emptyState(),
+            ],
           ],
         ),
       ),
@@ -402,21 +415,26 @@ class _ReadingScreenState extends State<ReadingScreen> {
     );
   }
 
-  // Helper method to get EPUB progress
-  Future<double> _getEpubProgress(String bookId, int currentPage) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final totalPages = prefs.getInt("total_pages_$bookId");
-
-      if (totalPages != null && totalPages > 0) {
-        return (currentPage / totalPages).clamp(0.0, 1.0);
-      }
-    } catch (e) {
-      print('Error getting EPUB progress: $e');
-    }
-
-    // Fallback calculation
-    return (currentPage / 100.0).clamp(0.0, 0.95);
+  Widget _searchResultsGrid(List<Reading> readings) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: readings.length,
+      itemBuilder: (context, index) {
+        final reading = readings[index];
+        return ReadingCard(
+          reading: reading,
+          onTap: () => _navigateToReading(reading),
+          isContinueReading: false,
+        );
+      },
+    );
   }
 
   // Helper methods to filter readings
@@ -489,6 +507,10 @@ class _ReadingScreenState extends State<ReadingScreen> {
     bool isContinueReading = false;
 
     switch (section) {
+      case 'search':
+        readingsToShow = _filteredReadings;
+        title = 'Search Results';
+        break;
       case 'continue':
         readingsToShow = _getContinueReadingItems();
         title = 'Continue Reading';
