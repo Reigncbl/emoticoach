@@ -18,6 +18,17 @@ EMBEDDING_DIM = 1024 # BGE-M3 embedding dimension
 # Weight for combining semantic and emotional similarity
 EMOTION_WEIGHT = 0.3  # Adjust this to control the importance of emotional similarity
 
+# Tone mapping for response policy
+RESPONSE_POLICY = {
+    "anger": "Calm",
+    "sadness": "Encouraging",
+    "fear": "Reassuring",
+    "disgust": "Understanding",
+    "joy": "Supportive",
+    "neutral": "Reflective",
+    "surprise": "Supportive"  # Add if needed for completeness
+}
+
 class SimpleRAG:
     def __init__(self):
         self.client = Groq(api_key=GROQ_API_KEY)
@@ -25,17 +36,25 @@ class SimpleRAG:
         self.documents = []
         self.max_retries = 3
         self.base_delay = 1  # Initial delay in seconds
-        
+
         # Check for HF token
         if not HF_API_KEY:
             raise ValueError("HF_API_KEY not found in environment variables")
-        
+
         print(f"Initializing RAG with Hugging Face Inference API for {HF_MODEL}...")
-        
+
         self.hf_client = InferenceClient(model=HF_MODEL, token=HF_API_KEY)
-        
+
         # Initialize emotion embedder
         self.emotion_embedder = EmotionEmbedder()
+
+    def get_response_tone(self, query):
+        """
+        Detect dominant emotion and map to response tone.
+        """
+        emotion_data = self.emotion_embedder.analyze_text_full(query)
+        dominant_emotion = emotion_data.get("dominant_emotion", "neutral").lower()
+        return RESPONSE_POLICY.get(dominant_emotion, "Supportive")
 
     def _embed(self, text):
         """
@@ -144,10 +163,19 @@ class SimpleRAG:
         style_examples = ""
         if user_messages:
             style_examples = "\nUser style examples:\n" + "\n".join(user_messages)
-        prompt = f"{style_examples}\nContext:\n{context}\n\nQuestion: {query}\nAnswer based on context and mimic the user's style as shown above."
+
+        # Get the mapped response tone
+        response_tone = self.get_response_tone(query)
+
+        prompt = (
+            f"{style_examples}\nContext:\n{context}\n\n"
+            f"Question: {query}\n"
+            f"Respond in a {response_tone} tone, based on the user's emotion. "
+            f"Answer based on context and mimic the user's style as shown above."
+        )
         try:
             resp = self.client.chat.completions.create(model=self.model, messages=[
-                {"role": "system", "content": "You are a helpful emotional AI coach. Mimic the user's style in your response."},
+                {"role": "system", "content": "You are a helpful emotional AI coach. Mimic the user's style and use the suggested tone in your response."},
                 {"role": "user", "content": prompt}
             ], temperature=0.7, max_tokens=400)
             return resp.choices[0].message.content
