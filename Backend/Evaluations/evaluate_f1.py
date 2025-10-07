@@ -149,6 +149,7 @@ def evaluate_f1(sample_size: int = 50) -> None:
 
         sample_records.append(
             {
+                "original_text": prompt,
                 "original_emotion": original_emotion,
                 "original_polarity": EMOTION_POLARITY[original_emotion],
                 "expected_tone": expected_tone.lower(),
@@ -199,12 +200,15 @@ def evaluate_f1(sample_size: int = 50) -> None:
     for record in sample_records:
         switch_mark = "✓" if record["appropriate_switch"] else "✗"
         orange_print(
-            f"Original={record['original_emotion']}({record['original_polarity']}), "
-            f"Response={record['response_emotion']}({record['response_polarity']}), "
-            f"Expected={record['expected_polarity']}, "
-            f"Switch={switch_mark}, "
-            f"Text='{record['response_text'][:80]}...'"
+            f"Input: '{record['original_text'][:80]}...' "
+            f"[{record['original_emotion']}({record['original_polarity']})]"
         )
+        orange_print(
+            f"  → Response: '{record['response_text'][:80]}...' "
+            f"[{record['response_emotion']}({record['response_polarity']})] "
+            f"Expected={record['expected_polarity']} Switch={switch_mark}"
+        )
+        orange_print("")
     orange_print("=" * 50)
     for polarity, metrics in per_polarity.items():
         orange_print(

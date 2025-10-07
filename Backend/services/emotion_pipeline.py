@@ -382,7 +382,7 @@ Generate a concise interpretation that explains:
 2. What specific words or phrases contribute to this emotion
 3. The overall emotional tone
 
-Format your response as: "Detected '{dominant_emotion}' (confidence: {dominant_score:.2f}, {confidence}). [Your explanation here]"
+Format your response as: "[Your explanation here]"
 Keep it brief and insightful (2-3 sentences max).
 """
         
@@ -403,9 +403,11 @@ Keep it brief and insightful (2-3 sentences max).
             print(f"Groq interpretation error: {e}")
     
     # Fallback if Groq is unavailable or fails
-    fallback = f"Detected '{dominant_emotion}' with confidence {dominant_score:.2f} ({confidence})."
+    fallback = ""
     if text:
-        fallback += f" The text '{text}' shows emotional patterns consistent with {dominant_emotion}."
+        fallback = f"The text '{text}' shows emotional patterns consistent with {dominant_emotion}."
+    else:
+        fallback = f"Emotional patterns consistent with {dominant_emotion}."
     if secondary_emotions:
         fallback += f" Secondary emotions: {', '.join(secondary_emotions)}."
     return fallback
