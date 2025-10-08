@@ -350,18 +350,6 @@ class _LearningScreenState extends State<LearningScreen>
             ],
           ),
           const SizedBox(height: 24),
-
-          // Scenarios Done Section
-          if (_completedScenarios.isNotEmpty) ...[
-            _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
-            const SizedBox(height: 12),
-            ..._completedScenarios.map(
-              (completedScenario) =>
-                  _buildCompletedScenarioCard(completedScenario),
-            ),
-            const SizedBox(height: 24),
-          ],
-
           // Explore Section
           _buildSectionHeader('Explore', Icons.explore),
           const SizedBox(height: 12),
@@ -380,6 +368,16 @@ class _LearningScreenState extends State<LearningScreen>
             ..._filteredScenarios.map(
               (scenario) => _buildScenarioCard(scenario),
             ),
+
+          if (_completedScenarios.isNotEmpty) ...[
+            const SizedBox(height: 32),
+            _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
+            const SizedBox(height: 12),
+            ..._completedScenarios.map(
+              (completedScenario) =>
+                  _buildCompletedScenarioCard(completedScenario),
+            ),
+          ],
         ],
       ),
     );

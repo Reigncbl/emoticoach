@@ -1,6 +1,9 @@
 
 from datetime import datetime, timedelta
+from typing import List, Optional
+
 from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel
 from services.RAGPipeline import rag
 from services.emotion_pipeline import analyze_emotion
 from sqlmodel import Session, select, or_
@@ -11,7 +14,21 @@ from services.cache import MessageCache
 
 rag_router = APIRouter(prefix="/rag", tags=["RAG"])
 
-def get_messages_for_conversation(user_id: str, contact_id: int, limit: int = 10, start_time=None, end_time=None) -> str:
+
+class ManualAnalysisRequest(BaseModel):
+    user_id: str
+    message: str
+    sender_name: Optional[str] = None
+    desired_tone: Optional[str] = None
+    user_display_name: Optional[str] = None
+
+def get_messages_for_conversation(
+    user_id: str,
+    contact_id: int,
+    limit: int = 10,
+    start_time=None,
+    end_time=None,
+) -> List[Message]:
     """Fetch last N messages between this user and a specific contact by contact_id."""
     with Session(engine) as session:
         stmt = (
@@ -20,7 +37,7 @@ def get_messages_for_conversation(user_id: str, contact_id: int, limit: int = 10
                 Message.Contact_id == contact_id,
                 or_(Message.UserId == user_id, Message.Receiver == user_id, Message.Sender == user_id)
             )
-            .order_by(Message.DateSent.desc())
+            .order_by(Message.DateSent.desc())  # type: ignore[attr-defined]
             .limit(limit)
         )
         if start_time:
@@ -28,7 +45,7 @@ def get_messages_for_conversation(user_id: str, contact_id: int, limit: int = 10
         if end_time:
             stmt = stmt.where(Message.DateSent <= end_time)
 
-        messages = session.exec(stmt).all()
+        messages = list(session.exec(stmt).all())
 
         if not messages:
             raise HTTPException(status_code=404, detail="No messages found")
@@ -127,7 +144,7 @@ def rag_sender_context(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to generate response: {exc}")
 
-    emotion_analysis = analyze_emotion(response, user_name=user_id)
+    emotion_analysis = analyze_emotion(response or "", user_name=user_id)
     return {
         "success": True,
         "response": response,
@@ -163,7 +180,7 @@ def recent_emotion_context(
                 Message.DateSent >= window_start,
                 Message.DateSent < latest_time
             )
-            .order_by(Message.DateSent.desc())
+            .order_by(Message.DateSent.desc())  # type: ignore[attr-defined]
         )
         context_msgs = session.exec(stmt).all()
     context = "\n".join([f"{m.Sender}: {m.MessageContent}" for m in context_msgs])
@@ -193,7 +210,7 @@ def recent_emotion_context(
     # Use RAG to generate a suggestion based on the context window and last message
     rag_query = f"Conversation context:\n{context}\n\nLast message from {last_message['Sender']}: {last_message['MessageContent']}\n\nSuggest a helpful reply or action to the last message, using only the previous 20 minutes of conversation as context."
     rag_response = rag.generate_response(rag_query, user_messages=user_messages)
-    rag_emotion = analyze_emotion(rag_response, user_name=user_true_name)
+    rag_emotion = analyze_emotion(rag_response or "", user_name=user_true_name)
 
     return {
         "context_window": context,
@@ -203,6 +220,69 @@ def recent_emotion_context(
         "last_message": last_message,
         "rag_suggestion": rag_response,
         "rag_suggestion_emotion": rag_emotion
+    }
+
+
+@rag_router.post("/manual-emotion-context")
+def manual_emotion_context(payload: ManualAnalysisRequest):
+    """Generate analysis and suggestions for user-provided message input."""
+    context = payload.message
+
+    user_display_name: str = (
+        payload.user_display_name or get_true_name_from_userid(payload.user_id)
+    )
+
+    user_messages: List[str] = []
+
+    last_sender = payload.sender_name or "Contact"
+    last_message = {
+        "Sender": last_sender,
+        "MessageContent": payload.message,
+        "DateSent": datetime.utcnow(),
+        "emotion_analysis": analyze_emotion(
+            payload.message, user_name=last_sender
+        ),
+    }
+
+    tone_instruction = ""
+    if payload.desired_tone:
+        tone_instruction = (
+            f"\nDesired reply tone: Respond in a {payload.desired_tone.lower()} tone"
+            " while remaining genuine and helpful."
+        )
+
+    rag_query = (
+        "Conversation context:\n"
+        f"{context if context else 'No prior context available.'}\n\n"
+        f"Last message from {last_sender}: {payload.message}\n\n"
+        "Suggest a helpful reply or action to the last message, using only the provided context."
+        f"{tone_instruction}"
+    )
+
+    try:
+        rag_response = rag.generate_response(rag_query, user_messages=user_messages)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Failed to generate response: {exc}")
+
+    rag_emotion = analyze_emotion(
+        rag_response or "", user_name=user_display_name
+    )
+
+    message_entry = {
+        "Sender": last_sender,
+        "MessageContent": payload.message,
+        "DateSent": last_message["DateSent"],
+        "emotion_analysis": last_message["emotion_analysis"],
+    }
+
+    return {
+        "context_window": context,
+        "messages": [message_entry],
+        "window_start": None,
+        "window_end": datetime.utcnow(),
+        "last_message": last_message,
+        "rag_suggestion": rag_response,
+        "rag_suggestion_emotion": rag_emotion,
     }
 
 # Get the latest message and its emotional analysis

@@ -102,3 +102,85 @@ def aggregate_stats(
                 "lastUpdated": now.isoformat(),
             },
         }
+
+
+@overlay_stats_router.get("/daily-usage")
+def get_daily_usage(
+    user_id: str = Query(..., description="Firebase user ID"),
+    period: str = Query(
+        "past_week",
+        description="one of: today, past_week, past_month, all_time",
+    ),
+) -> Dict[str, Any]:
+    """Return day-by-day usage statistics for the requested period."""
+
+    now = datetime.utcnow().date()
+    period_normalized = (period or "").lower()
+
+    # Determine the start date for the requested period
+    if period_normalized == "today":
+        start_date = now
+    elif period_normalized == "past_week":
+        start_date = now - timedelta(days=6)
+    elif period_normalized == "past_month":
+        start_date = now - timedelta(days=29)
+    elif period_normalized == "all_time":
+        start_date = None
+    else:
+        raise HTTPException(status_code=400, detail="Invalid period value")
+
+    with Session(engine) as session:
+        stmt = select(OverlayUsageStat).where(OverlayUsageStat.user_id == user_id)
+
+        if start_date is not None:
+            stmt = stmt.where(OverlayUsageStat.stat_date >= start_date)
+
+        rows = list(session.exec(stmt))
+
+    rows.sort(key=lambda r: r.stat_date)
+
+    if period_normalized == "all_time" and rows:
+        start_date = rows[0].stat_date
+    elif start_date is None:
+        # No data in database – default to the past week window
+        start_date = now - timedelta(days=6)
+
+    if start_date is None:
+        start_date = now
+
+    if start_date > now:
+        start_date = now
+
+    days_span = (now - start_date).days
+
+    # Build lookup for quick access
+    rows_by_date = {row.stat_date: row for row in rows}
+
+    daily_points = []
+    for offset in range(days_span + 1):
+        current_date = start_date + timedelta(days=offset)
+        row = rows_by_date.get(current_date)
+
+        messages = row.messages_analyzed if row else 0
+        suggestions = row.suggestions_used if row else 0
+        rephrased = row.responses_rephrased if row else 0
+        total_usage = messages + suggestions + rephrased
+
+        daily_points.append(
+            {
+                "date": current_date.isoformat(),
+                "messagesAnalyzed": messages,
+                "suggestionsUsed": suggestions,
+                "responsesRephrased": rephrased,
+                "totalUsage": total_usage,
+            }
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "period": period_normalized,
+            "points": daily_points,
+            "generatedAt": datetime.utcnow().isoformat(),
+        },
+    }

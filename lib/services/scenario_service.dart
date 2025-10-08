@@ -229,32 +229,4 @@ class ScenarioService {
       throw Exception('Failed to load completed scenarios: $e');
     }
   }
-
-  // New method to get specific scenario completion
-  static Future<Map<String, dynamic>?> getScenarioCompletion({
-    required String userId,
-    required int scenarioId,
-  }) async {
-    try {
-      final response = await http.get(
-        Uri.parse(ApiConfig.scenarioCompletion(userId, scenarioId)),
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          final value = data['completed_scenarios'];
-          if (value is Map<String, dynamic>) return value;
-        }
-      } else if (response.statusCode == 404) {
-        // Scenario not completed yet
-        return null;
-      }
-      throw Exception('Failed to load scenario completion');
-    } catch (e) {
-      print('Error fetching scenario completion: $e');
-      throw Exception('Failed to load scenario completion');
-    }
-  }
 }

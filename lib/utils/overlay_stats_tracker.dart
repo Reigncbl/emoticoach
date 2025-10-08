@@ -106,6 +106,13 @@ class OverlayStatsTracker {
     return await _service.getAllPeriodStatistics();
   }
 
+  /// Get daily usage points for a period
+  static Future<List<OverlayDailyUsagePoint>> getDailyUsagePoints(
+    StatisticsPeriod period,
+  ) async {
+    return await _service.getDailyUsagePoints(period);
+  }
+
   /// Initialize the tracking service
   static Future<void> initialize() async {
     await _service.initialize();

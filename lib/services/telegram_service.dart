@@ -253,6 +253,45 @@ class TelegramService {
     }
   }
 
+  /// Get the latest stored message (with emotion metadata) from the database
+  /// Corresponds to /telegram/latest_contact_message endpoint
+  Future<Map<String, dynamic>> getLatestContactMessage({
+    required String userId,
+    required int contactId,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/telegram/latest_contact_message?user_id=$userId&contact_id=$contactId',
+      );
+
+      final response = await _client
+          .get(uri, headers: {'Content-Type': 'application/json'})
+          .timeout(const Duration(seconds: 30));
+
+      print('Get latest contact message response: ${response.statusCode}');
+      print('Get latest contact message body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return {'success': true, 'data': responseData};
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': 'No messages found for this contact',
+        };
+      } else {
+        final errorData = jsonDecode(response.body);
+        return {
+          'success': false,
+          'error': errorData['detail'] ?? 'Failed to fetch latest message',
+        };
+      }
+    } catch (e) {
+      print('Error fetching latest contact message: $e');
+      return {'success': false, 'error': 'Network error: ${e.toString()}'};
+    }
+  }
+
   /// Get messages with embedding and emotion analysis
   /// Corresponds to /telegram/contact_messages_embed endpoint
   Future<Map<String, dynamic>> getContactMessagesWithEmbedding({

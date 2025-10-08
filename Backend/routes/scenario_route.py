@@ -282,32 +282,6 @@ async def get_completed_scenarios(user_id: str, session: SessionDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@scenario_router.get('/completion/{user_id}/{scenario_id}')
-async def get_scenario_completion(user_id: str, scenario_id: int, session: SessionDep):
-    try:
-        completed_scenarios = session.exec(
-            select(ScenarioCompletion).where(
-                ScenarioCompletion.user_id == user_id,
-                ScenarioCompletion.scenario_id == scenario_id
-            )
-        ).first()
-
-        if not completed_scenarios:
-            raise HTTPException(
-                status_code=404, 
-                detail="Completion not found for this user and scenario"
-            )
-
-        return {
-            "success": True,
-            "completed_scenarios": ScenarioCompletionResponse.from_scenario_completion(completed_scenarios)  # Use custom conversion
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @scenario_router.post('/create')
 async def create_scenario(request: CreateScenarioRequest, session: SessionDep):
     try:

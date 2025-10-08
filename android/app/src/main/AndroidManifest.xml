@@ -34,28 +34,6 @@
             <meta-data android:name="android.accessibilityservice" 
                        android:resource="@xml/accessibilityservice" />
         </service>
-        <!-- COMMENTED OUT SUSPICIOUS SERVICES FOR PLAY PROTECT COMPATIBILITY -->
-        <!-- 
-        
-
-        <service 
-            android:name=".ForegroundAppMonitorService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Monitors app launches for emotional coaching assistance"/>
-        </service>
-
-        <receiver 
-            android:name=".OverlayBroadcastReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="com.example.emoticoach.SHOW_OVERLAY_BROADCAST" />
-            </intent-filter>
-        </receiver>
-        -->
 
         <!-- MAIN ACTIVITY -->
         <activity

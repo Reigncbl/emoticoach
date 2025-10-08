@@ -31,6 +31,11 @@ abstract class OverlayStatsRepository {
 
   /// Get statistics for all periods at once
   Future<Map<StatisticsPeriod, OverlayStatistics>> getAllPeriodStatistics();
+
+  /// Fetch day-by-day usage data for a period
+  Future<List<OverlayDailyUsagePoint>> getDailyUsagePoints(
+    StatisticsPeriod period,
+  );
 }
 
 /// Event listener interface for real-time statistics updates
@@ -446,6 +451,53 @@ class OverlayStatsService implements OverlayStatsRepository {
 
     await _refreshStatisticsCache(preferBackend: true);
     return Map.from(_statisticsCache ?? {});
+  }
+
+  @override
+  Future<List<OverlayDailyUsagePoint>> getDailyUsagePoints(
+    StatisticsPeriod period,
+  ) async {
+    if (!_isInitialized) await initialize();
+
+    final userId = await _getCurrentUserId();
+    if (userId == null) {
+      return [];
+    }
+
+    final uri = Uri.parse('${ApiConfig.baseUrl}/overlay-stats/daily-usage')
+        .replace(
+          queryParameters: {
+            'user_id': userId,
+            'period': _periodToApiValue(period),
+          },
+        );
+
+    try {
+      final response = await _httpClient.get(uri);
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final body = jsonDecode(response.body);
+        if (body is Map<String, dynamic> && body['success'] == true) {
+          final data = body['data'];
+          if (data is Map<String, dynamic>) {
+            final pointsRaw = data['points'];
+            if (pointsRaw is List) {
+              return pointsRaw
+                  .whereType<Map<String, dynamic>>()
+                  .map(OverlayDailyUsagePoint.fromJson)
+                  .toList();
+            }
+          }
+        }
+      } else {
+        print(
+          'Failed to fetch daily usage data: ${response.statusCode} ${response.body}',
+        );
+      }
+    } catch (e) {
+      print('Error fetching daily usage data: $e');
+    }
+
+    return [];
   }
 
   /// Generate sample data for testing (only in debug mode)

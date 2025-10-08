@@ -29,6 +29,9 @@ class _OverlayUIState extends State<OverlayUI> {
   void initState() {
     super.initState();
     _loadUserPhoneNumber();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _setOverlayFocus(false);
+    });
   }
 
   // Load user phone number from session
@@ -53,6 +56,16 @@ class _OverlayUIState extends State<OverlayUI> {
       return null;
     }
     return view.physicalSize.width / view.devicePixelRatio;
+  }
+
+  Future<void> _setOverlayFocus(bool focusable) async {
+    try {
+      await FlutterOverlayWindow.updateFlag(
+        focusable ? OverlayFlag.focusPointer : OverlayFlag.defaultFlag,
+      );
+    } catch (e) {
+      debugPrint('Failed to update overlay flag: $e');
+    }
   }
 
   int _expandedOverlayWidth() {
@@ -154,6 +167,7 @@ class _OverlayUIState extends State<OverlayUI> {
   void _goToEditScreen(String initialText) async {
     final overlayWidth = _expandedOverlayWidth();
     await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
+    await _setOverlayFocus(true);
     setState(() {
       _draftResponse = initialText.isNotEmpty
           ? initialText
@@ -167,6 +181,7 @@ class _OverlayUIState extends State<OverlayUI> {
       onTap: () async {
         final overlayWidth = _expandedOverlayWidth();
         await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
+        await _setOverlayFocus(true);
         setState(() {
           _currentShape = BoxShape.rectangle;
           _showContactsList = true; // Show contacts list first
@@ -212,6 +227,7 @@ class _OverlayUIState extends State<OverlayUI> {
   // Helper method to close overlay
   void _closeOverlay() async {
     await _resizeOverlaySafely(80, 80, enableDrag: true);
+    await _setOverlayFocus(false);
     setState(() {
       _currentShape = BoxShape.circle;
       _showContactsList = false;

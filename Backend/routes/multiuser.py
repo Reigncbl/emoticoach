@@ -1,7 +1,7 @@
 # Endpoint: Fetch, analyze, and save the latest message from Telethon using contact_id
 from pydantic import BaseModel
 
-from services.messages_services import append_latest_contact_message   
+from services.messages_services import append_latest_contact_message
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
@@ -14,7 +14,10 @@ from telethon.tl.functions.contacts import ImportContactsRequest, GetContactsReq
 from telethon.tl.functions.messages import GetHistoryRequest
 from pydantic import BaseModel
 
-from services.messages_services import get_contact_messages_by_id
+from services.messages_services import (
+    get_contact_messages_by_id,
+    get_latest_message_from_db,
+)
 from services.cache import MessageCache
 
 import os
@@ -355,3 +358,21 @@ async def append_latest_contact_message_multiuser(data: AppendLatestContactMessa
         return analyzed_message
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to append and analyze latest contact message: {e}")
+
+
+@multiuser_router.get("/latest_contact_message")
+async def get_latest_contact_message(
+    user_id: str = Query(..., description="User ID"),
+    contact_id: int = Query(..., description="Contact ID"),
+    db: Session = Depends(get_db),
+):
+    """Retrieve the latest stored message for a user/contact pair from the database."""
+    try:
+        latest_message = await get_latest_message_from_db(user_id, contact_id, db)
+        if not latest_message:
+            raise HTTPException(status_code=404, detail="No messages found for this contact")
+        return latest_message
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch latest message: {e}")

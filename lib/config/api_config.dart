@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'http://26.11.120.198:8000';
+  static const String baseUrl = 'http://192.168.100.199:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -16,7 +16,8 @@ class ApiConfig {
   static String deleteUser(String userId) => '$baseUrl/users/delete/$userId';
 
   // === Badge ENDPOINTS ===
-  static String getUserBadges(String userId) => '$baseUrl/achievements/user/$userId';
+  static String getUserBadges(String userId) =>
+      '$baseUrl/achievements/user/$userId';
 
   // === EXPERIENCE ENDPOINTS ===
   static String get myExperience => '$baseUrl/experience';
@@ -33,8 +34,6 @@ class ApiConfig {
   static String get scenarioComplete => '$baseUrl/scenarios/complete';
   static String scenarioCompleted(String userId) =>
       '$baseUrl/scenarios/completed/$userId';
-  static String scenarioCompletion(String userId, int scenarioId) =>
-      '$baseUrl/scenarios/completion/$userId/$scenarioId';
 
   // === SUGGESTIONS ===
   static String get analyzeSuggestion => '$baseUrl/suggestion/analyze';

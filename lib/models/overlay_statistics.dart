@@ -251,3 +251,29 @@ class OverlayStatsConfig {
     );
   }
 }
+
+/// Represents a single day of overlay usage statistics
+class OverlayDailyUsagePoint {
+  final DateTime date;
+  final int messagesAnalyzed;
+  final int suggestionsUsed;
+  final int responsesRephrased;
+
+  const OverlayDailyUsagePoint({
+    required this.date,
+    required this.messagesAnalyzed,
+    required this.suggestionsUsed,
+    required this.responsesRephrased,
+  });
+
+  int get totalUsage => messagesAnalyzed + suggestionsUsed + responsesRephrased;
+
+  factory OverlayDailyUsagePoint.fromJson(Map<String, dynamic> json) {
+    return OverlayDailyUsagePoint(
+      date: DateTime.parse(json['date'] as String),
+      messagesAnalyzed: (json['messagesAnalyzed'] as num?)?.toInt() ?? 0,
+      suggestionsUsed: (json['suggestionsUsed'] as num?)?.toInt() ?? 0,
+      responsesRephrased: (json['responsesRephrased'] as num?)?.toInt() ?? 0,
+    );
+  }
+}

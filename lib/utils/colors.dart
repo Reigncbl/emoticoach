@@ -4,7 +4,6 @@ export 'package:iconify_flutter/iconify_flutter.dart';
 export 'package:iconify_flutter/icons/ic.dart';
 export 'package:iconify_flutter/icons/feather.dart';
 
-
 // Figma Colors
 const Color kBlack = Color(0xFF1A1A1A);
 const Color kWhite = Color(0xFFFFFFFF);
@@ -19,7 +18,7 @@ const Color kPastelPurple = Color(0xFFE0C6EF);
 const Color kPastelYellow = Color(0xFFFDF0CD);
 const Color kPastelGreen = Color(0xFFC4DCC6);
 const Color kPastelRed = Color(0xFFE3D9DF);
-const Color kLightGrey = Color(0xFFD8DDE4);
+const Color kLightGrey = Color(0xFFF7F7F7);
 const Color kDarkGrey = Color(0xFF6D6D6D);
 
 // App-wide color constants for reuse

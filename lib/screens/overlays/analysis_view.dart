@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:emoticoach/services/rag_service.dart';
@@ -40,6 +39,7 @@ class _AnalysisViewState extends State<AnalysisView> {
   bool _isLoading = true;
   String _errorMessage = '';
   String _latestMessage = '';
+  Map<String, dynamic>? _latestMessageDetails;
 
   // Emotion analysis state
   bool _isAnalyzing = false;
@@ -217,30 +217,60 @@ class _AnalysisViewState extends State<AnalysisView> {
         contactId: contactId,
       );
 
+      String messageForDisplay = '';
       if (response['messages'] != null) {
         final messages = response['messages'] as List<dynamic>? ?? [];
-        final latestMessage = _getLatestContactMessage(messages);
-
-        setState(() {
-          _latestMessage = latestMessage;
-          _isLoading = false;
-        });
-
-        // Perform emotion analysis on the latest message
-        if (latestMessage.isNotEmpty &&
-            latestMessage != 'No recent messages found') {
-          _analyzeEmotion(latestMessage);
-        }
+        messageForDisplay = _getLatestContactMessage(messages);
       } else {
-        setState(() {
-          _isLoading = false;
-          if (response['auth_required'] == true) {
+        if (response['auth_required'] == true) {
+          setState(() {
+            _isLoading = false;
             _errorMessage =
                 'Telegram authentication required. Please re-authenticate in the profile settings.';
-          } else {
+          });
+          return;
+        } else {
+          setState(() {
+            _isLoading = false;
             _errorMessage = response['error'] ?? 'Failed to load messages';
-          }
-        });
+          });
+          return;
+        }
+      }
+
+      Map<String, dynamic>? latestMessageData;
+      final latestMessageResponse = await _telegramService
+          .getLatestContactMessage(userId: userId, contactId: contactId);
+
+      if (latestMessageResponse['success'] == true &&
+          latestMessageResponse['data'] != null) {
+        final data = Map<String, dynamic>.from(latestMessageResponse['data']);
+        latestMessageData = data;
+        final content = data['content']?.toString() ?? '';
+        if (content.isNotEmpty) {
+          messageForDisplay = content;
+        }
+      } else if (latestMessageResponse['error'] != null) {
+        debugPrint(
+          '⚠️ Latest message fetch warning: ${latestMessageResponse['error']}',
+        );
+      }
+
+      if (messageForDisplay == 'No recent messages found') {
+        messageForDisplay = '';
+      }
+
+      setState(() {
+        _latestMessageDetails = latestMessageData;
+        _latestMessage = messageForDisplay;
+        _isLoading = false;
+      });
+
+      if (messageForDisplay.isNotEmpty &&
+          messageForDisplay != 'No recent messages found' &&
+          _messageAnalysisEnabled &&
+          _smartSuggestionsEnabled) {
+        _analyzeEmotion(messageForDisplay);
       }
     } catch (e) {
       setState(() {
@@ -256,21 +286,40 @@ class _AnalysisViewState extends State<AnalysisView> {
     debugPrint('DEBUG: Contact name: ${widget.selectedContact}');
 
     // The messages are already ordered from newest to oldest
+    final contactId = widget.contactId;
+    final contactName = widget.selectedContact.trim().toLowerCase();
+
     for (int i = 0; i < messages.length; i++) {
-      final message = messages[i];
+      final message = messages[i] as Map<String, dynamic>?;
+      if (message == null) {
+        continue;
+      }
+
       debugPrint('DEBUG: Message $i: $message');
 
-      // Get the sender name
-      final from = message['from']?.toString() ?? '';
-      final messageText = message['text']?.toString() ?? '';
+      final messageContactId = message['Contact_id'] ?? message['contact_id'];
+      if (messageContactId != null && messageContactId != contactId) {
+        debugPrint(
+          'DEBUG: Skipping message $i: contact mismatch ($messageContactId != $contactId)',
+        );
+        continue;
+      }
 
-      // Check if this message is from the contact (not from "reign" which is the user)
-      final isFromContact =
-          from.toLowerCase() != '' &&
-          from.toLowerCase() != widget.userPhoneNumber.replaceAll('+', '') &&
-          messageText.isNotEmpty;
+      final from = (message['from'] ?? message['sender'] ?? '').toString();
+      final messageText = (message['text'] ?? message['content'] ?? '')
+          .toString();
 
-      if (isFromContact) {
+      if (messageText.isEmpty) {
+        continue;
+      }
+
+      final normalizedFrom = from.trim().toLowerCase();
+
+      final isFromSelectedContact =
+          normalizedFrom.isNotEmpty &&
+          (contactName.isEmpty || normalizedFrom == contactName);
+
+      if (isFromSelectedContact) {
         debugPrint(
           'DEBUG: Found latest message from contact ($from): $messageText',
         );
@@ -323,8 +372,8 @@ class _AnalysisViewState extends State<AnalysisView> {
 
         final suggestion = (ragData['rag_suggestion'] ?? '') as String;
         final interp =
-            lastEmotion?['interpretation'] ??
             suggestionEmotion?['interpretation'] ??
+            lastEmotion?['interpretation'] ??
             'Based on recent context.';
 
         final data = <String, dynamic>{
@@ -869,6 +918,29 @@ class _AnalysisViewState extends State<AnalysisView> {
   }
 
   String _getToneForContact(String contact) {
+    final latest = _latestMessageDetails;
+    if (latest != null) {
+      final detected = latest['detected_emotion']?.toString();
+      if (detected != null && detected.isNotEmpty) {
+        double? confidence;
+        final labels = latest['emotion_labels'];
+        if (labels is Map) {
+          final rawScore = labels[detected];
+          if (rawScore is num) {
+            confidence = rawScore.toDouble();
+          } else if (rawScore is String) {
+            confidence = double.tryParse(rawScore);
+          }
+        }
+
+        String result = '${detected[0].toUpperCase()}${detected.substring(1)}';
+        if (confidence != null) {
+          result += ' (${(confidence * 100).toStringAsFixed(0)}% confidence)';
+        }
+        return result;
+      }
+    }
+
     if (_isAnalyzing) {
       return 'Analyzing...';
     }
@@ -910,6 +982,14 @@ class _AnalysisViewState extends State<AnalysisView> {
   }
 
   String _getInterpretationForContact(String contact) {
+    final latest = _latestMessageDetails;
+    if (latest != null) {
+      final interpretation = latest['interpretation']?.toString();
+      if (interpretation != null && interpretation.trim().isNotEmpty) {
+        return interpretation;
+      }
+    }
+
     if (_isAnalyzing) {
       return 'Analyzing message context...';
     }
@@ -923,16 +1003,10 @@ class _AnalysisViewState extends State<AnalysisView> {
       final analysis = _emotionAnalysis!['analysis'];
       if (analysis != null && analysis['analysis'] != null) {
         final analysisData = analysis['analysis'];
-        final primaryEmotion = analysisData['primary_emotion'];
         final interpretation = analysisData['interpretation'];
 
         if (interpretation != null) {
           String result = interpretation;
-
-          // Add primary emotion context if available
-          if (primaryEmotion != null) {
-            result += '\n\nPrimary emotion: $primaryEmotion';
-          }
 
           return result;
         }
@@ -993,14 +1067,6 @@ class _AnalysisViewState extends State<AnalysisView> {
 
     // Fallback to hardcoded values for testing
     switch (contact) {
-      case 'Carlo Lorieta':
-        return 'Thank you po for understanding! Wishing you and the team all the best din 🫶';
-      case 'Maria Santos':
-        return 'You\'re very welcome! Happy to help anytime 😊';
-      case 'John Dela Cruz':
-        return 'Looking forward to it! See you there.';
-      case 'Sarah Kim':
-        return 'Thank you so much! I really appreciate your kind words 🙏';
       default:
         return 'Thank you for your message!';
     }
@@ -1008,14 +1074,6 @@ class _AnalysisViewState extends State<AnalysisView> {
 
   String _getChecklistForContact(String contact) {
     switch (contact) {
-      case 'Carlo':
-        return '✓ Keeps things friendly\n✓ Acknowledges his tone\n✓ Closes the convo on a good note';
-      case 'Maria Santos':
-        return '✓ Acknowledges gratitude\n✓ Maintains warm tone\n✓ Offers future help';
-      case 'John Dela Cruz':
-        return '✓ Professional response\n✓ Confirms attendance\n✓ Brief and appropriate';
-      case 'Sarah Kim':
-        return '✓ Shows appreciation\n✓ Humble response\n✓ Positive engagement';
       default:
         return '✓ Appropriate response\n✓ Maintains tone\n✓ Clear communication';
     }

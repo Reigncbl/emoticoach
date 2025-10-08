@@ -89,10 +89,9 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
     }
 
     final safeUserId = await AuthUtils.getSafeUserId();
-    final effectiveUserId =
-        (safeUserId != null && safeUserId.isNotEmpty)
-            ? safeUserId
-            : widget.userPhoneNumber;
+    final effectiveUserId = (safeUserId != null && safeUserId.isNotEmpty)
+        ? safeUserId
+        : widget.userPhoneNumber;
 
     if (effectiveUserId.isEmpty) {
       if (showFeedback) {
@@ -130,16 +129,13 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
           _shortenController.clear();
         }
       } else if (showFeedback) {
-        final message = result['error']?.toString() ??
-            'Failed to generate a new response.';
+        final message =
+            result['error']?.toString() ?? 'Failed to generate a new response.';
         _showCopyFeedbackDialog(message, Colors.red);
       }
     } catch (e) {
       if (showFeedback) {
-        _showCopyFeedbackDialog(
-          'Error generating response: $e',
-          Colors.red,
-        );
+        _showCopyFeedbackDialog('Error generating response: $e', Colors.red);
       }
     } finally {
       if (mounted) {
@@ -156,40 +152,42 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
         _isLoading = true;
       });
 
-      // For now, using a placeholder approach since we need userId and contactId
-      // In a real implementation, these would be passed from the parent widget
-      // or retrieved from user session/preferences
-      final userId =
-          widget.userPhoneNumber; // Using phone as userId temporarily
+      final safeUserId = await AuthUtils.getSafeUserId();
+      final effectiveUserId = (safeUserId != null && safeUserId.isNotEmpty)
+          ? safeUserId
+          : widget.userPhoneNumber;
 
-      // Extract contact ID from contact phone or use a default approach
-      // This is a temporary solution - in production, contactId should be passed properly
-      int contactId;
-      try {
-        contactId = int.parse(
-          widget.contactPhone.replaceAll(RegExp(r'[^\d]'), ''),
-        );
-      } catch (e) {
-        contactId = widget.contactPhone.hashCode.abs(); // Fallback to hash
+      if (effectiveUserId.isEmpty) {
+        setState(() {
+          _latestMessage = 'Missing user session';
+          _isLoading = false;
+        });
+        return;
       }
 
-      final response = await _telegramService.appendLatestContactMessage(
-        userId: userId,
-        contactId: contactId,
+      final response = await _telegramService.getLatestContactMessage(
+        userId: effectiveUserId,
+        contactId: widget.contactId,
       );
 
-      if (response['success'] == true) {
-        final data = response['data'];
-        final latestMessage =
-            data['text'] ?? data['message'] ?? 'No message available';
+      if (response['success'] == true && response['data'] != null) {
+        final data = Map<String, dynamic>.from(response['data']);
+        final latestMessage = data['content']?.toString().trim();
+        final fallbackMessage = data['text'] ?? data['message'];
 
         setState(() {
-          _latestMessage = latestMessage;
+          _latestMessage = (latestMessage?.isNotEmpty ?? false)
+              ? latestMessage!
+              : (fallbackMessage?.toString() ?? 'No message available');
           _isLoading = false;
         });
       } else {
+        final errorMessage = response['auth_required'] == true
+            ? 'Telegram authentication required. Please re-authenticate.'
+            : (response['error']?.toString() ?? 'Unable to load message');
+
         setState(() {
-          _latestMessage = 'Unable to load message';
+          _latestMessage = errorMessage;
           _isLoading = false;
         });
       }
@@ -641,9 +639,6 @@ class _EditOverlayScreenState extends State<EditOverlayScreen> {
       _selectedTone = tone;
     });
 
-    _generateResponse(
-      instruction: _lastInstruction,
-      showFeedback: false,
-    );
+    _generateResponse(instruction: _lastInstruction, showFeedback: false);
   }
 }

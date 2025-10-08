@@ -9,7 +9,7 @@ import re
 import json
 import uuid
 import asyncio
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime, date
 from telethon import TelegramClient
 from telethon.tl.functions.contacts import ImportContactsRequest, GetContactsRequest
@@ -374,6 +374,49 @@ async def embed_messages(messages: list, metadata: dict = None):
             rag.add_document(message['text'], metadata=msg_metadata)
             
             
+async def get_latest_message_from_db(user_id: str, contact_id: int, db: Optional[Session] = None) -> Optional[dict]:
+    """Fetch the latest stored message for a user/contact pair from the database."""
+    local_db = db is None
+    if local_db:
+        db = Session(engine)
+
+    try:
+        stmt = (
+            select(Message)
+            .where((Message.UserId == user_id) & (Message.Contact_id == contact_id))
+            .order_by(Message.DateSent.desc())
+            .limit(1)
+        )
+        latest_message: Optional[Message] = db.exec(stmt).first()
+
+        if not latest_message:
+            return None
+
+        emotion_labels = latest_message.Emotion_labels
+        if hasattr(emotion_labels, "items"):
+            emotion_labels = dict(emotion_labels)
+
+        embedding = latest_message.Emotion_Embedding
+        if hasattr(embedding, "tolist"):
+            embedding = embedding.tolist()
+
+        return {
+            "message_id": latest_message.MessageId,
+            "sender": latest_message.Sender,
+            "receiver": latest_message.Receiver,
+            "date_sent": latest_message.DateSent.isoformat() if latest_message.DateSent else None,
+            "content": latest_message.MessageContent,
+            "detected_emotion": latest_message.Detected_emotion,
+            "emotion_labels": emotion_labels,
+            "emotion_embedding": embedding,
+            "interpretation": latest_message.Interpretation,
+            "contact_id": latest_message.Contact_id,
+        }
+    finally:
+        if local_db and db:
+            db.close()
+
+
 async def append_latest_contact_message(user_id: str, contact_id: int, db: Session = None):
     """
     Fetches the latest message from Telethon for the contact, analyzes it, saves to DB, and returns the analyzed message.

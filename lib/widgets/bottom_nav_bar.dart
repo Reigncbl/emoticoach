@@ -72,7 +72,7 @@ class BottomNavBar extends StatelessWidget {
           ),
           BottomNavigationBarItem(
             icon: _buildIcon(Ic.outline_layers, 1),
-            label: 'Overlay',
+            label: 'Coach',
           ),
           BottomNavigationBarItem(
             icon: _buildIcon(Ic.outline_menu_book, 2),
