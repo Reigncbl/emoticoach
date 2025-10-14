@@ -12,6 +12,7 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("api_key")
 HF_API_KEY = os.getenv("HF_API_KEY")
 HF_MODEL = "BAAI/bge-m3"  # Specific embedding model for RAG
+HF_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"  # Reranker model
 MODEL_PATH = os.path.join(r"Backend\AIModel", "bge-m3")
 EMBEDDING_DIM = 1024 # BGE-M3 embedding dimension
 
@@ -44,6 +45,10 @@ class SimpleRAG:
         print(f"Initializing RAG with Hugging Face Inference API for {HF_MODEL}...")
 
         self.hf_client = InferenceClient(model=HF_MODEL, token=HF_API_KEY)
+        
+        # Initialize reranker client
+        print(f"Initializing Reranker with {HF_RERANKER_MODEL}...")
+        self.reranker_client = InferenceClient(model=HF_RERANKER_MODEL, token=HF_API_KEY)
 
         # Initialize emotion embedder
         self.emotion_embedder = EmotionEmbedder()
@@ -146,7 +151,63 @@ class SimpleRAG:
             "metadata": metadata or {}
         })
 
-    def search(self, query, top_k=3):
+    def _rerank(self, query, documents, top_k=3):
+        """
+        Rerank documents using the BGE reranker model.
+        
+        Args:
+            query: The user query string
+            documents: List of document dictionaries with content and scores
+            top_k: Number of top documents to return after reranking
+            
+        Returns:
+            List of reranked documents with updated scores
+        """
+        if not documents:
+            return []
+        
+        try:
+            # Prepare input for the reranker
+            # The reranker expects pairs of [query, document] texts
+            pairs = [[query, doc["content"]] for doc in documents]
+            
+            # Get reranking scores from the model
+            # The reranker returns relevance scores for each query-document pair
+            scores = self.reranker_client.sentence_similarity(
+                query,
+                [doc["content"] for doc in documents]
+            )
+            
+            # Update documents with reranker scores
+            for i, doc in enumerate(documents):
+                doc["rerank_score"] = float(scores[i]) if isinstance(scores, (list, np.ndarray)) else float(scores)
+                # Combine original similarity score with rerank score (weighted average)
+                doc["combined_score"] = 0.4 * doc["score"] + 0.6 * doc["rerank_score"]
+            
+            # Sort by combined score and return top_k
+            reranked = sorted(documents, key=lambda x: x["combined_score"], reverse=True)[:top_k]
+            
+            return reranked
+            
+        except Exception as e:
+            print(f"Reranking error: {e}, falling back to original scores")
+            # Fall back to original ranking if reranking fails
+            return documents[:top_k]
+
+    def search(self, query, top_k=3, use_reranker=True, initial_k=10):
+        """
+        Search for relevant documents with optional reranking.
+        
+        Args:
+            query: The user query string
+            top_k: Number of final results to return
+            use_reranker: Whether to use the reranker (default True)
+            initial_k: Number of candidates to retrieve before reranking (default 10)
+            
+        Returns:
+            List of top_k most relevant documents
+        """
+        # Get initial candidates using embedding similarity
         query_embedding = self._embed_with_emotion(query)
         results = [
             {
@@ -156,10 +217,23 @@ class SimpleRAG:
             }
             for doc in self.documents
         ]
-        return sorted(results, key=lambda x: x["score"], reverse=True)[:top_k]
+        
+        # Sort and get initial candidates
+        initial_results = sorted(results, key=lambda x: x["score"], reverse=True)[:initial_k]
+        
+        # Apply reranking if enabled
+        if use_reranker and len(initial_results) > 0:
+            return self._rerank(query, initial_results, top_k)
+        else:
+            return initial_results[:top_k]
 
-    def generate_response(self, query, user_messages=None):
-        context = "\n".join([doc["content"] for doc in self.search(query)])
+    def generate_response(self, query, user_messages=None, top_k=3, use_reranker=True):
+        # Use the enhanced search with reranker
+        search_results = self.search(query, top_k=top_k, use_reranker=use_reranker)
+        
+        # Extract content from search results
+        context = "\n".join([doc["content"] for doc in search_results])
+        
         style_examples = ""
         if user_messages:
             style_examples = "\nUser style examples:\n" + "\n".join(user_messages)

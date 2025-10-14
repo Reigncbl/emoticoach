@@ -119,8 +119,10 @@ def rag_sender_context(
     if messages:
         last_message = messages[0]
         reply_query = last_message.MessageContent
+        last_sender = last_message.Sender
     else:
         reply_query = query or ""
+        last_sender = "Contact"
 
     tone_instruction = ""
     if desired_tone:
@@ -132,15 +134,36 @@ def rag_sender_context(
     if query:
         user_instruction = f"\nAdditional user instructions: {query}"
 
-    enhanced_query = (
-        "Conversation context:\n"
-        f"{context if context else 'No prior context available.'}\n\n"
-        f"Reply to the last message: {reply_query or 'Please craft a helpful response.'}"
-        f"{tone_instruction}{user_instruction}"
-    )
+    # Determine if user should reply or not
+    should_reply = last_sender != user_true_name
+    
+    if should_reply:
+        enhanced_query = (
+            f"You are helping {user_true_name} craft a reply.\n\n"
+            "Conversation context:\n"
+            f"{context if context else 'No prior context available.'}\n\n"
+            f"Last message from {last_sender}: {reply_query or 'No message to reply to.'}\n\n"
+            f"Generate a reply AS {user_true_name} responding to {last_sender}'s message."
+            f"{tone_instruction}{user_instruction}\n\n"
+            f"Remember: You are crafting a reply for {user_true_name}, mimicking their communication style."
+        )
+    else:
+        enhanced_query = (
+            f"You are helping {user_true_name}.\n\n"
+            "Conversation context:\n"
+            f"{context if context else 'No prior context available.'}\n\n"
+            f"The last message was sent by {user_true_name} themselves: {reply_query}\n\n"
+            "Provide feedback or suggestions about their message, or wait for the other person's response."
+            f"{tone_instruction}{user_instruction}"
+        )
 
     try:
-        response = rag.generate_response(enhanced_query, user_messages=user_messages)
+        response = rag.generate_response(
+            enhanced_query, 
+            user_messages=user_messages,
+            top_k=3,
+            use_reranker=True
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to generate response: {exc}")
 
@@ -207,9 +230,33 @@ def recent_emotion_context(
         "emotion_analysis": analyze_emotion(latest_message.MessageContent, user_name=latest_message.Sender) if latest_message else None
     }
 
+    # Determine if user should reply
+    last_sender = last_message['Sender']
+    should_reply = last_sender != user_true_name
+    
     # Use RAG to generate a suggestion based on the context window and last message
-    rag_query = f"Conversation context:\n{context}\n\nLast message from {last_message['Sender']}: {last_message['MessageContent']}\n\nSuggest a helpful reply or action to the last message, using only the previous 20 minutes of conversation as context."
-    rag_response = rag.generate_response(rag_query, user_messages=user_messages)
+    if should_reply:
+        rag_query = (
+            f"You are helping {user_true_name} craft a reply.\n\n"
+            f"Conversation context (last {window_minutes} minutes):\n{context}\n\n"
+            f"Last message from {last_sender}: {last_message['MessageContent']}\n\n"
+            f"Generate a reply AS {user_true_name} responding to {last_sender}'s message. "
+            f"Use the previous {window_minutes} minutes of conversation as context.\n\n"
+            f"Remember: You are crafting a reply for {user_true_name}, mimicking their communication style."
+        )
+    else:
+        rag_query = (
+            f"You are helping {user_true_name}.\n\n"
+            f"Conversation context (last {window_minutes} minutes):\n{context}\n\n"
+            f"The last message was sent by {user_true_name} themselves: {last_message['MessageContent']}\n\n"
+            f"Provide feedback about their message or suggest waiting for the other person's response."
+        )
+    rag_response = rag.generate_response(
+        rag_query, 
+        user_messages=user_messages,
+        top_k=3,
+        use_reranker=True
+    )
     rag_emotion = analyze_emotion(rag_response or "", user_name=user_true_name)
 
     return {
@@ -251,16 +298,36 @@ def manual_emotion_context(payload: ManualAnalysisRequest):
             " while remaining genuine and helpful."
         )
 
-    rag_query = (
-        "Conversation context:\n"
-        f"{context if context else 'No prior context available.'}\n\n"
-        f"Last message from {last_sender}: {payload.message}\n\n"
-        "Suggest a helpful reply or action to the last message, using only the provided context."
-        f"{tone_instruction}"
-    )
+    # Determine if user should reply
+    should_reply = last_sender != user_display_name
+    
+    if should_reply:
+        rag_query = (
+            f"You are helping {user_display_name} craft a reply.\n\n"
+            "Conversation context:\n"
+            f"{context if context else 'No prior context available.'}\n\n"
+            f"Last message from {last_sender}: {payload.message}\n\n"
+            f"Generate a reply AS {user_display_name} responding to {last_sender}'s message."
+            f"{tone_instruction}\n\n"
+            f"Remember: You are crafting a reply for {user_display_name}, mimicking their communication style."
+        )
+    else:
+        rag_query = (
+            f"You are helping {user_display_name}.\n\n"
+            "Conversation context:\n"
+            f"{context if context else 'No prior context available.'}\n\n"
+            f"The last message was sent by {user_display_name} themselves: {payload.message}\n\n"
+            "Provide feedback about their message or suggest improvements."
+            f"{tone_instruction}"
+        )
 
     try:
-        rag_response = rag.generate_response(rag_query, user_messages=user_messages)
+        rag_response = rag.generate_response(
+            rag_query, 
+            user_messages=user_messages,
+            top_k=3,
+            use_reranker=True
+        )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Failed to generate response: {exc}")
 
