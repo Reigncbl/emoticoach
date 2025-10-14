@@ -246,12 +246,13 @@ class SimpleRAG:
             f"Question: {query}\n"
             f"Respond in a {response_tone} tone, based on the user's emotion. "
             f"Answer based on context and mimic the user's style as shown above."
+            f"Keep responses brief and concise (1-2 sentences max)"
         )
         try:
             resp = self.client.chat.completions.create(model=self.model, messages=[
                 {"role": "system", "content": "You are a helpful emotional AI coach. Mimic the user's style and use the suggested tone in your response."},
                 {"role": "user", "content": prompt}
-            ], temperature=0.7, max_tokens=200)
+            ], temperature=0.9, max_tokens=100)
             return resp.choices[0].message.content
         except Exception as e:
             return f"Error: {e}"

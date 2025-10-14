@@ -539,24 +539,20 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 "interpretation": emotions[i].get("interpretation")
             })
         
-        # Cache the latest message
+        # Cache the latest message (most recent one is at index 0)
         if analyzed_messages:
             MessageCache.cache_latest_message(user_id, contact_id, analyzed_messages[0])
             print(f"💾 Cached latest message for {user_id}:{contact_id}")
         
-        # Invalidate conversation cache since new messages were added
-        MessageCache.invalidate_conversation(user_id, contact_id)
+        # Invalidate only conversation cache, keeping latest message cache intact
+        MessageCache.invalidate_conversation_only(user_id, contact_id)
         print(f"🗑️ Invalidated conversation cache for {user_id}:{contact_id}")
         
         return {"messages": analyzed_messages}
     finally:
         if local_db:
             db.close()
-          
-            
-            
-            
-            
+               
 
 async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session = None) -> dict:
     """

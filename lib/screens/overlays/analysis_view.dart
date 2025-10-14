@@ -217,10 +217,40 @@ class _AnalysisViewState extends State<AnalysisView> {
         contactId: contactId,
       );
 
-      String messageForDisplay = '';
+      Map<String, dynamic>? latestIncomingMessage;
+      DateTime? latestIncomingTimestamp;
+      String incomingMessageText = '';
+
       if (response['messages'] != null) {
         final messages = response['messages'] as List<dynamic>? ?? [];
-        messageForDisplay = _getLatestContactMessage(messages);
+        latestIncomingMessage = _findLatestIncomingMessage(messages);
+
+        if (latestIncomingMessage != null) {
+          incomingMessageText = _extractMessageText(latestIncomingMessage);
+          latestIncomingTimestamp = _parseMessageTimestamp(
+            latestIncomingMessage['date'] ??
+                latestIncomingMessage['date_sent'] ??
+                latestIncomingMessage['timestamp'],
+          );
+          debugPrint(
+            'DEBUG: Incoming message candidate: "$incomingMessageText" at ${latestIncomingTimestamp?.toIso8601String()}',
+          );
+        }
+
+        if (incomingMessageText.isEmpty) {
+          final fallbackMessage = _findNewestMessage(messages);
+          incomingMessageText = _extractMessageText(fallbackMessage);
+          latestIncomingTimestamp = _parseMessageTimestamp(
+            fallbackMessage?['date'] ??
+                fallbackMessage?['date_sent'] ??
+                fallbackMessage?['timestamp'],
+          );
+          if (incomingMessageText.isNotEmpty) {
+            debugPrint(
+              'DEBUG: Falling back to most recent message: "$incomingMessageText" at ${latestIncomingTimestamp?.toIso8601String()}',
+            );
+          }
+        }
       } else {
         if (response['auth_required'] == true) {
           setState(() {
@@ -239,38 +269,76 @@ class _AnalysisViewState extends State<AnalysisView> {
       }
 
       Map<String, dynamic>? latestMessageData;
+      DateTime? latestDatabaseTimestamp;
+      String databaseMessageText = '';
+      bool databaseMessageFromContact = false;
+
       final latestMessageResponse = await _telegramService
           .getLatestContactMessage(userId: userId, contactId: contactId);
 
       if (latestMessageResponse['success'] == true &&
           latestMessageResponse['data'] != null) {
-        final data = Map<String, dynamic>.from(latestMessageResponse['data']);
-        latestMessageData = data;
-        final content = data['content']?.toString() ?? '';
-        if (content.isNotEmpty) {
-          messageForDisplay = content;
-        }
+        latestMessageData =
+            Map<String, dynamic>.from(latestMessageResponse['data']);
+        databaseMessageText =
+            (latestMessageData['content'] ?? '').toString().trim();
+        latestDatabaseTimestamp = _parseMessageTimestamp(
+          latestMessageData['date_sent'] ??
+              latestMessageData['date'] ??
+              latestMessageData['timestamp'],
+        );
+        databaseMessageFromContact = _isSenderFromContact(
+          latestMessageData['sender'],
+          latestMessageData['contact_id'],
+        );
+        debugPrint(
+          'DEBUG: Database message candidate: "$databaseMessageText" at ${latestDatabaseTimestamp?.toIso8601String()} (from contact: $databaseMessageFromContact)',
+        );
       } else if (latestMessageResponse['error'] != null) {
         debugPrint(
           '⚠️ Latest message fetch warning: ${latestMessageResponse['error']}',
         );
       }
 
-      if (messageForDisplay == 'No recent messages found') {
-        messageForDisplay = '';
+      String resolvedMessage = incomingMessageText;
+      Map<String, dynamic>? metadataForState;
+
+      if (databaseMessageText.isNotEmpty) {
+        final shouldUseDatabaseMessage = _shouldUseDatabaseMessage(
+          dbText: databaseMessageText,
+          dbTimestamp: latestDatabaseTimestamp,
+          dbFromContact: databaseMessageFromContact,
+          incomingText: incomingMessageText,
+          incomingTimestamp: latestIncomingTimestamp,
+        );
+
+        if (shouldUseDatabaseMessage) {
+          resolvedMessage = databaseMessageText;
+          metadataForState = latestMessageData;
+        } else if (_textsMatch(databaseMessageText, resolvedMessage)) {
+          metadataForState = latestMessageData;
+        }
       }
 
+      if (resolvedMessage == 'No recent messages found') {
+        resolvedMessage = '';
+      }
+
+      debugPrint(
+        'DEBUG: Resolved message for display: "$resolvedMessage" (using ${metadataForState != null ? 'database metadata' : 'fetched messages'})',
+      );
+
       setState(() {
-        _latestMessageDetails = latestMessageData;
-        _latestMessage = messageForDisplay;
+        _latestMessageDetails = metadataForState;
+        _latestMessage = resolvedMessage;
         _isLoading = false;
       });
 
-      if (messageForDisplay.isNotEmpty &&
-          messageForDisplay != 'No recent messages found' &&
+      if (resolvedMessage.isNotEmpty &&
+          resolvedMessage != 'No recent messages found' &&
           _messageAnalysisEnabled &&
           _smartSuggestionsEnabled) {
-        _analyzeEmotion(messageForDisplay);
+        _analyzeEmotion(resolvedMessage);
       }
     } catch (e) {
       setState(() {
@@ -280,53 +348,271 @@ class _AnalysisViewState extends State<AnalysisView> {
     }
   }
 
-  String _getLatestContactMessage(List<dynamic> messages) {
-    // Debug debugPrint to see the message structure
-    debugPrint('DEBUG: Processing ${messages.length} messages');
-    debugPrint('DEBUG: Contact name: ${widget.selectedContact}');
+  Map<String, dynamic>? _findLatestIncomingMessage(List<dynamic> messages) {
+    Map<String, dynamic>? latest;
+    DateTime? latestTimestamp;
 
-    // The messages are already ordered from newest to oldest
-    final contactId = widget.contactId;
-    final contactName = widget.selectedContact.trim().toLowerCase();
-
-    for (int i = 0; i < messages.length; i++) {
+    for (var i = 0; i < messages.length; i++) {
       final message = messages[i] as Map<String, dynamic>?;
       if (message == null) {
         continue;
       }
 
-      debugPrint('DEBUG: Message $i: $message');
-
-      final messageContactId = message['Contact_id'] ?? message['contact_id'];
-      if (messageContactId != null && messageContactId != contactId) {
-        debugPrint(
-          'DEBUG: Skipping message $i: contact mismatch ($messageContactId != $contactId)',
-        );
+      if (!_isMessageFromContact(message)) {
         continue;
       }
 
-      final from = (message['from'] ?? message['sender'] ?? '').toString();
-      final messageText = (message['text'] ?? message['content'] ?? '')
-          .toString();
+      final candidateTimestamp = _parseMessageTimestamp(
+        message['date'] ?? message['date_sent'] ?? message['timestamp'],
+      );
 
-      if (messageText.isEmpty) {
+      if (latest == null) {
+        latest = message;
+        latestTimestamp = candidateTimestamp;
         continue;
       }
 
-      final normalizedFrom = from.trim().toLowerCase();
-
-      final isFromSelectedContact =
-          normalizedFrom.isNotEmpty &&
-          (contactName.isEmpty || normalizedFrom == contactName);
-
-      if (isFromSelectedContact) {
-        debugPrint(
-          'DEBUG: Found latest message from contact ($from): $messageText',
-        );
-        return messageText;
+      if (candidateTimestamp != null) {
+        if (latestTimestamp == null || candidateTimestamp.isAfter(latestTimestamp)) {
+          latest = message;
+          latestTimestamp = candidateTimestamp;
+        }
       }
     }
-    return 'No recent messages found';
+
+    return latest;
+  }
+
+  Map<String, dynamic>? _findNewestMessage(List<dynamic> messages) {
+    for (final raw in messages) {
+      final message = raw as Map<String, dynamic>?;
+      if (message == null) {
+        continue;
+      }
+      final text = _extractMessageText(message);
+      if (text.isNotEmpty) {
+        return message;
+      }
+    }
+    return null;
+  }
+
+  String _extractMessageText(Map<String, dynamic>? message) {
+    if (message == null) {
+      return '';
+    }
+
+    final candidates = [
+      message['text'],
+      message['content'],
+      message['message'],
+      message['body'],
+    ];
+
+    for (final candidate in candidates) {
+      if (candidate is String) {
+        final trimmed = candidate.trim();
+        if (trimmed.isNotEmpty) {
+          return trimmed;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  DateTime? _parseMessageTimestamp(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is DateTime) {
+      return value.toUtc();
+    }
+
+    if (value is int) {
+      return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
+    }
+
+    if (value is double) {
+      return DateTime.fromMillisecondsSinceEpoch(value.toInt(), isUtc: true);
+    }
+
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+      try {
+        final parsed = DateTime.parse(trimmed);
+        return parsed.toUtc();
+      } catch (_) {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  bool _isMessageFromContact(Map<String, dynamic> message) {
+    final fromValue = message['from'] ?? message['sender'] ?? message['author'];
+    if (_namesRoughlyMatch(fromValue, widget.selectedContact)) {
+      return true;
+    }
+
+    final outgoingCandidate = message['outgoing'] ??
+        message['is_outgoing'] ??
+        message['out'] ??
+        message['outbox'];
+    final isOutgoing = _parseOutgoingFlag(outgoingCandidate);
+    if (isOutgoing != null) {
+      return !isOutgoing;
+    }
+
+    return false;
+  }
+
+  bool? _parseOutgoingFlag(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is bool) {
+      return value;
+    }
+    if (value is num) {
+      return value != 0;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        return null;
+      }
+      if (normalized == 'true' ||
+          normalized == 't' ||
+          normalized == 'yes' ||
+          normalized == 'y' ||
+          normalized == '1' ||
+          normalized == 'outgoing') {
+        return true;
+      }
+      if (normalized == 'false' ||
+          normalized == 'f' ||
+          normalized == 'no' ||
+          normalized == 'n' ||
+          normalized == '0' ||
+          normalized == 'incoming') {
+        return false;
+      }
+    }
+    return null;
+  }
+
+  bool _isSenderFromContact(dynamic rawSender, dynamic rawContactId) {
+    final senderMatches = _namesRoughlyMatch(rawSender, widget.selectedContact);
+
+    if (!senderMatches) {
+      return false;
+    }
+
+    if (rawContactId == null) {
+      return true;
+    }
+
+    final contactId = widget.contactId;
+    if (rawContactId is int) {
+      return rawContactId == contactId;
+    }
+    if (rawContactId is String) {
+      final parsed = int.tryParse(rawContactId);
+      if (parsed != null) {
+        return parsed == contactId;
+      }
+    }
+    return true;
+  }
+
+  bool _shouldUseDatabaseMessage({
+    required String dbText,
+    required DateTime? dbTimestamp,
+    required bool dbFromContact,
+    required String incomingText,
+    required DateTime? incomingTimestamp,
+  }) {
+    if (dbText.isEmpty) {
+      return false;
+    }
+
+    if (incomingText.isEmpty) {
+      return true;
+    }
+
+    final hasContactName = _normalizeIdentifier(widget.selectedContact).isNotEmpty;
+    if (!dbFromContact && hasContactName) {
+      return false;
+    }
+
+    if (dbTimestamp != null && incomingTimestamp != null) {
+      if (dbTimestamp.isAfter(incomingTimestamp)) {
+        return true;
+      }
+
+      if (dbTimestamp.isAtSameMomentAs(incomingTimestamp)) {
+        return dbFromContact;
+      }
+
+      return false;
+    }
+
+    if (dbTimestamp != null && incomingTimestamp == null) {
+      return true;
+    }
+
+    if (incomingTimestamp != null && dbTimestamp == null) {
+      return false;
+    }
+
+    if (dbFromContact && _textsMatch(dbText, incomingText)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  bool _textsMatch(String a, String b) {
+    return a.trim().toLowerCase() == b.trim().toLowerCase();
+  }
+
+  bool _namesRoughlyMatch(dynamic a, dynamic b) {
+    final normalizedA = _normalizeIdentifier(a);
+    final normalizedB = _normalizeIdentifier(b);
+
+    if (normalizedA.isEmpty || normalizedB.isEmpty) {
+      return false;
+    }
+
+    if (normalizedA == normalizedB) {
+      return true;
+    }
+
+    final shortA = normalizedA.split(' ').first;
+    final shortB = normalizedB.split(' ').first;
+    if (shortA.isNotEmpty && shortB.isNotEmpty && shortA == shortB) {
+      return true;
+    }
+
+    return false;
+  }
+
+  String _normalizeIdentifier(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+    var normalized = value.toString().trim().toLowerCase();
+    if (normalized.startsWith('@')) {
+      normalized = normalized.substring(1);
+    }
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ');
+    return normalized;
   }
 
   Future<void> _analyzeEmotion(String text) async {

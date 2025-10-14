@@ -27,9 +27,9 @@ class _OverlayScreenState extends State<OverlayScreen>
     implements OverlayStatsListener {
   // Toggle states for each setting
   bool messagingOverlayEnabled = false;
-  bool messageAnalysisEnabled = false;
-  bool smartSuggestionsEnabled = false;
-  bool toneAdjusterEnabled = false;
+  bool messageAnalysisEnabled = true;
+  bool smartSuggestionsEnabled = true;
+  bool toneAdjusterEnabled = true;
   // bool autoLaunchEnabled = false; // Commented out - not implementing
 
   // Add preference keys
@@ -43,8 +43,12 @@ class _OverlayScreenState extends State<OverlayScreen>
 
   // Dynamic statistics state
   StatisticsPeriod _selectedPeriod = StatisticsPeriod.pastWeek;
-  OverlayStatistics? _currentStatistics;
-  bool _isLoadingStats = true;
+  OverlayStatistics? _currentStatistics = OverlayStatistics.empty(
+    StatisticsPeriod.pastWeek,
+  );
+  bool _isLoadingStats = false;
+  bool _hasLoadedStatsOnce = false;
+  bool _hasLoadedUsageOnce = false;
 
   final TextEditingController _manualMessageController =
       TextEditingController();
@@ -75,13 +79,48 @@ class _OverlayScreenState extends State<OverlayScreen>
   Future<void> _loadSavedSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      setState(() {
-        messageAnalysisEnabled = prefs.getBool(_messageAnalysisKey) ?? false;
-        smartSuggestionsEnabled = prefs.getBool(_smartSuggestionsKey) ?? false;
-        toneAdjusterEnabled = prefs.getBool(_toneAdjusterKey) ?? false;
-        _ragContextLimit = prefs.getInt(_ragContextLimitKey) ?? 20;
-        // autoLaunchEnabled = prefs.getBool(_autoLaunchKey) ?? false; // Commented out
-      });
+
+      final bool? storedMessageAnalysis = prefs.getBool(_messageAnalysisKey);
+      final bool? storedSmartSuggestions = prefs.getBool(_smartSuggestionsKey);
+      final bool? storedToneAdjuster = prefs.getBool(_toneAdjusterKey);
+      final int? storedRagLimit = prefs.getInt(_ragContextLimitKey);
+
+      final bool defaultMessageAnalysis = storedMessageAnalysis ?? true;
+      final bool defaultSmartSuggestions = storedSmartSuggestions ?? true;
+      final bool defaultToneAdjuster = storedToneAdjuster ?? true;
+      final int defaultRagLimit = storedRagLimit ?? 20;
+
+      if (mounted) {
+        setState(() {
+          messageAnalysisEnabled = defaultMessageAnalysis;
+          smartSuggestionsEnabled = defaultSmartSuggestions;
+          toneAdjusterEnabled = defaultToneAdjuster;
+          _ragContextLimit = defaultRagLimit;
+          // autoLaunchEnabled = prefs.getBool(_autoLaunchKey) ?? false; // Commented out
+        });
+      }
+
+      bool defaultsCommitted = false;
+      if (storedMessageAnalysis == null) {
+        await prefs.setBool(_messageAnalysisKey, defaultMessageAnalysis);
+        defaultsCommitted = true;
+      }
+      if (storedSmartSuggestions == null) {
+        await prefs.setBool(_smartSuggestionsKey, defaultSmartSuggestions);
+        defaultsCommitted = true;
+      }
+      if (storedToneAdjuster == null) {
+        await prefs.setBool(_toneAdjusterKey, defaultToneAdjuster);
+        defaultsCommitted = true;
+      }
+      if (storedRagLimit == null) {
+        await prefs.setInt(_ragContextLimitKey, defaultRagLimit);
+        defaultsCommitted = true;
+      }
+
+      if (defaultsCommitted) {
+        debugPrint('Default overlay settings persisted for first launch');
+      }
       debugPrint('Settings loaded from preferences');
     } catch (e) {
       debugPrint('Error loading settings: $e');
@@ -146,9 +185,6 @@ class _OverlayScreenState extends State<OverlayScreen>
   Future<void> _initializeStatistics() async {
     try {
       debugPrint('🔧 Starting statistics initialization...');
-      setState(() {
-        _isLoadingStats = true;
-      });
 
       await OverlayStatsTracker.initialize();
       debugPrint(' OverlayStatsTracker initialized');
@@ -156,8 +192,10 @@ class _OverlayScreenState extends State<OverlayScreen>
       OverlayStatsTracker.addListener(this);
       debugPrint(' Added statistics listener');
 
-      await _loadStatistics();
-      await _loadDailyUsageData();
+      await _loadStatistics(showLoader: _hasLoadedStatsOnce);
+      await _loadDailyUsageData(showLoader: _hasLoadedUsageOnce);
+      _hasLoadedStatsOnce = true;
+      _hasLoadedUsageOnce = true;
       debugPrint(' Statistics initialization completed');
     } catch (e) {
       debugPrint('Error initializing statistics: $e');
@@ -169,12 +207,15 @@ class _OverlayScreenState extends State<OverlayScreen>
     }
   }
 
-  Future<void> _loadStatistics() async {
+  Future<void> _loadStatistics({bool showLoader = true}) async {
     try {
       debugPrint('Loading statistics for period: ${_selectedPeriod.name}');
       if (mounted) {
         setState(() {
-          _isLoadingStats = true;
+          if (showLoader) {
+            _isLoadingStats = true;
+          }
+          _currentStatistics ??= OverlayStatistics.empty(_selectedPeriod);
         });
       }
 
@@ -196,6 +237,7 @@ class _OverlayScreenState extends State<OverlayScreen>
         });
         debugPrint(' Statistics loaded and UI updated');
       }
+      _hasLoadedStatsOnce = true;
     } catch (e) {
       debugPrint('Error loading statistics: $e');
       if (mounted) {
@@ -216,11 +258,13 @@ class _OverlayScreenState extends State<OverlayScreen>
     }
   }
 
-  Future<void> _loadDailyUsageData() async {
-    setState(() {
-      _isLoadingDailyUsage = true;
-      _dailyUsageError = null;
-    });
+  Future<void> _loadDailyUsageData({bool showLoader = true}) async {
+    if (mounted) {
+      setState(() {
+        _isLoadingDailyUsage = showLoader;
+        _dailyUsageError = null;
+      });
+    }
 
     try {
       final points = await OverlayStatsTracker.getDailyUsagePoints(
@@ -232,6 +276,7 @@ class _OverlayScreenState extends State<OverlayScreen>
       setState(() {
         _dailyUsagePoints = points;
       });
+      _hasLoadedUsageOnce = true;
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -500,7 +545,7 @@ class _OverlayScreenState extends State<OverlayScreen>
             ),
           ),
         ],
-        if (suggestion != null && suggestion.isNotEmpty) ...[
+        if (suggestion.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
             'Suggested reply',

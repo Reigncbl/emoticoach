@@ -206,13 +206,24 @@ class MessageCache:
     
     @staticmethod
     def invalidate_conversation(user_id: str, contact_id: int):
-        """Invalidate conversation cache"""
+        """Invalidate conversation cache and latest message cache"""
         try:
             keys_to_delete = [
                 f"conversation:{user_id}:{contact_id}",
                 f"latest_message:{user_id}:{contact_id}"
             ]
             r.delete(*keys_to_delete)
+            return True
+        except Exception as e:
+            print(f"Error invalidating conversation cache: {e}")
+            return False
+    
+    @staticmethod
+    def invalidate_conversation_only(user_id: str, contact_id: int):
+        """Invalidate only the conversation cache, keeping latest message cache"""
+        try:
+            key = f"conversation:{user_id}:{contact_id}"
+            r.delete(key)
             return True
         except Exception as e:
             print(f"Error invalidating conversation cache: {e}")
@@ -317,6 +328,8 @@ get_cached_emotion = MessageCache.get_cached_emotion_analysis
 cache_user_info = MessageCache.cache_user_info
 get_cached_user_info = MessageCache.get_cached_user_info
 invalidate_conversation = MessageCache.invalidate_conversation
+invalidate_conversation_only = MessageCache.invalidate_conversation_only
 get_cache_stats = MessageCache.get_cache_stats
+
 
 

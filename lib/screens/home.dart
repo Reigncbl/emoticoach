@@ -6,10 +6,10 @@ import '../main.dart';
 import '../controllers/learning_navigation_controller.dart';
 import '../services/telegram_service.dart';
 import '../services/session_service.dart';
-import '../widgets/telegram_verification_widget.dart';
 import '../controllers/badge_controller.dart';
 import '../models/badge_model.dart';
 import 'notifications/notification_screen.dart';
+import 'profile.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,8 +21,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with UserDataMixin {
   final TelegramService _telegramService = TelegramService();
   bool _isTelegramAuthenticated = false;
-  bool _isCheckingTelegramAuth = true;
-  String? _userPhoneNumber;
 
   // == Badge Initialization ==
   final BadgeController _badgeController = BadgeController();
@@ -47,20 +45,20 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
   }
 
   Future<void> _loadRecentBadges() async {
-  try {
-    final userId = await AuthUtils.getSafeUserId();
-    if (userId != null) {
-      final allBadges = await _badgeController.getUserBadges(userId);
-      setState(() {
-        _recentBadges = allBadges.take(3).toList(); // show latest 3
-        _loadingBadges = false;
-      });
+    try {
+      final userId = await AuthUtils.getSafeUserId();
+      if (userId != null) {
+        final allBadges = await _badgeController.getUserBadges(userId);
+        setState(() {
+          _recentBadges = allBadges.take(3).toList(); // show latest 3
+          _loadingBadges = false;
+        });
+      }
+    } catch (e) {
+      print("Error loading badges: $e");
+      setState(() => _loadingBadges = false);
     }
-  } catch (e) {
-    print("Error loading badges: $e");
-    setState(() => _loadingBadges = false);
   }
-}
 
   Future<void> _checkTelegramAuthentication() async {
     try {
@@ -70,10 +68,6 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
       // Get user phone number from session
       final phoneNumber = await SimpleSessionService.getUserPhone();
       if (phoneNumber != null) {
-        setState(() {
-          _userPhoneNumber = phoneNumber;
-        });
-
         // Get userId from session first (preferred method)
         String? userId = await AuthUtils.getSafeUserId();
 
@@ -82,7 +76,6 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
 
           setState(() {
             _isTelegramAuthenticated = result['id'] != null;
-            _isCheckingTelegramAuth = false;
           });
 
           // Show modal if not authenticated
@@ -93,19 +86,15 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
           print('No valid userId found in session or Firebase');
           setState(() {
             _isTelegramAuthenticated = false;
-            _isCheckingTelegramAuth = false;
           });
         }
       } else {
-        setState(() {
-          _isCheckingTelegramAuth = false;
-        });
+        // No phone number stored; nothing to do.
       }
     } catch (e) {
       print('Error checking Telegram authentication: $e');
       setState(() {
         _isTelegramAuthenticated = false;
-        _isCheckingTelegramAuth = false;
       });
     }
   }
@@ -196,7 +185,7 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          _showTelegramVerificationDialog();
+                          _redirectToProfileForTelegram();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: kBrightBlue,
@@ -224,46 +213,30 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
     );
   }
 
-  void _showTelegramVerificationDialog() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          child: TelegramVerificationWidget(
-            userMobileNumber: _userPhoneNumber,
-            onVerificationSuccess: () {
-              Navigator.of(context).pop();
-              setState(() {
-                _isTelegramAuthenticated = true;
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Telegram connected successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
-            onCancel: () {
-              Navigator.of(context).pop();
-            },
-          ),
-        ),
-      ),
-    );
+  void _redirectToProfileForTelegram() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+
+      final mainScreenState = context
+          .findAncestorStateOfType<MainScreenState>();
+
+      if (mainScreenState != null) {
+        mainScreenState.changeIndex(3);
+      } else {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
+      }
+    });
   }
+
   String _formatTimeAgo(DateTime time) {
-  final diff = DateTime.now().difference(time);
-  if (diff.inDays > 0) return '${diff.inDays}d ago';
-  if (diff.inHours > 0) return '${diff.inHours}h ago';
-  if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
-  return 'Just now';
-}
+    final diff = DateTime.now().difference(time);
+    if (diff.inDays > 0) return '${diff.inDays}d ago';
+    if (diff.inHours > 0) return '${diff.inHours}h ago';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
+    return 'Just now';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -304,7 +277,7 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                           Icons.notifications_outlined,
                           color: kBlack,
                           size: 28,
-                        ), 
+                        ),
                       ),
                     ],
                   ),
@@ -645,29 +618,38 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                             else if (_recentBadges.isEmpty)
                               const Text(
                                 'No achievements yet. Complete a reading or scenario!',
-                                style: TextStyle(color: Colors.grey, fontSize: 14),
+                                style: TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 14,
+                                ),
                               )
                             else
                               Column(
-                                children: (_showAllBadges
-                                        ? _recentBadges
-                                        : _recentBadges.take(3).toList())
-                                    .map((badge) {
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: AchievementCard(
-                                      // Use backend badge image if available
-                                      icon: Icons.emoji_events,
-                                      iconBgColor: const Color(0xFFCADCF3),
-                                      iconColor: kBrightBlue,
-                                      title: badge.title ?? 'Badge',
-                                      subtitle: badge.description ?? '',
-                                      timeAgo: _formatTimeAgo(
-                                        badge.attainedTime ?? DateTime.now(),
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
+                                children:
+                                    (_showAllBadges
+                                            ? _recentBadges
+                                            : _recentBadges.take(3).toList())
+                                        .map((badge) {
+                                          return Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 12,
+                                            ),
+                                            child: AchievementCard(
+                                              // Use backend badge image if available
+                                              icon: Icons.emoji_events,
+                                              iconBgColor: const Color(
+                                                0xFFCADCF3,
+                                              ),
+                                              iconColor: kBrightBlue,
+                                              title: badge.title,
+                                              subtitle: badge.description,
+                                              timeAgo: _formatTimeAgo(
+                                                badge.attainedTime,
+                                              ),
+                                            ),
+                                          );
+                                        })
+                                        .toList(),
                               ),
                           ],
                         ),
@@ -910,7 +892,8 @@ class AchievementCard extends StatelessWidget {
           CircleAvatar(
             backgroundColor: iconBgColor,
             radius: 22,
-            backgroundImage: (badgeImageUrl != null && badgeImageUrl!.isNotEmpty)
+            backgroundImage:
+                (badgeImageUrl != null && badgeImageUrl!.isNotEmpty)
                 ? NetworkImage(badgeImageUrl!)
                 : null,
             child: (badgeImageUrl == null || badgeImageUrl!.isEmpty)
@@ -935,10 +918,7 @@ class AchievementCard extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(
-                    color: Colors.black87,
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(color: Colors.black87, fontSize: 13),
                 ),
               ],
             ),
@@ -949,10 +929,7 @@ class AchievementCard extends StatelessWidget {
           // 🟢 Time label
           Text(
             timeAgo,
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 13,
-            ),
+            style: const TextStyle(color: Colors.black54, fontSize: 13),
           ),
         ],
       ),

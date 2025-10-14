@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -106,26 +107,28 @@ class _OverlayUIState extends State<OverlayUI> {
         currentPosition = originalPosition;
       }
 
-      if (currentPosition == null) {
+      final double maxAllowedX = (screenWidth - width).clamp(
+        0.0,
+        double.infinity,
+      );
+      final double fallbackY = currentPosition?.y ?? originalPosition?.y ?? 0;
+
+      double? currentX = currentPosition?.x;
+
+      // If we still can't determine the current X, keep the overlay on-screen by
+      // anchoring it to the right edge (maxAllowedX) which guarantees visibility.
+      if (currentX == null) {
+        await FlutterOverlayWindow.moveOverlay(
+          OverlayPosition(maxAllowedX, fallbackY),
+        );
         return;
       }
 
-      double maxAllowedX = screenWidth - width;
-      if (maxAllowedX < 0) {
-        maxAllowedX = 0;
-      }
+      final double targetX = currentX.clamp(0.0, maxAllowedX);
 
-      double targetX = currentPosition.x;
-      if (targetX > maxAllowedX) {
-        targetX = maxAllowedX;
-      }
-      if (targetX < 0) {
-        targetX = 0;
-      }
-
-      if ((targetX - currentPosition.x).abs() > 0.5) {
+      if ((targetX - currentX).abs() > 0.5) {
         await FlutterOverlayWindow.moveOverlay(
-          OverlayPosition(targetX, currentPosition.y),
+          OverlayPosition(targetX, fallbackY),
         );
       }
     } catch (e) {
