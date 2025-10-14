@@ -1,0 +1,211 @@
+# Benchmark Scripts Comparison
+
+## Two Versions Available
+
+### 1. `groq_translation_benchmark.py` ❌ (Old - Uses LLM References)
+
+**How it works:**
+
+- Uses EMOTERA dataset (Filipino tweets with emotion labels)
+- Generates "reference" translations using one LLM (e.g., meta-llama)
+- Compares other LLMs against those LLM-generated references
+
+**Problems:**
+
+- ❌ LLM references may not be perfect
+- ❌ Comparing LLM outputs to LLM outputs (circular evaluation)
+- ❌ Doesn't tell you absolute quality, only relative comparison
+- ❌ If reference LLM makes mistakes, all scores are affected
+
+**When to use:**
+
+- When you only have source text without references
+- For relative comparison between models
+- For emotion preservation evaluation
+
+### 2. `groq_benchmark_with_real_refs.py` ✅ (New - Uses Real References)
+
+**How it works:**
+
+- Uses rhyliieee/tagalog-filipino-english-translation dataset
+- Has REAL human-created English translations
+- Compares LLM translations against actual human translations
+
+**Advantages:**
+
+- ✅ Uses genuine human reference translations
+- ✅ Provides accurate BLEU, ROUGE, METEOR scores
+- ✅ Tells you absolute translation quality
+- ✅ Industry-standard evaluation method
+- ✅ Results are reliable and comparable to academic research
+
+**When to use:**
+
+- For accurate translation quality evaluation
+- For comparing models against human-level performance
+- For academic or production benchmarking
+- **RECOMMENDED for most cases**
+
+## Quick Comparison Table
+
+| Feature                | Old Script          | New Script ✅              |
+| ---------------------- | ------------------- | -------------------------- |
+| Reference translations | LLM-generated       | Human-created              |
+| BLEU score reliability | Low (relative only) | High (absolute)            |
+| Dataset                | EMOTERA (emotions)  | HuggingFace (84k+ samples) |
+| Evaluation accuracy    | Medium              | High                       |
+| Use case               | Relative comparison | Production benchmarking    |
+
+## Usage Examples
+
+### Old Script (LLM References)
+
+```bash
+# Use EMOTERA dataset with LLM-generated references
+python groq_translation_benchmark.py --max-samples 5
+```
+
+### New Script (Real References) ✅ RECOMMENDED
+
+```bash
+# Use real human references (100 samples - quick)
+python groq_benchmark_with_real_refs.py --max-samples 100
+
+# Full evaluation (1000 samples - thorough)
+python groq_benchmark_with_real_refs.py --max-samples 1000
+
+# Small test (50 samples)
+python groq_benchmark_with_real_refs.py --max-samples 50
+```
+
+## Understanding the Scores
+
+### With Real References (New Script) ✅
+
+**BLEU-4 Scores:**
+
+- 0.40-1.00: Excellent (professional level)
+- 0.30-0.40: Good (usable translations)
+- 0.20-0.30: Fair (needs improvement)
+- 0.00-0.20: Poor (not usable)
+
+**These scores are ABSOLUTE** - they tell you actual translation quality.
+
+### With LLM References (Old Script) ❌
+
+**BLEU-4 Scores:**
+
+- High score: Similar to reference LLM
+- Low score: Different from reference LLM
+
+**These scores are RELATIVE** - they only tell you how similar to the reference LLM, not actual quality.
+
+## Recommendation
+
+🎯 **Use the NEW script (`groq_benchmark_with_real_refs.py`) for:**
+
+- Accurate evaluation
+- Production decisions
+- Model selection
+- Academic work
+- Reporting results
+
+📊 **Use the OLD script (`groq_translation_benchmark.py`) only for:**
+
+- Quick relative comparisons
+- Emotion-specific evaluations
+- When you need EMOTERA dataset specifically
+
+## Example Commands
+
+### Quick Test (Recommended First Run)
+
+```bash
+cd Backend/Evaluations
+python groq_benchmark_with_real_refs.py --max-samples 50
+```
+
+- Tests 50 samples
+- Takes ~2-3 minutes (without thinking models)
+- Good for initial validation
+
+### Standard Evaluation
+
+```bash
+python groq_benchmark_with_real_refs.py --max-samples 200
+```
+
+- Tests 200 samples
+- Takes ~5-10 minutes
+- Good balance of speed and reliability
+
+### Thorough Evaluation
+
+```bash
+python groq_benchmark_with_real_refs.py --max-samples 1000
+```
+
+- Tests 1000 samples
+- Takes ~15-30 minutes
+- High statistical confidence
+
+### Maximum Evaluation (Test Split)
+
+```bash
+python groq_benchmark_with_real_refs.py --max-samples 21057
+```
+
+- Uses entire test split (21,057 samples)
+- Takes several hours
+- Most comprehensive evaluation
+
+## Key Differences in Results
+
+### Example: Comparing Results
+
+**Old Script (LLM Reference):**
+
+```
+Model A: BLEU-4 = 0.65
+Model B: BLEU-4 = 0.58
+```
+
+Interpretation: Model A is more similar to the reference LLM than Model B
+
+**New Script (Real Reference):**
+
+```
+Model A: BLEU-4 = 0.42
+Model B: BLEU-4 = 0.38
+```
+
+Interpretation: Model A achieves 42% n-gram overlap with human translations (good quality)
+
+## Dataset Information
+
+### Old Script Dataset: EMOTERA
+
+- Source: Local TSV file
+- Size: ~498 samples
+- Content: Filipino/Taglish tweets with emotions
+- References: None (generated by LLM during benchmark)
+
+### New Script Dataset: rhyliieee/tagalog-filipino-english-translation
+
+- Source: HuggingFace Datasets
+- Size: 84,177 train + 21,057 test samples
+- Content: General Tagalog-English sentence pairs
+- References: Real human translations ✅
+
+## Conclusion
+
+✅ **Use `groq_benchmark_with_real_refs.py` for accurate, reliable translation quality evaluation.**
+
+This provides industry-standard metrics that:
+
+- Are comparable across different research papers
+- Accurately reflect translation quality
+- Can guide production decisions
+- Are based on human-created references
+
+The old script is still useful for emotion-specific evaluations or when you specifically need the EMOTERA dataset, but for general translation quality benchmarking, the new script is strongly recommended.

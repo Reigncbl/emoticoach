@@ -1,0 +1,10 @@
+================================================================================
+EMOTION CLASSIFICATION MODEL BENCHMARK - CAPSTONE PROJECT
+================================================================================
+Date: 2025-10-12 13:20:51
+Model: j-hartmann/emotion-english-distilroberta-base
+Overall Accuracy: 83.90%
+Macro F1-Score: 52.39%
+Weighted F1-Score: 80.62%
+
+Detailed results saved in this report.

@@ -1,0 +1,9 @@
+EMOTION CLASSIFICATION MODEL COMPARISON
+================================================================================
+Dataset: undersampled_val.json (350 samples - 50 per class)
+Device: CPU
+
+        model_name accuracy precision recall f1_score inference_time  load_time
+ Custom Local Model   47.14%    60.75% 47.14%   47.33%         18.46s   7.700000
+     RoBERTa-Large   45.14%    45.16% 45.14%   44.24%         47.86s   4.720000
+DistilRoBERTa-Base   44.57%    44.76% 44.57%   43.66%          7.11s   1.760000
