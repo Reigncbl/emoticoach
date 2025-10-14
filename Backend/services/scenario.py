@@ -286,10 +286,21 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
         system_prompt = f"""
 {character_description}
 
-REMINDER: Stay in character as {character_name}. This is a casual chat conversation for emotional coaching practice.
+IMPORTANT: 
+- Stay in character as {character_name}
+- Keep responses brief and concise (2-3 sentences max)
+- This is a casual chat for emotional coaching practice
 """
         
         messages = [LlamaMessage(role=MessageRole.SYSTEM, content=system_prompt)]
+        
+        # Add the character's first message as context if no history exists
+        if not request.conversation_history or len(request.conversation_history) == 0:
+            if request.scenario_id:
+                config = load_config(request.scenario_id)
+                first_message = config["roleplay"].get("first_message", "")
+                if first_message:
+                    messages.append(LlamaMessage(role=MessageRole.ASSISTANT, content=first_message))
         
         # Add conversation history if provided
         if request.conversation_history:
@@ -300,8 +311,8 @@ REMINDER: Stay in character as {character_name}. This is a casual chat conversat
         # Add current user message
         messages.append(LlamaMessage(role=MessageRole.USER, content=request.message))
         
-        # Get AI response
-        response = llm.chat(messages)
+        # Get AI response with concise output
+        response = llm.chat(messages, temperature=0.7, max_tokens=150)
         content = re.sub(r"<think>.*?</think>", "", response.message.content, flags=re.DOTALL).strip()
         
         return ChatResponse(
