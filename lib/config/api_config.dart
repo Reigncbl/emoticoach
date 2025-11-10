@@ -1,7 +1,5 @@
 class ApiConfig {
-  // Change this IP address when needed
-  static const String baseUrl =
-      'https://emoticoachdisplay.ambitiouscliff-beadd759.eastasia.azurecontainerapps.io/';
+  static const String baseUrl = 'http://10.0.2.2:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';

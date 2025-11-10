@@ -52,15 +52,55 @@ def get_messages_for_conversation(
 
         return messages
 
-def get_expected_replier(messages, user_true_name):
+def _normalize_name(name: Optional[str]) -> Optional[str]:
+    """Normalize names for comparison (case-insensitive, trimmed)."""
+    return name.strip().lower() if isinstance(name, str) and name.strip() else None
+
+
+def get_user_name_candidates(user_id: str) -> set[str]:
+    """Return possible display names or identifiers for the user."""
+    candidates: set[str] = set()
+
+    cached_user = MessageCache.get_cached_user_info(user_id)
+    if cached_user:
+        first_name = cached_user.get("first_name")
+        last_name = cached_user.get("last_name")
+        full_name = " ".join(filter(None, [first_name, last_name]))
+        for name in (first_name, last_name, full_name):
+            normalized = _normalize_name(name)
+            if normalized:
+                candidates.add(normalized)
+
+    # Fallback to retrieving from DB if cache miss or incomplete
+    if not candidates:
+        full_name = get_true_name_from_userid(user_id)
+        normalized_full = _normalize_name(full_name)
+        if normalized_full:
+            candidates.add(normalized_full)
+            split_name = full_name.split()
+            if split_name:
+                normalized_first = _normalize_name(split_name[0])
+                if normalized_first:
+                    candidates.add(normalized_first)
+
+    # Always include the raw user_id as a fallback candidate
+    normalized_user_id = _normalize_name(user_id)
+    if normalized_user_id:
+        candidates.add(normalized_user_id)
+
+    return candidates
+
+
+def get_expected_replier(messages, user_name_candidates: set[str]):
     """
     Given a list of messages (latest first), determine if the user should reply.
-    Returns True if user_true_name is NOT the Sender of the last message.
+    Returns True if the last message was NOT sent by the user.
     """
     if not messages:
         return None
     last_message = messages[0]
-    return last_message.Sender != user_true_name
+    last_sender_normalized = _normalize_name(last_message.Sender)
+    return last_sender_normalized not in user_name_candidates
 
 def get_true_name_from_userid(user_id):
     """
@@ -113,16 +153,34 @@ def rag_sender_context(
 
     # Get user's previous messages for style
     user_true_name = get_true_name_from_userid(user_id)
-    user_messages = [m.MessageContent for m in messages if m.Sender == user_true_name]
+    user_name_candidates = get_user_name_candidates(user_id)
+    user_messages = [
+        m.MessageContent
+        for m in messages
+        if _normalize_name(m.Sender) in user_name_candidates
+    ]
 
-    # Reply to the last message in the conversation
-    if messages:
-        last_message = messages[0]
+    # Prefer the last message sent by the other person (the contact).
+    # This finds the most recent message where Sender != user_true_name.
+    last_message = None
+    last_message_from_contact = next(
+        (m for m in messages if _normalize_name(m.Sender) not in user_name_candidates),
+        None,
+    )
+
+    if last_message_from_contact:
+        last_message = last_message_from_contact
         reply_query = last_message.MessageContent
         last_sender = last_message.Sender
     else:
-        reply_query = query or ""
-        last_sender = "Contact"
+        # Fallback to overall last message (most recent) or the provided query
+        if messages:
+            last_message = messages[0]
+            reply_query = last_message.MessageContent
+            last_sender = last_message.Sender
+        else:
+            reply_query = query or ""
+            last_sender = "Contact"
 
     tone_instruction = ""
     if desired_tone:
@@ -135,7 +193,7 @@ def rag_sender_context(
         user_instruction = f"\nAdditional user instructions: {query}"
 
     # Determine if user should reply or not
-    should_reply = last_sender != user_true_name
+    should_reply = _normalize_name(last_sender) not in user_name_candidates
     
     if should_reply:
         enhanced_query = (
@@ -186,10 +244,23 @@ def recent_emotion_context(
     window_minutes: int = Query(20, description="Time window in minutes for context"),
 ):
     # Step 1: Get the absolute latest message
-    latest_messages = get_messages_for_conversation(user_id, contact_id, limit=1)
-    latest_message = latest_messages[0] if latest_messages else None
+    # We need to determine the latest message sent by the contact (not the user).
+    # Fetch a reasonable number of recent messages and pick the latest whose Sender is not
+    # one of the user's possible display names (handles varying Telegram names).
+    user_true_name = get_true_name_from_userid(user_id)
+    user_name_candidates = get_user_name_candidates(user_id)
+    recent_messages = get_messages_for_conversation(user_id, contact_id, limit=50)
+    # Find most recent message sent by contact
+    latest_message = next(
+        (m for m in recent_messages if _normalize_name(m.Sender) not in user_name_candidates),
+        None,
+    )
+    # If there is no contact message, fallback to the absolutely latest message overall
     if not latest_message:
-        return {"detail": "No messages found"}
+        latest_messages = get_messages_for_conversation(user_id, contact_id, limit=1)
+        latest_message = latest_messages[0] if latest_messages else None
+        if not latest_message:
+            return {"detail": "No messages found"}
     latest_time = latest_message.DateSent
     now = datetime.utcnow()
     # Step 2: Get all messages in the previous window_minutes before the latest message
@@ -219,20 +290,34 @@ def recent_emotion_context(
     ]
 
     # Prepare user style examples
-    user_true_name = get_true_name_from_userid(user_id)
-    user_messages = [m.MessageContent for m in context_msgs if m.Sender == user_true_name]
+    user_messages = [
+        m.MessageContent
+        for m in context_msgs
+        if _normalize_name(m.Sender) in user_name_candidates
+    ]
 
-    # Always include the latest message in the response
+    # Derive the most recent contact messages (up to 3).
+    # We use the earlier `recent_messages` (fetched newest-first) and pick up to 3
+    # messages whose sender is NOT one of the user's name candidates. This handles
+    # Telegram/name drift and gives a short thread for RAG to use.
+    contact_messages = [m for m in recent_messages if _normalize_name(m.Sender) not in user_name_candidates]
+    recent_contact_messages = contact_messages[:3]
+
+    # Choose the primary target message (the most recent contact message if available,
+    # otherwise the overall latest_message).
+    target_message = recent_contact_messages[0] if recent_contact_messages else latest_message
+
+    # Always include the target message in the response
     last_message = {
-        "Sender": latest_message.Sender if latest_message else None,
-        "MessageContent": latest_message.MessageContent if latest_message else None,
-        "DateSent": latest_message.DateSent if latest_message else None,
-        "emotion_analysis": analyze_emotion(latest_message.MessageContent, user_name=latest_message.Sender) if latest_message else None
+        "Sender": target_message.Sender if target_message else None,
+        "MessageContent": target_message.MessageContent if target_message else None,
+        "DateSent": target_message.DateSent if target_message else None,
+        "emotion_analysis": analyze_emotion(target_message.MessageContent, user_name=target_message.Sender) if target_message else None
     }
 
     # Determine if user should reply
     last_sender = last_message['Sender']
-    should_reply = last_sender != user_true_name
+    should_reply = _normalize_name(last_sender) not in user_name_candidates
     
     # Use RAG to generate a suggestion based on the context window and last message
     if should_reply:
@@ -259,14 +344,26 @@ def recent_emotion_context(
     )
     rag_emotion = analyze_emotion(rag_response or "", user_name=user_true_name)
 
+    # Attach recent_contact_messages with emotion analysis for the frontend
+    recent_contact_messages_payload = [
+        {
+            "Sender": m.Sender,
+            "MessageContent": m.MessageContent,
+            "DateSent": m.DateSent,
+            "emotion_analysis": analyze_emotion(m.MessageContent, user_name=m.Sender),
+        }
+        for m in recent_contact_messages
+    ]
+
     return {
         "context_window": context,
         "messages": emotion_context,
+        "recent_contact_messages": recent_contact_messages_payload,
         "window_start": window_start,
         "window_end": now,
         "last_message": last_message,
         "rag_suggestion": rag_response,
-        "rag_suggestion_emotion": rag_emotion
+        "rag_suggestion_emotion": rag_emotion,
     }
 
 

@@ -486,7 +486,14 @@ class _OverlayScreenState extends State<OverlayScreen>
     final result = _manualAnalysisResult;
     if (result == null) return const SizedBox.shrink();
 
-    final lastMessage = result['last_message'] as Map<String, dynamic>?;
+    // Prefer recent_contact_messages if present (backend now returns up to 3 recent
+    // contact messages). Fall back to `last_message` for older responses.
+    final recentContacts =
+        (result['recent_contact_messages'] as List<dynamic>?) ?? [];
+    final lastMessage = recentContacts.isNotEmpty
+        ? (recentContacts.first as Map<String, dynamic>?)
+        : (result['last_message'] as Map<String, dynamic>?);
+
     final lastMessageText = lastMessage != null
         ? lastMessage['MessageContent']?.toString()
         : null;
