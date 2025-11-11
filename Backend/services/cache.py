@@ -5,17 +5,31 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
-load_dotenv
+
+load_dotenv()
+
+
+def _get_env_bool(name: str, default: bool = False) -> bool:
+    """Interpret common truthy strings from environment values."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 # Redis connection
-r = redis.Redis(
-    host=os.getenv("REDIS_HOST"),
-    port=os.getenv("REDIS_PORT"),
-    decode_responses=os.getenv("REDIS_DECODE_RESPONSES"),
-    username=os.getenv("REDIS_USERNAME"),
-    password=os.getenv("REDIS_PASSWORD"),
-)
+_redis_url = os.getenv("REDIS_URL")
+if _redis_url:
+    r = redis.from_url(_redis_url, decode_responses=True)
+else:
+    r = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        username=os.getenv("REDIS_USERNAME") or None,
+        password=os.getenv("REDIS_PASSWORD") or None,
+        decode_responses=_get_env_bool("REDIS_DECODE_RESPONSES", True),
+        ssl=_get_env_bool("REDIS_USE_SSL", False),
+    )
 
 # Cache TTL settings (in seconds)
 MESSAGE_CACHE_TTL = 300  # 5 minutes
