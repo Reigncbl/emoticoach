@@ -9,6 +9,7 @@ from .overlay_stats_routes import overlay_stats_router as overlay_stats_routes
 from .user_achievement_routes import achievement_router as achievement_routes
 from .cache_routes import cache_router as cache_routes
 from .support_routes import support_router as support_routes
+from .daily_routes import router as daily_routes
 
 __all__ = [
 	"book_routes",
@@ -22,4 +23,5 @@ __all__ = [
 	"achievement_routes",
 	"cache_routes",
 	"support_routes",
+    "daily_routes"
 ]
