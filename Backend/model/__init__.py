@@ -11,5 +11,8 @@ from .levelsystem import LevelSystem
 from .userachievement import UserAchievement
 from .experienceinfo import ExperienceInfo
 from .skillinfo import SkillInfo
+from .daily import Challenge, DailyChallengeItem, UserChallengeClaim
 
-__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "ScenarioWithConfig", "ScenarioCompletion","BadgeInfo","LevelSystem","UserAchievement","ExperienceInfo","SkillInfo"]
+
+
+__all__ = ["ModuleType", "ReadingsInfo", "ReadingProgress", "ReadingBlock", "UserInfo", "ScenarioWithConfig", "ScenarioCompletion","BadgeInfo","LevelSystem","UserAchievement","ExperienceInfo","SkillInfo","Challenge","DailyChallengeItem","UserChallengeClaim"]

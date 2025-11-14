@@ -52,6 +52,30 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
     );
   }
+  Future<void> _refreshProfile() async {
+    print('🔄 Refreshing profile screen...');
+
+    // Reload name / greeting from mixin
+    await loadUserData();
+
+    // Reload XP & level
+    await _loadExperience();
+
+    // Reload badges
+    await _loadBadges();
+
+    // Reload activity list
+    await _loadActivities();
+
+    // Re-check Telegram status
+    await _checkTelegramAuthentication();
+
+    // Optional: force rebuild
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
 
   void _editProfile() {
     print("Edit Profile tapped");
@@ -1053,194 +1077,115 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
 
           // === MAIN CONTENT ===
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              child: Column(
-                children: [
-                  // === SETTINGS + EDIT ICONS ===
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      GestureDetector(
-                        onTap: _editProfile,
-                        child: const Iconify(Ic.edit, size: 28, color: kBlack),
-                      ),
-
-                      const SizedBox(width: 4),
-
-                      GestureDetector(
-                        onTap: _navigateToSettings,
-                        child: const Iconify(
-                          Ic.settings,
-                          size: 28,
-                          color: kBlack,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // === PROFILE HEADER ===
-                  _profileCard(
-                    name: displayName,
-                    level: _xpController.experience?.level ?? 0,
-                    levelName: _xpController.experience?.levelName ?? "Unknown",
-                    imageUrl: _xpController.experience?.imageUrl,
-                  ),
-
-
-
-                  const SizedBox(height: 24),
-
-                  // === PROGRESS DASHBOARD ===
-                  _title(title: 'Progress Dashboard'),
-                  // Progress Dashboard Widget
-                  if (_xpController.experience != null)
-                    _progressDashboard(
-                      progressXp: _xpController.experience!.xp.toString(),
-                      totalXp: _xpController.experience!.nextLevelXp?.toString() ?? _xpController.experience!.xp.toString(),
-                    )
-                  else
-                    const CircularProgressIndicator(),
-
-                  // === STATS ROW 1 ===
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Scenarios',
-                          value: '12',
-                          color: kBrightBlue,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Articles',
-                          value: '12',
-                          color: kBrightOrange,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildStatCard(
-                          title: 'Avg. Score',
-                          value: '5',
-                          color: kBrightBlue,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                    ],
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  // === BIG GRAPH ===
-
-                  // === KEY SKILLS SECTION ===
-                  const SizedBox(height: 12),
-
-                  _title(title: 'Key Skills'),
-
-                  const SizedBox(height: 12),
-
-                  _skillsGraphWidget(),
-
-                  const SizedBox(height: 24),
-
-                  // === BADGES SECTION ===
-                  _title(title: 'Badges'),
-                  const SizedBox(height: 12),
-
-                  if (_loadingBadges)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_badges.isEmpty)
-                    const Center(
-                      child: Text(
-                        "No badges yet. Finish a scenario or reading to earn your first badge!",
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.grey,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  else
-                    Column(
+             child: RefreshIndicator(
+              onRefresh: _refreshProfile,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                child: Column(
+                  children: [
+                    // === SETTINGS + EDIT ICONS ===
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: (_showAllBadges ? _badges : _badges.take(6))
-                              .map((badge) {
-                            return _badgeComponent(
-                              icon: const Icon(Icons.emoji_events),
-                              badgeName: badge.title ?? 'Badge',
-                              status: true,
-                              imageUrl: badge.imageUrl,
-                              onTap: () => _updateSelectedBadge(
-                                iconData: Icons.emoji_events,
-                                badgeName: badge.title ?? '',
-                                badgeDescription: badge.description ?? '',
-                                dateEarned: badge.attainedTime ?? DateTime.now(),
-                                rarityText: 'Unlocked',
-                              ),
-                            );
-                          }).toList(),
+                        GestureDetector(
+                          onTap: _editProfile,
+                          child: const Iconify(Ic.edit, size: 28, color: kBlack),
                         ),
 
-                        const SizedBox(height: 12),
+                        const SizedBox(width: 4),
 
-                        if (_badges.length > 6)
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _showAllBadges = !_showAllBadges; // Toggle between show all/less
-                              });
-                            },
-                            child: Text(
-                              _showAllBadges ? "Show Less" : "Show All",
-                              style: const TextStyle(
-                                color: Colors.blue,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                        GestureDetector(
+                          onTap: _navigateToSettings,
+                          child: const Iconify(
+                            Ic.settings,
+                            size: 28,
+                            color: kBlack,
                           ),
+                        ),
                       ],
                     ),
 
+                    const SizedBox(height: 8),
 
-
-                  const SizedBox(height: 12),
-
-                  // Badge Info - Show badge info below when selected
-                  if (selectedIcon != null &&
-                      selectedName != null &&
-                      selectedDescription != null &&
-                      selectedDate != null &&
-                      selectedRarity != null)
-                    _badgeInfo(
-                      iconData: selectedIcon!,
-                      badgeName: selectedName!,
-                      badgeDescription: selectedDescription!,
-                      dateEarned: selectedDate!,
-                      rarityText: selectedRarity!,
-                      rarityPercentage: 0,
+                    // === PROFILE HEADER ===
+                    _profileCard(
+                      name: displayName,
+                      level: _xpController.experience?.level ?? 0,
+                      levelName: _xpController.experience?.levelName ?? "Unknown",
+                      imageUrl: _xpController.experience?.imageUrl,
                     ),
 
-                  const SizedBox(height: 24),
 
-                  // === ACTIVITY SECTION ===
-                  _title(title: 'Activity'),
-                  const SizedBox(height: 12),
-                    if (_loadingActivities)
+
+                    const SizedBox(height: 24),
+
+                    // === PROGRESS DASHBOARD ===
+                    _title(title: 'Progress Dashboard'),
+                    // Progress Dashboard Widget
+                    if (_xpController.experience != null)
+                      _progressDashboard(
+                        progressXp: _xpController.experience!.xp.toString(),
+                        totalXp: _xpController.experience!.nextLevelXp?.toString() ?? _xpController.experience!.xp.toString(),
+                      )
+                    else
+                      const CircularProgressIndicator(),
+
+                    // === STATS ROW 1 ===
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'Scenarios',
+                            value: '12',
+                            color: kBrightBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'Articles',
+                            value: '12',
+                            color: kBrightOrange,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'Avg. Score',
+                            value: '5',
+                            color: kBrightBlue,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // === BIG GRAPH ===
+
+                    // === KEY SKILLS SECTION ===
+                    const SizedBox(height: 12),
+
+                    _title(title: 'Key Skills'),
+
+                    const SizedBox(height: 12),
+
+                    _skillsGraphWidget(),
+
+                    const SizedBox(height: 24),
+
+                    // === BADGES SECTION ===
+                    _title(title: 'Badges'),
+                    const SizedBox(height: 12),
+
+                    if (_loadingBadges)
                       const Center(child: CircularProgressIndicator())
-                    else if (_activities.isEmpty)
+                    else if (_badges.isEmpty)
                       const Center(
                         child: Text(
-                          "No activities yet. Earn a badge or level up to see your progress here!",
+                          "No badges yet. Finish a scenario or reading to earn your first badge!",
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -1251,34 +1196,117 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                       )
                     else
                       Column(
-                        children: _activities.map((activity) {
-                          final type = activity['type'] as ActivityType;
-                          final title = activity['title'] as String;
-                          final date = activity['date'] as DateTime;
+                        children: [
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: (_showAllBadges ? _badges : _badges.take(6))
+                                .map((badge) {
+                              return _badgeComponent(
+                                icon: const Icon(Icons.emoji_events),
+                                badgeName: badge.title ?? 'Badge',
+                                status: true,
+                                imageUrl: badge.imageUrl,
+                                onTap: () => _updateSelectedBadge(
+                                  iconData: Icons.emoji_events,
+                                  badgeName: badge.title ?? '',
+                                  badgeDescription: badge.description ?? '',
+                                  dateEarned: badge.attainedTime ?? DateTime.now(),
+                                  rarityText: 'Unlocked',
+                                ),
+                              );
+                            }).toList(),
+                          ),
 
-                          return _activityComponent(
-                            icon: Icon(
-                              type == ActivityType.levelReached
-                                  ? Icons.star
-                                  : Icons.emoji_events,
+                          const SizedBox(height: 12),
+
+                          if (_badges.length > 6)
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _showAllBadges = !_showAllBadges; // Toggle between show all/less
+                                });
+                              },
+                              child: Text(
+                                _showAllBadges ? "Show Less" : "Show All",
+                                style: const TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                            activityType: type,
-                            subtitle: title,
-                            date: date,
-                            backgroundColor: Colors.amber.shade50,
-                            accentColor: type == ActivityType.levelReached
-                                ? Colors.amber.shade600
-                                : Colors.green.shade600,
-                      );
-                    }).toList(),
-                  ),
-                ],
+                        ],
+                      ),
+
+
+
+                    const SizedBox(height: 12),
+
+                    // Badge Info - Show badge info below when selected
+                    if (selectedIcon != null &&
+                        selectedName != null &&
+                        selectedDescription != null &&
+                        selectedDate != null &&
+                        selectedRarity != null)
+                      _badgeInfo(
+                        iconData: selectedIcon!,
+                        badgeName: selectedName!,
+                        badgeDescription: selectedDescription!,
+                        dateEarned: selectedDate!,
+                        rarityText: selectedRarity!,
+                        rarityPercentage: 0,
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // === ACTIVITY SECTION ===
+                    _title(title: 'Activity'),
+                    const SizedBox(height: 12),
+                      if (_loadingActivities)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_activities.isEmpty)
+                        const Center(
+                          child: Text(
+                            "No activities yet. Earn a badge or level up to see your progress here!",
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      else
+                        Column(
+                          children: _activities.map((activity) {
+                            final type = activity['type'] as ActivityType;
+                            final title = activity['title'] as String;
+                            final date = activity['date'] as DateTime;
+
+                            return _activityComponent(
+                              icon: Icon(
+                                type == ActivityType.levelReached
+                                    ? Icons.star
+                                    : Icons.emoji_events,
+                              ),
+                              activityType: type,
+                              subtitle: title,
+                              date: date,
+                              backgroundColor: Colors.amber.shade50,
+                              accentColor: type == ActivityType.levelReached
+                                  ? Colors.amber.shade600
+                                  : Colors.green.shade600,
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
               ),
+             ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
   }
 
   @override
