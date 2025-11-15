@@ -198,7 +198,8 @@ async def get_page(readings_id: str, page: int, session = Depends(get_session)):
 class ReadingProgressUpsert(BaseModel):
     mobile_number: str
     readings_id: str
-    current_page: int
+    current_page: float  # Changed to float for decimal precision (e.g., 89.5 for EPUB)
+    current_cfi: Optional[str] = None  # Exact EPUB CFI for precise resume
     last_read_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -222,6 +223,7 @@ async def upsert_reading_progress(progress_in: ReadingProgressUpsert = Body(...)
 
     if progress:
         progress.CurrentPage = progress_in.current_page
+        progress.CurrentCfi = progress_in.current_cfi
         progress.LastReadAt = progress_in.last_read_at
         progress.CompletedAt = progress_in.completed_at
         progress.MobileNumber = decoded_mobile
@@ -230,6 +232,7 @@ async def upsert_reading_progress(progress_in: ReadingProgressUpsert = Body(...)
             ProgressID=str(uuid4()),
             ReadingsID=progress_in.readings_id,
             CurrentPage=progress_in.current_page,
+            CurrentCfi=progress_in.current_cfi,
             LastReadAt=progress_in.last_read_at,
             CompletedAt=progress_in.completed_at,
             MobileNumber=decoded_mobile

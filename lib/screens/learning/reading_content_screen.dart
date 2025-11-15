@@ -47,11 +47,36 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     try {
       print('Attempting to load EPUB from path: $assetPath');
       
+      // Show loading indicator for large files
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Text('Loading book... This may take a moment for large files.'),
+              ],
+            ),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      
       // Use rootBundle to load asset as bytes
       final byteData = await DefaultAssetBundle.of(context).load(assetPath);
       final bytes = byteData.buffer.asUint8List();
       
-      print('Successfully loaded EPUB file. Size: ${bytes.length} bytes');
+      final sizeInMB = (bytes.length / 1024 / 1024).toStringAsFixed(2);
+      print('Successfully loaded EPUB file. Size: ${bytes.length} bytes ($sizeInMB MB)');
+      
       return bytes;
     } catch (e) {
       print('Error loading EPUB asset: $e');
@@ -254,7 +279,7 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
       final progressResult = await _progressController.updateProgress(
         mobileNumber: mobileNumber,
         readingsId: readingId,
-        currentPage: _currentPage,
+        currentPage: _currentPage.toDouble(), // Convert int to double
         lastReadAt: DateTime.now(),
         // Don't set completedAt unless we're at the last page
         completedAt: _currentPage >= _totalPages ? DateTime.now() : null,
@@ -837,7 +862,7 @@ class ReadingCompletionScreen extends StatelessWidget {
       final progressResult = await progressController.updateProgress(
         mobileNumber: mobileNumber,
         readingsId: readingId,
-        currentPage: 1,
+        currentPage: 1.0, // Use double for consistency
         lastReadAt: DateTime.now(),
         completedAt: DateTime.now(), // Mark as completed
       );

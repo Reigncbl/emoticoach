@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'http://192.168.100.199:8000';
+  static const String baseUrl = 'http://10.208.31.29:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -64,6 +64,4 @@ class ApiConfig {
   // === SUPPORT ===
   static String get submitHelpRequest => '$baseUrl/api/support/help-request';
   static String get submitFeedback => '$baseUrl/api/support/feedback';
-
-  // === NOTIFICATIONS ===
 }
