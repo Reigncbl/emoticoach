@@ -4,13 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../models/user_model.dart';
 import 'session_service.dart';
+import '../config/api_config.dart';
 
 class UserApiService {
   final http.Client _client;
   late String baseUrl;
 
   UserApiService({http.Client? client}) : _client = client ?? http.Client() {
-    // Set base URL based on platform - matching your existing API services
+    // Single source of truth for API base URL
     if (kIsWeb) {
       baseUrl = "http://localhost:8000"; // Web
     } else if (Platform.isAndroid) {

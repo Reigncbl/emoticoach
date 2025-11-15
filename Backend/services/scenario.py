@@ -267,29 +267,98 @@ async def chat_with_ai(request: ChatRequest) -> ChatResponse:
             return ChatResponse(success=False, error="Missing model or api_key environment variables")
         
         llm = Groq(model=model, api_key=api_key)
-        
-        # Enhanced: Get character config from database or request
+
         character_name = "Assistant"
         character_description = "You are a helpful assistant."
-        
+        roleplay_config: Dict[str, Any] = {}
+        first_message: str = ""
+
         if request.scenario_id:
-            # Load from database (fast!)
             config = load_config(request.scenario_id)
-            character_name = config["roleplay"]["name"]
-            character_description = config["roleplay"]["description"]
+            roleplay_config = config.get("roleplay", {})
+            character_name = roleplay_config.get("name", character_name)
+            character_description = roleplay_config.get("description", character_description)
+            first_message = roleplay_config.get("first_message", "")
         elif request.character_name and request.character_description:
-            # Use provided character info
             character_name = request.character_name
             character_description = request.character_description
-        
-        # Build system prompt with strong roleplay instructions
-        system_prompt = f"""
-{character_description}
 
-REMINDER: Stay in character as {character_name}. This is a casual chat conversation for emotional coaching practice.
-"""
-        
+        system_prompt_sections: List[str] = [f"You are roleplaying as {character_name}."]
+
+        if isinstance(character_description, str) and character_description.strip():
+            system_prompt_sections.append(character_description.strip())
+
+        known_prompt_keys = ["system_prompt", "prompt", "persona_prompt"]
+        for key in known_prompt_keys:
+            extra_prompt = roleplay_config.get(key)
+            if isinstance(extra_prompt, str) and extra_prompt.strip():
+                system_prompt_sections.append(extra_prompt.strip())
+
+        guidelines = roleplay_config.get("guidelines")
+        if isinstance(guidelines, list):
+            formatted_guidelines = "\n".join(
+                f"- {str(item).strip()}" for item in guidelines if str(item).strip()
+            )
+            if formatted_guidelines:
+                system_prompt_sections.append(f"Guidelines:\n{formatted_guidelines}")
+        elif isinstance(guidelines, str) and guidelines.strip():
+            system_prompt_sections.append(f"Guidelines:\n{guidelines.strip()}")
+
+        tone_value = roleplay_config.get("tone") or roleplay_config.get("style")
+        if isinstance(tone_value, str) and tone_value.strip():
+            system_prompt_sections.append(f"Tone: {tone_value.strip()}")
+
+        additional_fields = {
+            key: value
+            for key, value in roleplay_config.items()
+            if key not in {
+                "name",
+                "description",
+                "first_message",
+                "guidelines",
+                "prompt",
+                "system_prompt",
+                "persona_prompt",
+                "tone",
+                "style",
+            }
+        }
+
+        for key, value in additional_fields.items():
+            if value is None:
+                continue
+            label = key.replace("_", " ").title()
+            if isinstance(value, list):
+                bullet_points = "\n".join(
+                    f"- {str(item).strip()}" for item in value if str(item).strip()
+                )
+                if bullet_points:
+                    system_prompt_sections.append(f"{label}:\n{bullet_points}")
+            elif isinstance(value, dict):
+                dict_points = "\n".join(
+                    f"- {sub_key.replace('_', ' ').title()}: {str(sub_value).strip()}"
+                    for sub_key, sub_value in value.items()
+                    if str(sub_value).strip()
+                )
+                if dict_points:
+                    system_prompt_sections.append(f"{label}:\n{dict_points}")
+            else:
+                text_value = str(value).strip()
+                if text_value:
+                    system_prompt_sections.append(f"{label}: {text_value}")
+
+        system_prompt_sections.append(
+            "Core directives: Stay in character as {name}, keep responses concise (2-3 sentences), and support emotional coaching dialogue.".format(
+                name=character_name
+            )
+        )
+
+        system_prompt = "\n\n".join(system_prompt_sections)
+
         messages = [LlamaMessage(role=MessageRole.SYSTEM, content=system_prompt)]
+
+        if (not request.conversation_history or len(request.conversation_history) == 0) and first_message:
+            messages.append(LlamaMessage(role=MessageRole.ASSISTANT, content=first_message))
         
         # Add conversation history if provided
         if request.conversation_history:
@@ -300,8 +369,8 @@ REMINDER: Stay in character as {character_name}. This is a casual chat conversat
         # Add current user message
         messages.append(LlamaMessage(role=MessageRole.USER, content=request.message))
         
-        # Get AI response
-        response = llm.chat(messages)
+        # Get AI response with concise output
+        response = llm.chat(messages, temperature=0.7, max_tokens=150)
         content = re.sub(r"<think>.*?</think>", "", response.message.content, flags=re.DOTALL).strip()
         
         return ChatResponse(

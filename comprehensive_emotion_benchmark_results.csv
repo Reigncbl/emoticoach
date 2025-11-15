@@ -1,0 +1,2 @@
+dataset,split,samples,accuracy,f1_macro,f1_weighted,precision_macro,recall_macro,inference_time,avg_confidence
+emotion,test,2000,0.839,0.5238637062706185,0.8062240261497484,0.49937292938268457,0.5538014195317194,79.80066657066345,0.9520677089691162

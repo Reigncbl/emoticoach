@@ -16,7 +16,7 @@ except ImportError:
     CACHE_AVAILABLE = False
     print("Warning: Cache not available for emotion analysis")
 
-HF_MODEL = "j-hartmann/emotion-english-distilroberta-base"
+HF_MODEL = "j-hartmann/emotion-english-roberta-large"  # Upgraded from distilroberta-base for better accuracy
 
 class EmotionEmbedder:
     """A class to generate emotion embeddings for text using a pre-trained model with translation support."""
@@ -63,29 +63,32 @@ class EmotionEmbedder:
                 print("Translation will be skipped for non-English text")
 
     def _translate_text(self, text: str) -> str:
-        """Translate text to English if needed using Groq."""
+        """Translate text to English if needed using Groq. Always attempts translation with emotion preservation."""
         if not self.groq_client or not self.groq_model:
             return text
         
-        # Simple heuristic to check if text might be non-English
-        # You can make this more sophisticated
-        if text.isascii() and len([word for word in text.split() if word.isalpha()]) > 0:
-            # Likely English, return as is
-            return text
-        
         try:
-            translate_prompt = f"""Translate this text to English. Preserve the emotional tone and meaning exactly. If already in English, return it unchanged. Output ONLY the translated text, no explanations.
+            translate_prompt = f"""You are an expert Filipino-English translator specializing in emotional expressions.
 
-Text: {text}"""
+Translate this Filipino/Taglish text to English while:
+1. Preserving the EXACT emotional intensity (anger, joy, sadness, fear, disgust, surprise, neutral)
+2. Keeping informal language informal (slang → slang, casual → casual)
+3. Maintaining cultural context of Filipino emotional expressions
+4. Preserving punctuation that indicates emotion (!!!, ???, etc.)
+5. If already in English, return it unchanged
+
+Text: {text}
+
+Translation:"""
             
             response = self.groq_client.chat.completions.create(
                 messages=[
-                    {"role": "system", "content": "You are a precise translator. Output only the translated text, preserving emotional nuance."},
+                    {"role": "system", "content": "You are a Filipino-English emotion-preserving translator. Maintain emotional tone, intensity, and informal language precisely."},
                     {"role": "user", "content": translate_prompt}
                 ],
                 model=self.groq_model,
-                temperature=0,
-                max_tokens=150
+                temperature=0.1,  # Lower temperature for more consistent translations
+                max_tokens=200
             )
             translated = response.choices[0].message.content.strip()
             # Remove common prefixes that LLM might add
@@ -132,10 +135,41 @@ Text: {text}"""
             # Reorder scores to match self.label_names
             embedding = [scores_dict.get(label, 0.0) for label in self.label_names]
             
-            # Apply a small penalty to neutral class to reduce bias
+            # Handle class imbalance: boost underrepresented emotions (AGGRESSIVE)
+            if 'disgust' in self.label_names:
+                disgust_idx = self.label_names.index('disgust')
+                embedding[disgust_idx] = min(1.0, embedding[disgust_idx] * 1.5)  # Boost by 50%
+            
+            if 'fear' in self.label_names:
+                fear_idx = self.label_names.index('fear')
+                embedding[fear_idx] = min(1.0, embedding[fear_idx] * 1.3)  # Boost by 30%
+            
+            if 'surprise' in self.label_names:
+                surprise_idx = self.label_names.index('surprise')
+                embedding[surprise_idx] = min(1.0, embedding[surprise_idx] * 1.25)  # Boost by 25%
+            
+            # Slightly boost anger and sadness too
+            if 'anger' in self.label_names:
+                anger_idx = self.label_names.index('anger')
+                embedding[anger_idx] = min(1.0, embedding[anger_idx] * 1.1)  # Boost by 10%
+            
+            if 'sadness' in self.label_names:
+                sadness_idx = self.label_names.index('sadness')
+                embedding[sadness_idx] = min(1.0, embedding[sadness_idx] * 1.1)  # Boost by 10%
+            
+            # Apply stronger penalty to over-predicted classes
             if 'neutral' in self.label_names:
                 neutral_idx = self.label_names.index('neutral')
-                embedding[neutral_idx] = max(0, embedding[neutral_idx] - 0.1) # Reduce confidence slightly
+                embedding[neutral_idx] = max(0, embedding[neutral_idx] * 0.8)  # Reduce by 20%
+            
+            if 'joy' in self.label_names:
+                joy_idx = self.label_names.index('joy')
+                embedding[joy_idx] = max(0, embedding[joy_idx] * 0.9)  # Reduce by 10%
+            
+            # Renormalize to ensure valid probability distribution
+            total = sum(embedding)
+            if total > 0:
+                embedding = [score / total for score in embedding]
             
             # Cache the result
             if CACHE_AVAILABLE:
@@ -153,7 +187,7 @@ Text: {text}"""
             return [0.0] * len(self.label_names)
 
     def get_emotion_scores(self, text: str, translate_if_needed: bool = True) -> Dict[str, float]:
-        """Get emotion scores with their labels.
+        """Get emotion scores with their labels, enhanced with Filipino keyword detection.
         
         Args:
             text: Input text to analyze
@@ -163,7 +197,20 @@ Text: {text}"""
             Dictionary mapping emotion labels to their probabilities
         """
         embedding = self.get_embedding(text, translate_if_needed)
-        return {label: score for label, score in zip(self.label_names, embedding)}
+        scores = {label: score for label, score in zip(self.label_names, embedding)}
+        
+        # Apply Filipino keyword boosts
+        keyword_boosts = self._detect_filipino_emotion_keywords(text)
+        for emotion, boost in keyword_boosts.items():
+            if emotion in scores and boost > 0:
+                scores[emotion] = min(1.0, scores[emotion] + boost)
+        
+        # Renormalize
+        total = sum(scores.values())
+        if total > 0:
+            scores = {k: v/total for k, v in scores.items()}
+        
+        return scores
 
     def get_dominant_emotion(self, text: str, translate_if_needed: bool = True) -> Tuple[str, float]:
         """Get the most probable emotion for the input text.
@@ -230,37 +277,185 @@ Text: {text}"""
         
         return result
 
-    def get_final_emotion(self, text: str, threshold: float = 0.6) -> str:
+    def _detect_filipino_emotion_keywords(self, text: str) -> Dict[str, float]:
+        """Detect Filipino emotion keywords and boost corresponding emotions."""
+        text_lower = text.lower()
+        
+        keyword_boosts = {
+            'anger': 0.0,
+            'disgust': 0.0,
+            'fear': 0.0,
+            'joy': 0.0,
+            'neutral': 0.0,
+            'sadness': 0.0,
+            'surprise': 0.0
+        }
+        
+        # Anger keywords
+        anger_words = ['galit', 'inis', 'badtrip', 'nakakainis', 'nakakagalit', 'hassle', 
+                       'kainis', 'tangina', 'putang', 'gago', 'bobo']
+        for word in anger_words:
+            if word in text_lower:
+                keyword_boosts['anger'] += 0.15
+        
+        # Joy keywords
+        joy_words = ['masaya', 'happy', 'saya', 'love', 'haha', 'yay', 'yey', 
+                     'nice', 'astig', 'galing', 'enjoy']
+        for word in joy_words:
+            if word in text_lower:
+                keyword_boosts['joy'] += 0.15
+        
+        # Sadness keywords  
+        sad_words = ['lungkot', 'malungkot', 'sad', 'nakakalungkot', 'saklap', 
+                     'hirap', 'kawawa', 'huhu', 'hay']
+        for word in sad_words:
+            if word in text_lower:
+                keyword_boosts['sadness'] += 0.15
+        
+        # Fear keywords
+        fear_words = ['takot', 'scary', 'worried', 'kinakabahan', 'nervous', 
+                      'delikado', 'danger']
+        for word in fear_words:
+            if word in text_lower:
+                keyword_boosts['fear'] += 0.15
+        
+        # Disgust keywords
+        disgust_words = ['kadiri', 'yuck', 'eww', 'gross', 'diri']
+        for word in disgust_words:
+            if word in text_lower:
+                keyword_boosts['disgust'] += 0.2  # Extra boost for rare emotion
+        
+        # Surprise keywords
+        surprise_words = ['gulat', 'wow', 'omg', 'grabe', 'wtf', 'whoa']
+        for word in surprise_words:
+            if word in text_lower:
+                keyword_boosts['surprise'] += 0.15
+        
+        return keyword_boosts
+    
+    def _get_llm_emotion_direct(self, text: str) -> str:
+        """Get emotion prediction directly from LLM without classifier - optimized for Filipino/Taglish."""
+        if not self.groq_client or not self.groq_model:
+            return None
+        
+        try:
+            prompt = f"""You are an expert at detecting emotions in Filipino/Taglish social media text.
+
+Text: "{text}"
+
+Analyze the PRIMARY emotion expressed. Consider:
+- Strong emotional words (galit, saya, lungkot, takot, etc.)
+- Punctuation intensity (!!!, ???)
+- ALL CAPS for emphasis
+- Negative words (badtrip, nakakainis, nakakalungkot)
+- Positive words (happy, masaya, love)
+- Sarcasm and Filipino humor context
+
+Choose EXACTLY ONE emotion from these 7 options:
+- anger (galit, inis, badtrip): frustration, irritation, rage
+- disgust (yuck, kadiri): revulsion, distaste  
+- fear (takot, worried): anxiety, concern, worry
+- joy (masaya, happy): happiness, excitement, positivity
+- neutral (normal lang): factual, no strong emotion
+- sadness (malungkot, sad): sadness, disappointment
+- surprise (gulat, wow): shock, amazement
+
+Answer with ONLY the emotion label (lowercase, one word):"""
+            
+            response = self.groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model=self.groq_model,
+                temperature=0.1,  # Lower for consistency
+                max_tokens=15
+            )
+            llm_label = response.choices[0].message.content.strip().lower()
+            
+            # Clean up response
+            llm_label = llm_label.replace('.', '').replace(',', '').replace('!', '').strip()
+            
+            # Validate the label
+            if llm_label in self.label_names:
+                return llm_label
+        except Exception as e:
+            print(f"LLM direct prediction failed: {e}")
+        
+        return None
+    
+    def get_final_emotion(self, text: str, threshold: float = 0.45, use_ensemble: bool = True) -> str:
         """
-        Get final single-label emotion.
+        Get final single-label emotion with AGGRESSIVE ensemble and LLM fallback.
         Uses classifier by default, but calls LLM if confidence < threshold.
+        Very low threshold (0.45) means most predictions get LLM verification.
+        Ensemble mode combines classifier and LLM predictions for better accuracy.
         """
         scores = self.get_emotion_scores(text, translate_if_needed=False)
         if not scores:
             return "neutral"
         dominant_emotion, dominant_score = max(scores.items(), key=lambda x: x[1])
         
-        # If confident enough, return classifier result
-        if dominant_score >= threshold:
+        # High confidence - but still use ensemble for validation
+        if dominant_score >= 0.65:  # Lowered from 0.7
+            if use_ensemble:
+                llm_emotion = self._get_llm_emotion_direct(text)
+                if llm_emotion and llm_emotion != dominant_emotion:
+                    # LLM disagrees even with high classifier confidence
+                    # Use weighted voting
+                    if dominant_score < 0.75:
+                        return llm_emotion  # Trust LLM more
+                    # else trust classifier for very high confidence
             return dominant_emotion
-
-        # Otherwise, double-check with LLM
+        
+        # Medium-low confidence - ALWAYS use ensemble
+        if use_ensemble:
+            # Get LLM prediction for ensemble
+            llm_emotion = self._get_llm_emotion_direct(text)
+            
+            if llm_emotion:
+                # If both agree, return with confidence
+                if llm_emotion == dominant_emotion:
+                    return dominant_emotion
+                
+                # If they disagree, trust LLM more often
+                if dominant_score < 0.55:  # Increased from 0.6
+                    return llm_emotion
+                
+                # For close calls, prefer LLM (better at Filipino context)
+                return llm_emotion
+            
+            return dominant_emotion
+        
+        # Low confidence - verify with LLM
         if not self.groq_client or not self.groq_model:
             print("Warning: Groq not available, falling back to classifier output")
             return dominant_emotion
 
-        check_prompt = f"""
-        You are an emotion classification checker.
-        You must ONLY answer with one of these 7 labels:
-        [joy, sadness, anger, fear, surprise, disgust, neutral].
+        check_prompt = f"""You are verifying emotion classification for Filipino/Taglish social media text.
 
-        Message: "{text}"
-        Classifier Prediction: {dominant_emotion}
+Original Text: "{text}"
+AI Classifier Prediction: {dominant_emotion}
+Confidence: {dominant_score:.2f} (LOW - needs verification)
 
-        If the classifier prediction matches the true emotion, repeat it.
-        If it is wrong, replace it with the correct one.
-        Answer with ONLY the label.
-        """
+TASK: Determine the MOST accurate emotion from these 7 options:
+
+- anger 🤬 (galit, inis, badtrip): frustration, irritation, complaints
+- disgust 🤢 (yuck, kadiri): revulsion, distaste, gross
+- fear 😨 (takot, worried): anxiety, concern, worry, scared
+- joy 😀 (masaya, happy, love): happiness, excitement, celebration
+- neutral 😐 (normal, info): factual statements, no strong emotion
+- sadness 😭 (malungkot, sad): sadness, disappointment, longing
+- surprise 😲 (gulat, wow, omg): shock, amazement, unexpected
+
+ANALYZE:
+1. What emotional words are present? (badtrip=anger, masaya=joy, takot=fear)
+2. What's the sentiment? (negative/positive/neutral)
+3. Is there sarcasm or Filipino humor?
+4. Punctuation intensity? (!!!=strong emotion, ???=confusion/concern)
+5. ALL CAPS or repeated letters? (indicates intensity)
+
+The classifier predicted "{dominant_emotion}" but confidence is low.
+What is the CORRECT emotion?
+
+Answer with ONLY ONE emotion label (lowercase):"""
         
         try:
             response = self.groq_client.chat.completions.create(
@@ -383,7 +578,7 @@ Generate a concise interpretation that explains:
 3. The overall emotional tone
 
 Format your response as: "[Your explanation here]"
-Keep it brief and insightful (2-3 sentences max).
+Keep it brief and insightful (1 sentence max).
 """
         
         try:

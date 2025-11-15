@@ -1,0 +1,434 @@
+{
+  "benchmark_type": "translation_classification",
+  "timestamp": "2025-10-12T00:12:10.020415",
+  "total_samples": 20,
+  "translation_needed": 19,
+  "translation_stats": {
+    "mean": 0.5448758351175409,
+    "median": 0.5296845436096191,
+    "min": 0.4642517566680908,
+    "max": 0.862802267074585,
+    "std": 0.0891387588495687,
+    "total": 10.352640867233276
+  },
+  "classification_stats": {
+    "mean": 1.439850401878357,
+    "median": 1.1779701709747314,
+    "min": 1.0843915939331055,
+    "max": 5.796039342880249,
+    "std": 1.0317497787124166,
+    "total": 28.79700803756714
+  },
+  "total_pipeline_stats": {
+    "mean": 1.9854999780654907,
+    "median": 1.7152338027954102,
+    "min": 1.5486433506011963,
+    "max": 6.658841609954834,
+    "std": 1.1084238480788176,
+    "total": 39.709999561309814
+  },
+  "throughput": 0.5036514787445722,
+  "detailed_results": [
+    {
+      "original_text": "@jashrell2 mudrabells! miss na kita :( huhuhu keribells mo pa ba ang ulan dyan???",
+      "true_label": "sadness",
+      "translation_time": 0.862802267074585,
+      "classification_time": 5.796039342880249,
+      "total_time": 6.658841609954834,
+      "was_translated": true,
+      "processed_text": "@jashrell2 mudrabells! I miss you so much :( huhuhu can you still handle the rain there???",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.004608277139462185,
+        "disgust": 0.0,
+        "fear": 0.0,
+        "joy": 0.011111632551589812,
+        "neutral": 0.012196026298926856,
+        "sadness": 0.9047314950605019,
+        "surprise": 0.06735256894951924
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@polaaaaay pinasok na naman kame ng baha. The fuck!",
+      "true_label": "anger",
+      "translation_time": 0.4695725440979004,
+      "classification_time": 1.2290551662445068,
+      "total_time": 1.6986277103424072,
+      "was_translated": true,
+      "processed_text": "@polaaaaay the flood’s invaded our place again. What the fuck!!!",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.08973265438097307,
+        "disgust": 0.0,
+        "fear": 0.08055962178944967,
+        "joy": 0.0,
+        "neutral": 0.027790767698575043,
+        "sadness": 0.059578352827237065,
+        "surprise": 0.7423386033037652
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@aavel Kong isa kang sa nagtapon ng BASURA sa labas,wala kang karapatang magreklamo sa BAHA",
+      "true_label": "anger",
+      "translation_time": 0.5296845436096191,
+      "classification_time": 1.1741876602172852,
+      "total_time": 1.7038722038269043,
+      "was_translated": true,
+      "processed_text": "@aavel If you’re one of the people who threw GARBAGE outside, you’ve got no freaking right to complain about the FLOOD!!!",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.6715904041015983,
+        "disgust": 0.0,
+        "fear": 0.04574212718487679,
+        "joy": 0.0,
+        "neutral": 0.06513440797688279,
+        "sadness": 0.09890211017903293,
+        "surprise": 0.11863095055760907
+      },
+      "correct": true
+    },
+    {
+      "original_text": "if you don't mind,can you find where I am here and can you please count us?hahaha. Proud to be SAN JUAN. Family Reunion http://t.co/9k2JSo90",
+      "true_label": "joy",
+      "translation_time": 0.4984428882598877,
+      "classification_time": 1.167346715927124,
+      "total_time": 1.6657896041870117,
+      "was_translated": true,
+      "processed_text": "if you don't mind, can you find where I am here and can you please count us? hahaha. Proud to be SAN JUAN. Family Reunion http://t.co/9k2JSo90",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.005372570253300906,
+        "joy": 0.654299392591925,
+        "neutral": 0.179023448559944,
+        "sadness": 0.03554867807254332,
+        "surprise": 0.12575591052228663
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@vonbance @danikaayzabel Dapat dun na lang sa lugar na may baha. hahaha! Maka buong Laguna naman kasi si Asiong. lol!",
+      "true_label": "joy",
+      "translation_time": 0.5509309768676758,
+      "classification_time": 1.1567082405090332,
+      "total_time": 1.707639217376709,
+      "was_translated": true,
+      "processed_text": "@vonbance @danikaayzabel Should’ve just stayed where it’s flooded. hahaha! Asiong really had to drag the whole Laguna into this. lol!",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.04829718049248489,
+        "joy": 0.12037355292871506,
+        "neutral": 0.14639958331752523,
+        "sadness": 0.20047014446731712,
+        "surprise": 0.48445953879395764
+      },
+      "correct": false
+    },
+    {
+      "original_text": "@peydayana bongga ng birthday mo. pa swimming sa buong metro manila. :D happy birthday! :)) stay safe. sobra lakas nnmn ng ulan.tss..",
+      "true_label": "joy",
+      "translation_time": 0.5670268535614014,
+      "classification_time": 1.2046291828155518,
+      "total_time": 1.7716560363769531,
+      "was_translated": true,
+      "processed_text": "@peydayana your birthday’s freakin’ fabulous—flooding the whole metro manila. :D happy birthday! :)) stay safe. rain’s crazy strong again. tsk..",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.002864017760674437,
+        "disgust": 0.0,
+        "fear": 0.0,
+        "joy": 0.6691894891459492,
+        "neutral": 0.026153798638492865,
+        "sadness": 0.027057907407591848,
+        "surprise": 0.2747347870472917
+      },
+      "correct": true
+    },
+    {
+      "original_text": "RT @caraeriguel: Salamat sa pagsikat ng araw, Panginoon. ♥ Mas mapapadali ang paghupa ng baha, at pag-abot ng tulong sa mga kapatid nami ...",
+      "true_label": "joy",
+      "translation_time": 0.5408992767333984,
+      "classification_time": 1.13545823097229,
+      "total_time": 1.6763575077056885,
+      "was_translated": true,
+      "processed_text": "RT @caraeriguel: Thank You for letting the sun shine, Lord. ♥ It’ll make the flood go down faster and help reach our brothers and sisters…",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.01325121055956775,
+        "joy": 0.7926035645310201,
+        "neutral": 0.05160053000951327,
+        "sadness": 0.046932158164398594,
+        "surprise": 0.09561253673550044
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@IndayBanat: Dinaig pa ng Hanging Habagat ang mga Bagyo. Hiyang hiya naman kami sa iyo!\" --tinalo pa si Ondoy..",
+      "true_label": "disgust",
+      "translation_time": 0.518568754196167,
+      "classification_time": 1.3215782642364502,
+      "total_time": 1.8401470184326172,
+      "was_translated": true,
+      "processed_text": "@IndayBanat: Even the Southwest Monsoon outdid the typhoons. We’re sooo ashamed of you!\" --it even beat Ondoy…",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.015832110798446934,
+        "disgust": 0.0,
+        "fear": 0.04063840610547523,
+        "joy": 0.0,
+        "neutral": 0.01645982764923846,
+        "sadness": 0.8355016913891293,
+        "surprise": 0.09156796405770991
+      },
+      "correct": false
+    },
+    {
+      "original_text": "Flying panda at Airforce City, Clark Field Pampanga Hot Air Balloon Festival!:) http://t.co/e07f1r85 #retweet #cute #hotairballoon",
+      "true_label": "joy",
+      "translation_time": 0.5603506565093994,
+      "classification_time": 1.162783145904541,
+      "total_time": 1.7231338024139404,
+      "was_translated": false,
+      "processed_text": "Flying panda at Airforce City, Clark Field Pampanga Hot Air Balloon Festival!:) http://t.co/e07f1r85 #retweet #cute #hotairballoon",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.0011432586865717828,
+        "disgust": 0.0,
+        "fear": 0.0,
+        "joy": 0.9873918590882657,
+        "neutral": 0.0023204516983293534,
+        "sadness": 0.0021130208823400168,
+        "surprise": 0.007031409644493211
+      },
+      "correct": true
+    },
+    {
+      "original_text": "RT @IndayBanat: Dinaig pa ng Hanging Habagat ang mga Bagyo. Hiyang hiya naman kami sa iyo!",
+      "true_label": "anger",
+      "translation_time": 0.4996333122253418,
+      "classification_time": 1.1521453857421875,
+      "total_time": 1.6517786979675293,
+      "was_translated": true,
+      "processed_text": "RT @IndayBanat: Even the Southwest Monsoon outdid the typhoons. We’re so freaking embarrassed for you!",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.02104177957005209,
+        "disgust": 0.0,
+        "fear": 0.07847050675113638,
+        "joy": 0.0,
+        "neutral": 0.014188698647693919,
+        "sadness": 0.8171436983433777,
+        "surprise": 0.06915531668773996
+      },
+      "correct": false
+    },
+    {
+      "original_text": "RT @playalovegame: wow pati katipunan baha na :( For real?! Wala sa guni- guni ko ang bahain jan!",
+      "true_label": "surprise",
+      "translation_time": 0.5881662368774414,
+      "classification_time": 1.1589860916137695,
+      "total_time": 1.747152328491211,
+      "was_translated": true,
+      "processed_text": "RT @playalovegame: wow even Katipunan’s flooded now :( For real?! I never imagined that area could get flooded!",
+      "predicted_emotion": "surprise",
+      "emotion_scores": {
+        "anger": 0.0078081426255563425,
+        "disgust": 0.0,
+        "fear": 0.023559676011259644,
+        "joy": 0.0,
+        "neutral": 0.012513727907219772,
+        "sadness": 0.014511587698449872,
+        "surprise": 0.9416068657575144
+      },
+      "correct": true
+    },
+    {
+      "original_text": "RT @azicorona: Kailan tayo nagka presidenteng anak mayaman na lulusong sa baha? Good job, PNoy. It's sad, though, how our country's batt ...",
+      "true_label": "sadness",
+      "translation_time": 0.5696051120758057,
+      "classification_time": 1.2100143432617188,
+      "total_time": 1.7796194553375244,
+      "was_translated": true,
+      "processed_text": "RT @azicorona: When have we ever had a rich-kid president who’d wade through floodwater? Good job, PNoy. It’s sad, though, how our country’s batt ...",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.029267861685342646,
+        "joy": 0.0147540813148595,
+        "neutral": 0.019996835557863458,
+        "sadness": 0.7524043011462591,
+        "surprise": 0.1835769202956753
+      },
+      "correct": true
+    },
+    {
+      "original_text": "OH PLEASE TUMIGIL KA NA! #ulan",
+      "true_label": "anger",
+      "translation_time": 0.4642517566680908,
+      "classification_time": 1.0843915939331055,
+      "total_time": 1.5486433506011963,
+      "was_translated": true,
+      "processed_text": "OH PLEASE JUST STOP IT ALREADY! #rain",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.29750655990740366,
+        "disgust": 0.0,
+        "fear": 0.5935819401385904,
+        "joy": 0.0,
+        "neutral": 0.023271997298305803,
+        "sadness": 0.06552473951278544,
+        "surprise": 0.02011476314291463
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@rbT_Grm @PHClimateX Thanks! Hayan lakas na naman ng ulan :(",
+      "true_label": "sadness",
+      "translation_time": 0.479290246963501,
+      "classification_time": 1.1599221229553223,
+      "total_time": 1.6392123699188232,
+      "was_translated": true,
+      "processed_text": "@rbT_Grm @PHClimateX Thanks! Ugh, the rain’s back again :(",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.019624521286284096,
+        "disgust": 0.0,
+        "fear": 0.12868553562888937,
+        "joy": 0.0,
+        "neutral": 0.020064221175134376,
+        "sadness": 0.7041698334923682,
+        "surprise": 0.12745588841732405
+      },
+      "correct": true
+    },
+    {
+      "original_text": "@victoriasdfghjk @Jastinethinks nawala na si jastine. inanod na ng baha! hahahaha",
+      "true_label": "joy",
+      "translation_time": 0.485027551651001,
+      "classification_time": 1.2378008365631104,
+      "total_time": 1.7228283882141113,
+      "was_translated": true,
+      "processed_text": "@victoriasdfghjk @Jastinethinks jastine’s gone. swept away by the flood! hahahaha",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.02971174220889286,
+        "disgust": 0.0,
+        "fear": 0.09315085902050758,
+        "joy": 0.0,
+        "neutral": 0.054852261264064284,
+        "sadness": 0.2241557670133085,
+        "surprise": 0.5981293704932268
+      },
+      "correct": true
+    },
+    {
+      "original_text": "RT @ramonbautista: PAGASA, pangalanan nyo naman yang ulan/bagyo/habagat na yan para pwede natin murahin",
+      "true_label": "anger",
+      "translation_time": 0.5861916542053223,
+      "classification_time": 1.653198003768921,
+      "total_time": 2.239389657974243,
+      "was_translated": true,
+      "processed_text": "RT @ramonbautista: PAGASA, give that rain/storm/monsoon a name already so we can cuss it out properly!",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.03314300925105648,
+        "joy": 0.05925079622075855,
+        "neutral": 0.27887888071290734,
+        "sadness": 0.16061130533100743,
+        "surprise": 0.46811600848427026
+      },
+      "correct": true
+    },
+    {
+      "original_text": "Kung ganyan parin kalakas ang ulan bukas., hindi na ako papayagan sumama ulit sa volunteer work.. Ulan.. Pls., tumigil kana >.<",
+      "true_label": "anger",
+      "translation_time": 0.5727219581604004,
+      "classification_time": 1.2181944847106934,
+      "total_time": 1.7909164428710938,
+      "was_translated": true,
+      "processed_text": "If the rain is still that heavy tomorrow, I won’t be allowed to join the volunteer work again.. Rain.. Please, just stop already >.<",
+      "predicted_emotion": "sadness",
+      "emotion_scores": {
+        "anger": 0.22137362853573034,
+        "disgust": 0.08039511949743612,
+        "fear": 0.15720331352847267,
+        "joy": 0.0,
+        "neutral": 0.18735881938722407,
+        "sadness": 0.3536691190511369,
+        "surprise": 0.0
+      },
+      "correct": false
+    },
+    {
+      "original_text": "OLD MCDNLD TUNE: sinong lte ngaanounce edi CEU.May baha d2,May baha duon.ngsuspend,ngsuspend ang ceu ay ndi, sinong lte ngaannounce edi CEU!",
+      "true_label": "anger",
+      "translation_time": 0.6043093204498291,
+      "classification_time": 1.2216637134552002,
+      "total_time": 1.8259730339050293,
+      "was_translated": true,
+      "processed_text": "OLD MCDNLD TUNE: who’s the idiot announcing it, CEU. There’s flood here, there’s flood there. Classes suspended, suspended—CEU’s like “nope.” Who’s the idiot announcing it, CEU!!!",
+      "predicted_emotion": "anger",
+      "emotion_scores": {
+        "anger": 0.4395988759854187,
+        "disgust": 0.19345218519424706,
+        "fear": 0.0,
+        "joy": 0.0,
+        "neutral": 0.07905446100859533,
+        "sadness": 0.05113452956843716,
+        "surprise": 0.23675994824330163
+      },
+      "correct": true
+    },
+    {
+      "original_text": "UST lang talaga ang maganda kahit baha na.",
+      "true_label": "joy",
+      "translation_time": 0.48116493225097656,
+      "classification_time": 1.1817526817321777,
+      "total_time": 1.6629176139831543,
+      "was_translated": true,
+      "processed_text": "UST really is the only beautiful place—even when it’s already flooded.",
+      "predicted_emotion": "joy",
+      "emotion_scores": {
+        "anger": 0.0,
+        "disgust": 0.0,
+        "fear": 0.02498889867364789,
+        "joy": 0.0783252467267649,
+        "neutral": 0.7493125916670589,
+        "sadness": 0.04342282537475522,
+        "surprise": 0.10395043755777306
+      },
+      "correct": true
+    },
+    {
+      "original_text": "#BangonPilipinas! Dahil baha. Baka malunod :D",
+      "true_label": "joy",
+      "translation_time": 0.48435068130493164,
+      "classification_time": 1.1711528301239014,
+      "total_time": 1.655503511428833,
+      "was_translated": true,
+      "processed_text": "#RiseUpPhilippines! Because of the flood. Might drown :D",
+      "predicted_emotion": "fear",
+      "emotion_scores": {
+        "anger": 0.019158277159304776,
+        "disgust": 0.0,
+        "fear": 0.9630326781904878,
+        "joy": 0.0,
+        "neutral": 0.0022298551749555585,
+        "sadness": 0.007755788759569598,
+        "surprise": 0.007823400715682322
+      },
+      "correct": false
+    }
+  ],
+  "accuracy": 0.75
+}

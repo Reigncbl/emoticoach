@@ -127,7 +127,7 @@ def evaluate_f1(sample_size: int = 50) -> None:
         if not prompt or original_emotion not in valid_emotions:
             continue
 
-        response = rag.generate_response(prompt)
+        response = rag.generate_response(prompt, top_k=3, use_reranker=True)
         generated_emotion = classify_response_emotion(rag, response)
         expected_tone = expected_tone_from_label(original_emotion)
         predicted_tone = expected_tone_from_label(generated_emotion)

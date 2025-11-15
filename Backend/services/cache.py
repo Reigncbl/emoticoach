@@ -5,17 +5,31 @@ from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import os
-load_dotenv
+
+load_dotenv()
+
+
+def _get_env_bool(name: str, default: bool = False) -> bool:
+    """Interpret common truthy strings from environment values."""
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 # Redis connection
-r = redis.Redis(
-    host=os.getenv("REDIS_HOST"),
-    port=os.getenv("REDIS_PORT"),
-    decode_responses=os.getenv("REDIS_DECODE_RESPONSES"),
-    username=os.getenv("REDIS_USERNAME"),
-    password=os.getenv("REDIS_PASSWORD"),
-)
+_redis_url = os.getenv("REDIS_URL")
+if _redis_url:
+    r = redis.from_url(_redis_url, decode_responses=True)
+else:
+    r = redis.Redis(
+        host=os.getenv("REDIS_HOST", "localhost"),
+        port=int(os.getenv("REDIS_PORT", "6379")),
+        username=os.getenv("REDIS_USERNAME") or None,
+        password=os.getenv("REDIS_PASSWORD") or None,
+        decode_responses=_get_env_bool("REDIS_DECODE_RESPONSES", True),
+        ssl=_get_env_bool("REDIS_USE_SSL", False),
+    )
 
 # Cache TTL settings (in seconds)
 MESSAGE_CACHE_TTL = 300  # 5 minutes
@@ -206,13 +220,24 @@ class MessageCache:
     
     @staticmethod
     def invalidate_conversation(user_id: str, contact_id: int):
-        """Invalidate conversation cache"""
+        """Invalidate conversation cache and latest message cache"""
         try:
             keys_to_delete = [
                 f"conversation:{user_id}:{contact_id}",
                 f"latest_message:{user_id}:{contact_id}"
             ]
             r.delete(*keys_to_delete)
+            return True
+        except Exception as e:
+            print(f"Error invalidating conversation cache: {e}")
+            return False
+    
+    @staticmethod
+    def invalidate_conversation_only(user_id: str, contact_id: int):
+        """Invalidate only the conversation cache, keeping latest message cache"""
+        try:
+            key = f"conversation:{user_id}:{contact_id}"
+            r.delete(key)
             return True
         except Exception as e:
             print(f"Error invalidating conversation cache: {e}")
@@ -317,6 +342,8 @@ get_cached_emotion = MessageCache.get_cached_emotion_analysis
 cache_user_info = MessageCache.cache_user_info
 get_cached_user_info = MessageCache.get_cached_user_info
 invalidate_conversation = MessageCache.invalidate_conversation
+invalidate_conversation_only = MessageCache.invalidate_conversation_only
 get_cache_stats = MessageCache.get_cache_stats
+
 
 

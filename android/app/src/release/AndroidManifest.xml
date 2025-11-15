@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        tools:replace="android:networkSecurityConfig,android:usesCleartextTraffic"
+        android:networkSecurityConfig="@null"
+        android:usesCleartextTraffic="false">
+
+        <!-- Drop accessibility service in release to avoid Play Protect overlays warning -->
+        <service
+            android:name="slayer.accessibility.service.flutter_accessibility_service.AccessibilityListener"
+            tools:node="remove" />
+
+    </application>
+</manifest>

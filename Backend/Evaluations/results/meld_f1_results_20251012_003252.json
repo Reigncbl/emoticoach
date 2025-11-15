@@ -1,0 +1,578 @@
+{
+  "timestamp": "2025-10-12T00:32:52.270248",
+  "dataset": "MELD",
+  "total_samples": 100,
+  "accuracy": 0.53,
+  "macro_metrics": {
+    "macro_precision": 0.3997278911564626,
+    "macro_recall": 0.38788079334297826,
+    "macro_f1": 0.373677750820608
+  },
+  "per_emotion_metrics": {
+    "anger": {
+      "precision": 0.3333333333333333,
+      "recall": 0.5833333333333334,
+      "f1": 0.4242424242424242,
+      "support": 12,
+      "tp": 7,
+      "fp": 14,
+      "fn": 5
+    },
+    "disgust": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 3,
+      "tp": 0,
+      "fp": 4,
+      "fn": 3
+    },
+    "fear": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 4,
+      "tp": 0,
+      "fp": 6,
+      "fn": 4
+    },
+    "joy": {
+      "precision": 0.5833333333333334,
+      "recall": 0.5384615384615384,
+      "f1": 0.5599999999999999,
+      "support": 13,
+      "tp": 7,
+      "fp": 5,
+      "fn": 6
+    },
+    "neutral": {
+      "precision": 0.8214285714285714,
+      "recall": 0.5476190476190477,
+      "f1": 0.6571428571428571,
+      "support": 42,
+      "tp": 23,
+      "fp": 5,
+      "fn": 19
+    },
+    "sadness": {
+      "precision": 0.5,
+      "recall": 0.2222222222222222,
+      "f1": 0.30769230769230765,
+      "support": 9,
+      "tp": 2,
+      "fp": 2,
+      "fn": 7
+    },
+    "surprise": {
+      "precision": 0.56,
+      "recall": 0.8235294117647058,
+      "f1": 0.6666666666666666,
+      "support": 17,
+      "tp": 14,
+      "fp": 11,
+      "fn": 3
+    }
+  },
+  "predictions": [
+    {
+      "true": "neutral",
+      "predicted": "joy",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "sadness",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "sadness",
+      "predicted": "sadness",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "joy",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "anger",
+      "predicted": "disgust",
+      "correct": false
+    },
+    {
+      "true": "fear",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "joy",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "disgust",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "sadness",
+      "predicted": "disgust",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "fear",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "fear",
+      "predicted": "sadness",
+      "correct": false
+    },
+    {
+      "true": "fear",
+      "predicted": "neutral",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "anger",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "disgust",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "joy",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "disgust",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "anger",
+      "predicted": "fear",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "joy",
+      "correct": false
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "sadness",
+      "predicted": "sadness",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true
+    },
+    {
+      "true": "disgust",
+      "predicted": "anger",
+      "correct": false
+    },
+    {
+      "true": "joy",
+      "predicted": "joy",
+      "correct": true
+    },
+    {
+      "true": "joy",
+      "predicted": "disgust",
+      "correct": false
+    }
+  ]
+}

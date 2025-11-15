@@ -1,0 +1,759 @@
+{
+  "timestamp": "2025-10-12T01:13:40.411341",
+  "model_name": "Tanneru/Emotion-Classification-DeBERTa-v3-Large",
+  "dataset": "MELD",
+  "total_samples": 100,
+  "accuracy": 0.49,
+  "macro_metrics": {
+    "macro_precision": 0.24162257495590828,
+    "macro_recall": 0.23919567827130853,
+    "macro_f1": 0.22223073094153234
+  },
+  "weighted_metrics": {
+    "weighted_precision": 0.377037037037037,
+    "weighted_recall": 0.49,
+    "weighted_f1": 0.39511659072634686
+  },
+  "micro_metrics": {
+    "micro_precision": 0.49,
+    "micro_recall": 0.49,
+    "micro_f1": 0.49
+  },
+  "per_emotion_metrics": {
+    "anger": {
+      "precision": 0.5555555555555556,
+      "recall": 0.4166666666666667,
+      "f1": 0.4761904761904762,
+      "support": 12,
+      "tp": 5,
+      "fp": 4,
+      "fn": 7
+    },
+    "disgust": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 3,
+      "tp": 0,
+      "fp": 0,
+      "fn": 3
+    },
+    "fear": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 4,
+      "tp": 0,
+      "fp": 1,
+      "fn": 4
+    },
+    "joy": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 13,
+      "tp": 0,
+      "fp": 0,
+      "fn": 13
+    },
+    "neutral": {
+      "precision": 0.4691358024691358,
+      "recall": 0.9047619047619048,
+      "f1": 0.6178861788617886,
+      "support": 42,
+      "tp": 38,
+      "fp": 43,
+      "fn": 4
+    },
+    "sadness": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "support": 9,
+      "tp": 0,
+      "fp": 0,
+      "fn": 9
+    },
+    "surprise": {
+      "precision": 0.6666666666666666,
+      "recall": 0.35294117647058826,
+      "f1": 0.46153846153846156,
+      "support": 17,
+      "tp": 6,
+      "fp": 3,
+      "fn": 11
+    }
+  },
+  "confusion_matrix": {
+    "neutral": {
+      "neutral": 38,
+      "anger": 1,
+      "surprise": 2,
+      "fear": 1,
+      "disgust": 0,
+      "joy": 0,
+      "sadness": 0
+    },
+    "anger": {
+      "neutral": 7,
+      "anger": 5,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0,
+      "surprise": 0
+    },
+    "surprise": {
+      "anger": 1,
+      "surprise": 6,
+      "neutral": 10,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0
+    },
+    "sadness": {
+      "neutral": 8,
+      "anger": 1,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0,
+      "surprise": 0
+    },
+    "joy": {
+      "surprise": 1,
+      "neutral": 12,
+      "anger": 0,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0
+    },
+    "fear": {
+      "neutral": 4,
+      "anger": 0,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0,
+      "surprise": 0
+    },
+    "disgust": {
+      "neutral": 2,
+      "anger": 1,
+      "disgust": 0,
+      "fear": 0,
+      "joy": 0,
+      "sadness": 0,
+      "surprise": 0
+    }
+  },
+  "predictions": [
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.605217695236206
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.5025002360343933
+    },
+    {
+      "true": "surprise",
+      "predicted": "anger",
+      "correct": false,
+      "confidence": 0.9914098381996155
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9992687106132507
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9876142740249634
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9903077483177185
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.5834773778915405
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.999546468257904
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true,
+      "confidence": 0.9863653182983398
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9941468238830566
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.9618502855300903
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9985866546630859
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9729242324829102
+    },
+    {
+      "true": "joy",
+      "predicted": "surprise",
+      "correct": false,
+      "confidence": 0.8782823085784912
+    },
+    {
+      "true": "sadness",
+      "predicted": "anger",
+      "correct": false,
+      "confidence": 0.8494547009468079
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9981807470321655
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.6138757467269897
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.5758247971534729
+    },
+    {
+      "true": "neutral",
+      "predicted": "anger",
+      "correct": false,
+      "confidence": 0.5645828247070312
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.6009990572929382
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true,
+      "confidence": 0.9637963771820068
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9630911946296692
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9985548853874207
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9971933960914612
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.8341023921966553
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false,
+      "confidence": 0.8341023921966553
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.8121753931045532
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true,
+      "confidence": 0.928244948387146
+    },
+    {
+      "true": "fear",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9407964944839478
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9895529747009277
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9734712243080139
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9960008263587952
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.5282500386238098
+    },
+    {
+      "true": "neutral",
+      "predicted": "fear",
+      "correct": false,
+      "confidence": 0.9869558811187744
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9976235032081604
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.6640848517417908
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.931774377822876
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.5068858861923218
+    },
+    {
+      "true": "disgust",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9461865425109863
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9907195568084717
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9948299527168274
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9887837767601013
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9196865558624268
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9990440011024475
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9971049427986145
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9067268371582031
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.8223560452461243
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9993345141410828
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.8185456395149231
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.7975431084632874
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true,
+      "confidence": 0.8757736086845398
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.7897610664367676
+    },
+    {
+      "true": "fear",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9768029451370239
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.791145920753479
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9546002745628357
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9932942986488342
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9945288300514221
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9832755923271179
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9400842785835266
+    },
+    {
+      "true": "fear",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.7175586223602295
+    },
+    {
+      "true": "fear",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.474356472492218
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9546828269958496
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.9890044331550598
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9977582097053528
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9953489899635315
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9982028007507324
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9991686344146729
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9896121621131897
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.976172685623169
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9973171353340149
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9748059511184692
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9840025305747986
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9149253368377686
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9759449362754822
+    },
+    {
+      "true": "disgust",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9410573840141296
+    },
+    {
+      "true": "neutral",
+      "predicted": "surprise",
+      "correct": false,
+      "confidence": 0.8341023921966553
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9059524536132812
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9929083585739136
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9990807771682739
+    },
+    {
+      "true": "anger",
+      "predicted": "anger",
+      "correct": true,
+      "confidence": 0.3827767074108124
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.925504207611084
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9970303773880005
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.5421573519706726
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9156903028488159
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.7153403759002686
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9957774877548218
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9804822206497192
+    },
+    {
+      "true": "anger",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9989792108535767
+    },
+    {
+      "true": "surprise",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9931825995445251
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9698857665061951
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.8701931238174438
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9198804497718811
+    },
+    {
+      "true": "sadness",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9809139966964722
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9907578229904175
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.9991458654403687
+    },
+    {
+      "true": "neutral",
+      "predicted": "neutral",
+      "correct": true,
+      "confidence": 0.891326904296875
+    },
+    {
+      "true": "surprise",
+      "predicted": "surprise",
+      "correct": true,
+      "confidence": 0.9727202653884888
+    },
+    {
+      "true": "disgust",
+      "predicted": "anger",
+      "correct": false,
+      "confidence": 0.9683986306190491
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.9968861937522888
+    },
+    {
+      "true": "joy",
+      "predicted": "neutral",
+      "correct": false,
+      "confidence": 0.6614475250244141
+    }
+  ],
+  "performance": {
+    "total_inference_time": 63.38037586212158,
+    "avg_batch_time": 15.845093965530396,
+    "throughput": 1.5777754334802492
+  }
+}

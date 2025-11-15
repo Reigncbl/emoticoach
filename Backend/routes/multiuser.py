@@ -351,9 +351,9 @@ async def append_latest_contact_message_multiuser(data: AppendLatestContactMessa
             db=db
         )
         
-        # Invalidate cache since new message was added
-        MessageCache.invalidate_conversation(data.user_id, data.contact_id)
-        print(f"🗑️ Invalidated cache for conversation {data.user_id}:{data.contact_id}")
+        # Note: Cache management is handled within append_latest_contact_message
+        # - Latest message is cached
+        # - Conversation cache is invalidated
         
         return analyzed_message
     except Exception as e:
@@ -368,9 +368,21 @@ async def get_latest_contact_message(
 ):
     """Retrieve the latest stored message for a user/contact pair from the database."""
     try:
+        # Check cache first
+        cached_latest = MessageCache.get_cached_latest_message(user_id, contact_id)
+        if cached_latest:
+            print(f"✅ Cache hit for latest message {user_id}:{contact_id}")
+            return cached_latest
+        
+        # If not in cache, fetch from database
         latest_message = await get_latest_message_from_db(user_id, contact_id, db)
         if not latest_message:
             raise HTTPException(status_code=404, detail="No messages found for this contact")
+        
+        # Cache the result
+        MessageCache.cache_latest_message(user_id, contact_id, latest_message)
+        print(f"💾 Cached latest message for {user_id}:{contact_id}")
+        
         return latest_message
     except HTTPException:
         raise

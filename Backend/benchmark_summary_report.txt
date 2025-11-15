@@ -1,0 +1,29 @@
+====================================================================================================
+COMPREHENSIVE EMOTION CLASSIFICATION BENCHMARK - CAPSTONE PROJECT
+====================================================================================================
+Date: 2025-10-12 18:39:40
+Model: j-hartmann/emotion-english-distilroberta-base
+
+SUMMARY OF RESULTS:
+----------------------------------------------------------------------------------------------------
+
+Dataset: emotion (test)
+  Samples: 2000
+  Accuracy: 83.90%
+  F1-Score (Macro): 52.39%
+  F1-Score (Weighted): 80.62%
+  Inference Time: 72.80s
+
+Dataset: cardiffnlp/tweet_eval (test)
+  Samples: 1421
+  Accuracy: 45.81%
+  F1-Score (Macro): 22.44%
+  F1-Score (Weighted): 54.97%
+  Inference Time: 53.84s
+
+Dataset: dair-ai/emotion (test)
+  Samples: 2000
+  Accuracy: 83.90%
+  F1-Score (Macro): 52.39%
+  F1-Score (Weighted): 80.62%
+  Inference Time: 67.55s

@@ -1,0 +1,50 @@
+====================================================================================================
+EMOTION CLASSIFICATION MODEL COMPARISON BENCHMARK - CAPSTONE PROJECT
+====================================================================================================
+Date: 2025-10-13 01:11:51
+Test Dataset: dair-ai/emotion
+Source: https://huggingface.co/datasets/dair-ai/emotion
+Samples: 2000
+Device: CPU
+
+MODELS EVALUATED:
+----------------------------------------------------------------------------------------------------
+1. Custom XLM-RoBERTa (Emoticoach) (~278M)
+   C:\Users\John Carlo\emoticoach\emoticoach\Backend\AIModel
+
+2. RoBERTa-Large (~355M)
+   j-hartmann/emotion-english-roberta-large
+
+3. DistilRoBERTa-Base (~82M)
+   j-hartmann/emotion-english-distilroberta-base
+
+4. DeBERTa-v3-Large (~434M)
+   Tanneru/Emotion-Classification-DeBERTa-v3-Large
+
+
+OVERALL PERFORMANCE COMPARISON:
+----------------------------------------------------------------------------------------------------
+                          Model       Architecture Parameters Accuracy F1-Macro F1-Weighted Avg Confidence Error Rate
+Custom XLM-RoBERTa (Emoticoach)   XLM-RoBERTa-Base      ~278M   87.80%   64.04%      84.48%         97.29%     12.20%
+                  RoBERTa-Large      RoBERTa-Large      ~355M   83.70%   59.51%      80.42%         95.38%     16.30%
+             DistilRoBERTa-Base DistilRoBERTa-Base       ~82M   83.90%   52.39%      80.62%         95.21%     16.10%
+               DeBERTa-v3-Large   DeBERTa-v3-Large      ~434M   91.05%   79.61%      87.49%         98.88%      8.95%
+
+
+INFERENCE SPEED COMPARISON:
+----------------------------------------------------------------------------------------------------
+                          Model Load Time Total Inference Avg per Sample Samples/Second
+Custom XLM-RoBERTa (Emoticoach)     5.09s         164.60s        82.30ms          12.15
+                  RoBERTa-Large     3.39s         624.57s       312.29ms           3.20
+             DistilRoBERTa-Base     2.09s          86.14s        43.07ms          23.22
+               DeBERTa-v3-Large     5.65s        1094.80s       547.40ms           1.83
+
+
+DETAILED METRICS COMPARISON:
+----------------------------------------------------------------------------------------------------
+                          Model Precision (Macro) Recall (Macro) Precision (Weighted) Recall (Weighted)  Correct  Incorrect
+Custom XLM-RoBERTa (Emoticoach)            61.27%         68.00%               81.97%            87.80%     1756        244
+                  RoBERTa-Large            56.44%         63.37%               77.58%            83.70%     1674        326
+             DistilRoBERTa-Base            49.94%         55.38%               77.74%            83.90%     1678        322
+               DeBERTa-v3-Large            77.97%         81.57%               84.58%            91.05%     1821        179
+

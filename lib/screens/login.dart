@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/colors.dart';
 import '../config/api_config.dart';
-import 'package:iconify_flutter/iconify_flutter.dart';
 import 'package:iconify_flutter/icons/ri.dart';
 import 'signup.dart';
 import 'otp_verification.dart';

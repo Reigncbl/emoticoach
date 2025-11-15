@@ -1,0 +1,9 @@
+Dataset,Model,Accuracy,F1-Macro,F1-Weighted,Avg Time (ms)
+dair-ai/emotion,Custom XLM-RoBERTa (Emoticoach),87.80%,64.04%,84.48%,82.30
+dair-ai/emotion,RoBERTa-Large,83.70%,59.51%,80.42%,312.29
+dair-ai/emotion,DistilRoBERTa-Base,83.90%,52.39%,80.62%,43.07
+dair-ai/emotion,DeBERTa-v3-Large,91.05%,79.61%,87.49%,547.40
+tweet_eval (emotion),Custom XLM-RoBERTa (Emoticoach),16.19%,11.18%,26.09%,72.50
+tweet_eval (emotion),RoBERTa-Large,49.96%,24.24%,59.14%,261.61
+tweet_eval (emotion),DistilRoBERTa-Base,45.81%,22.44%,54.97%,34.24
+tweet_eval (emotion),DeBERTa-v3-Large,53.62%,25.22%,61.58%,511.31
