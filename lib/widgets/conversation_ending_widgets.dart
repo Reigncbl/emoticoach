@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import '../../utils/colors.dart';
 import '../../models/scenario_models.dart';
 import '../services/api_service.dart';
@@ -12,13 +11,13 @@ class ConversationEndingDialog extends StatelessWidget {
   final VoidCallback onEnd;
 
   const ConversationEndingDialog({
-    Key? key,
+    super.key,
     required this.aiSuggestion,
     required this.characterName,
     required this.conversationHistory,
     required this.onContinue,
     required this.onEnd,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -80,10 +79,10 @@ class EndConversationButton extends StatelessWidget {
   final bool isEnabled;
 
   const EndConversationButton({
-    Key? key,
+    super.key,
     required this.onPressed,
     this.isEnabled = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -114,11 +113,11 @@ class ConversationProgressIndicator extends StatelessWidget {
   final int suggestedMaximum;
 
   const ConversationProgressIndicator({
-    Key? key,
+    super.key,
     required this.messageCount,
     this.suggestedMinimum = 5,
     this.suggestedMaximum = 15,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

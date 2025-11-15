@@ -1,23 +1,6 @@
 import 'package:flutter/material.dart';
 import 'user_info_handler.dart';
 
-/// Mixin that provides user data loading functionality to StatefulWidget classes.
-///
-/// Usage:
-/// ```dart
-/// class _MyScreenState extends State<MyScreen> with UserDataMixin {
-///   @override
-///   void initState() {
-///     super.initState();
-///     loadUserData(); // Call this to load user data
-///   }
-///
-///   @override
-///   Widget build(BuildContext context) {
-///     return Text(isLoading ? 'Loading...' : userName);
-///   }
-/// }
-/// ```
 mixin UserDataMixin<T extends StatefulWidget> on State<T> {
   String userName = 'User';
   bool isLoading = true;

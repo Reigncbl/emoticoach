@@ -14,83 +14,6 @@ class APIService {
     print('APIService initialized with baseUrl: $baseUrl');
   }
 
-  Future<Map<String, dynamic>> fetchMessagesAndPath(
-    String phone,
-    String firstName,
-    String lastName,
-  ) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/messages'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(<String, String>{
-        'phone': phone,
-        'first_name': firstName,
-        'last_name': lastName,
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    } else {
-      print('Failed to fetch messages and path: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      throw Exception('Failed to fetch messages and path');
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> fetchSuggestions(String filePath) async {
-    final response = await _client.get(
-      Uri.parse(
-        '$baseUrl/suggestion?file_path=${Uri.encodeComponent(filePath)}',
-      ),
-    );
-
-    if (response.statusCode == 200) {
-      final decoded = jsonDecode(response.body);
-
-      // Expect the backend to always return a Map with a 'suggestions' key
-      if (decoded is Map<String, dynamic> &&
-          decoded.containsKey('suggestions')) {
-        final suggestions = decoded['suggestions'];
-        if (suggestions is List) {
-          // Ensure each item is a Map
-          return suggestions.cast<Map<String, dynamic>>();
-        }
-      }
-      // fallback: no suggestions key found, return empty list
-      return [];
-    } else {
-      print('Failed to fetch suggestions: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      return [];
-    }
-  }
-
-  Future<Map<String, dynamic>> analyzeMessages(String filePath) async {
-    final Uri uri = Uri.parse(
-      '$baseUrl/analyze_messages?file_path=${Uri.encodeComponent(filePath)}',
-    );
-    try {
-      final response = await _client.get(uri);
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      } else {
-        print(
-          'Failed to analyze messages. Status code: ${response.statusCode}',
-        );
-        print('Response body: ${response.body}');
-        throw Exception(
-          'Failed to analyze messages. Status code: ${response.statusCode}, Body: ${response.body}',
-        );
-      }
-    } catch (e) {
-      print('Error during analyzeMessages request: $e');
-      throw Exception('Failed to analyze messages: $e');
-    }
-  }
-
   // Scenario API Methods
   Future<ConfigResponse> startConversation(int scenarioId) async {
     print(
@@ -268,43 +191,5 @@ class APIService {
     }
   }
 
-  /// Analyze text using the emotion analysis pipeline
-  Future<Map<String, dynamic>> analyzeText(String text) async {
-    try {
-      print(
-        'Analyzing text: "${text.length > 50 ? text.substring(0, 50) + '...' : text}"',
-      );
 
-      final requestBody = {'text': text};
-
-      final response = await _client
-          .post(
-            Uri.parse('$baseUrl/messages/suggestions/analyze'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode(requestBody),
-          )
-          .timeout(const Duration(seconds: 90));
-
-      print('Text analysis response: ${response.statusCode}');
-      print('Text analysis body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        if (responseData['success'] == true) {
-          return {'success': true, 'data': responseData['data']};
-        } else {
-          return {'success': false, 'error': 'Analysis pipeline failed'};
-        }
-      } else {
-        final errorData = json.decode(response.body);
-        return {
-          'success': false,
-          'error': errorData['detail'] ?? 'Failed to analyze text',
-        };
-      }
-    } catch (e) {
-      print('Error analyzing text: $e');
-      return {'success': false, 'error': 'Network error: ${e.toString()}'};
-    }
-  }
 }

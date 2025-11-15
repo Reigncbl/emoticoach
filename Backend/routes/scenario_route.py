@@ -60,13 +60,22 @@ class ScenarioCompletionResponse(BaseModel):
     user_rating: Optional[int] = None
     total_messages: Optional[int] = None
     created_at: datetime
+    scenario_title: Optional[str] = None
+    scenario_description: Optional[str] = None
+    scenario_category: Optional[str] = None
+    scenario_difficulty: Optional[str] = None
+    scenario_estimated_duration: Optional[int] = None
 
     class Config:
         from_attributes = True
         
     @classmethod
-    def from_scenario_completion(cls, completion: ScenarioCompletion):
-        """Convert ScenarioCompletion to response model with proper type conversion"""
+    def from_scenario_completion(
+        cls,
+        completion: ScenarioCompletion,
+        scenario: Optional[ScenarioWithConfig] = None,
+    ):
+        """Convert ScenarioCompletion to response model with optional scenario metadata"""
         return cls(
             scenario_completion_id=str(completion.scenario_completion_id),  # Ensure string conversion
             user_id=completion.user_id,
@@ -79,7 +88,14 @@ class ScenarioCompletionResponse(BaseModel):
             appropriateness_score=completion.appropriateness_score,
             user_rating=completion.user_rating,
             total_messages=completion.total_messages,
-            created_at=completion.created_at
+            created_at=completion.created_at,
+            scenario_title=(scenario.title if scenario else None),
+            scenario_description=(scenario.description if scenario else None),
+            scenario_category=(scenario.category if scenario else None),
+            scenario_difficulty=(scenario.difficulty if scenario else None),
+            scenario_estimated_duration=(
+                scenario.estimated_duration if scenario else None
+            ),
         )
 
 
@@ -247,11 +263,16 @@ async def complete_scenario(request: CompleteScenarioRequest, session: SessionDe
         except Exception:
             logger.warning("[scenarios.complete] post-commit logging failed")
 
+        scenario_details = session.get(ScenarioWithConfig, completion.scenario_id)
+
         return {
             "success": True,
             "message": "Scenario completion saved successfully",
             "operation": operation,
-            "completed_scenarios": ScenarioCompletionResponse.from_scenario_completion(completion)  # Use custom conversion
+            "completed_scenarios": ScenarioCompletionResponse.from_scenario_completion(
+                completion,
+                scenario_details,
+            )  # Use custom conversion
         }
     except HTTPException:
         raise
@@ -262,15 +283,19 @@ async def complete_scenario(request: CompleteScenarioRequest, session: SessionDe
 @scenario_router.get('/completed/{user_id}')
 async def get_completed_scenarios(user_id: str, session: SessionDep):
     try:
-        completed_scenarios = session.exec(
-            select(ScenarioCompletion)
+        completed_with_details = session.exec(
+            select(ScenarioCompletion, ScenarioWithConfig)
+            .outerjoin(
+                ScenarioWithConfig,
+                ScenarioCompletion.scenario_id == ScenarioWithConfig.id,  # type: ignore[arg-type]
+            )
             .where(ScenarioCompletion.user_id == user_id)
             .order_by(desc(ScenarioCompletion.completed_at))
         ).all()
 
         completion_responses = [
-            ScenarioCompletionResponse.from_scenario_completion(completion)
-            for completion in completed_scenarios
+            ScenarioCompletionResponse.from_scenario_completion(completion, scenario)
+            for completion, scenario in completed_with_details
         ]
 
         return {

@@ -9,6 +9,9 @@ class Scenario {
   final String? configFile;
   final int? estimatedDuration;
   final bool isActive;
+  final double? averageRating;
+  final int? ratingCount;
+  final int? completionCount;
 
   Scenario({
     required this.id,
@@ -19,6 +22,9 @@ class Scenario {
     this.configFile,
     this.estimatedDuration,
     required this.isActive,
+    this.averageRating,
+    this.ratingCount,
+    this.completionCount,
   });
 
   factory Scenario.fromJson(Map<String, dynamic> json) {
@@ -31,6 +37,9 @@ class Scenario {
       configFile: json['config_file'] as String?,
       estimatedDuration: json['estimated_duration'] as int?,
       isActive: json['is_active'] as bool? ?? true,
+      averageRating: (json['average_rating'] as num?)?.toDouble(),
+      ratingCount: json['rating_count'] as int?,
+      completionCount: json['completion_count'] as int?,
     );
   }
 
@@ -44,6 +53,9 @@ class Scenario {
       'config_file': configFile,
       'estimated_duration': estimatedDuration,
       'is_active': isActive,
+      'average_rating': averageRating,
+      'rating_count': ratingCount,
+      'completion_count': completionCount,
     };
   }
 
@@ -51,6 +63,9 @@ class Scenario {
     if (estimatedDuration == null) return '10-15 min';
     return '${estimatedDuration! - 2}-${estimatedDuration! + 3} min';
   }
+
+  bool get hasRatings =>
+      averageRating != null && ratingCount != null && ratingCount! > 0;
 }
 
 class ConversationMessage {
@@ -393,11 +408,61 @@ class CompletedScenario {
     }
 
     final scenarioId = _toInt(json['scenario_id']) ?? _toInt(json['id']) ?? 0;
-    final title = json['title']?.toString() ?? 'Scenario #$scenarioId';
-    final description = json['description']?.toString() ?? 'No description available.';
-    final category = json['category']?.toString() ?? 'general';
-    final difficulty = json['difficulty']?.toString() ?? 'easy';
-    final estimatedDuration = _toInt(json['estimated_duration']);
+
+    Map<String, dynamic>? scenarioJson;
+    final rawScenario = json['scenario'];
+    if (rawScenario is Map<String, dynamic>) {
+      scenarioJson = Map<String, dynamic>.from(rawScenario);
+    }
+
+    String? _extractString(List<String> keys) {
+      for (final key in keys) {
+        final value = json[key];
+        if (value != null && value.toString().trim().isNotEmpty) {
+          return value.toString();
+        }
+        if (scenarioJson != null) {
+          final nestedValue = scenarioJson[key];
+          if (nestedValue != null && nestedValue.toString().trim().isNotEmpty) {
+            return nestedValue.toString();
+          }
+        }
+      }
+      return null;
+    }
+
+    int? _extractInt(List<String> keys) {
+      for (final key in keys) {
+        final direct = _toInt(json[key]);
+        if (direct != null) {
+          return direct;
+        }
+        if (scenarioJson != null) {
+          final nested = _toInt(scenarioJson[key]);
+          if (nested != null) {
+            return nested;
+          }
+        }
+      }
+      return null;
+    }
+
+    final title =
+        _extractString(['title', 'scenario_title', 'name']) ??
+        'Scenario #$scenarioId';
+    final description =
+        _extractString(['description', 'scenario_description', 'summary']) ??
+        'No description available.';
+    final category =
+        _extractString(['category', 'scenario_category']) ?? 'general';
+    final difficulty =
+        _extractString(['difficulty', 'scenario_difficulty', 'level']) ??
+        'easy';
+    final estimatedDuration = _extractInt([
+      'estimated_duration',
+      'scenario_estimated_duration',
+      'duration',
+    ]);
 
     DateTime completedAt;
     final completedAtRaw = json['completed_at'];
@@ -442,6 +507,33 @@ class CompletedScenario {
       userRating: _toInt(json['user_rating']),
       totalMessages: _toInt(json['total_messages']),
       completionCount: _toInt(json['completion_count']) ?? 1,
+    );
+  }
+
+  CompletedScenario copyWith({
+    String? title,
+    String? description,
+    String? category,
+    String? difficulty,
+    int? estimatedDuration,
+  }) {
+    return CompletedScenario(
+      scenarioId: scenarioId,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      category: category ?? this.category,
+      difficulty: difficulty ?? this.difficulty,
+      estimatedDuration: estimatedDuration ?? this.estimatedDuration,
+      completedAt: completedAt,
+      completionTimeMinutes: completionTimeMinutes,
+      finalClarityScore: finalClarityScore,
+      finalEmpathyScore: finalEmpathyScore,
+      finalAssertivenessScore: finalAssertivenessScore,
+      finalAppropriatenessScore: finalAppropriatenessScore,
+      averageScore: averageScore,
+      userRating: userRating,
+      totalMessages: totalMessages,
+      completionCount: completionCount,
     );
   }
 

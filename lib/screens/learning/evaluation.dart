@@ -26,6 +26,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
   EvaluationResponse? _evaluationResponse;
   bool _isLoading = false;
   String? _error;
+  int _userRating = 0;
 
   @override
   void initState() {
@@ -78,6 +79,7 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
           finalAssertivenessScore: evaluation.assertiveness,
           finalAppropriatenessScore: evaluation.appropriateness,
           totalMessages: _evaluationResponse?.totalUserMessages,
+          userRating: _userRating > 0 ? _userRating : null,
         );
 
         print('✅ Scenario marked as complete');
@@ -354,6 +356,10 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
 
           const SizedBox(height: 20),
 
+          _buildRatingSelector(),
+
+          const SizedBox(height: 20),
+
           // Action Buttons
           Row(
             children: [
@@ -453,6 +459,66 @@ class _EvaluationScreenState extends State<EvaluationScreen> {
                 minHeight: 8,
                 backgroundColor: Colors.grey[200],
                 valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRatingSelector() {
+    return Card(
+      color: Colors.orange[50],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.star_rate, color: Colors.orange[700]),
+                const SizedBox(width: 8),
+                Text(
+                  'Rate this scenario',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange[800],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: List.generate(5, (index) {
+                final starIndex = index + 1;
+                final isSelected = starIndex <= _userRating;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(24),
+                    onTap: () {
+                      setState(() {
+                        _userRating = starIndex;
+                      });
+                    },
+                    child: Icon(
+                      isSelected ? Icons.star : Icons.star_outline,
+                      size: 32,
+                      color: isSelected ? Colors.orange[700] : Colors.grey[400],
+                    ),
+                  ),
+                );
+              }),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _userRating > 0
+                  ? 'You rated this scenario $_userRating star${_userRating == 1 ? '' : 's'}.'
+                  : 'Tap the stars to rate your experience (optional).',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _userRating > 0 ? Colors.orange[800] : Colors.grey[600],
+                fontWeight: _userRating > 0 ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],

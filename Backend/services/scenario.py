@@ -4,15 +4,17 @@ import json
 import yaml
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from llama_index.llms.groq import Groq
 from llama_index.core.llms import ChatMessage as LlamaMessage, MessageRole
 from sqlmodel import Session, select
+from sqlalchemy import func
 from sqlalchemy.exc import OperationalError, DisconnectionError
 from core.db_connection import engine
 from model.scenario_with_config import ScenarioWithConfig
+from model.scenario_completion import ScenarioCompletion
 
 def get_db_session_with_retry(max_retries=3):
     """Get database session with retry logic for connection issues."""
@@ -480,11 +482,28 @@ def get_available_scenarios() -> List[Dict[str, Any]]:
     """Get list of available scenarios."""
     try:
         with get_db_session_with_retry() as session:
-            statement = select(ScenarioWithConfig).where(ScenarioWithConfig.is_active == True)
-            scenarios = session.exec(statement).all()
-            
+            statement = (
+                select(
+                    ScenarioWithConfig,
+                    func.avg(ScenarioCompletion.user_rating).label("average_rating"),
+                    func.count(cast(Any, ScenarioCompletion.user_rating)).label(
+                        "rating_count"
+                    ),
+                    func.count(
+                        cast(Any, ScenarioCompletion.scenario_completion_id)
+                    ).label("completion_count"),
+                )
+                .outerjoin(
+                    ScenarioCompletion,
+                    cast(Any, ScenarioCompletion.scenario_id == ScenarioWithConfig.id),
+                )
+                .where(ScenarioWithConfig.is_active == True)
+                .group_by(cast(Any, ScenarioWithConfig.id))
+            )
+            results = session.exec(statement).all()
+
             scenario_list = []
-            for scenario in scenarios:
+            for scenario, average_rating, rating_count, completion_count in results:
                 scenario_list.append({
                     "id": scenario.id,
                     "title": scenario.title,
@@ -493,8 +512,13 @@ def get_available_scenarios() -> List[Dict[str, Any]]:
                     "difficulty": scenario.difficulty,
                     "estimated_duration": scenario.estimated_duration,
                     "character_name": scenario.character_name,
+                    "average_rating": float(average_rating)
+                    if average_rating is not None
+                    else None,
+                    "rating_count": int(rating_count or 0),
+                    "completion_count": int(completion_count or 0),
                 })
-            
+
             return scenario_list
     except (OperationalError, DisconnectionError) as e:
         raise Exception(f"Database connection error: {str(e)}")

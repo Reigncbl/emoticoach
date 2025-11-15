@@ -26,6 +26,7 @@ class _LearningScreenState extends State<LearningScreen>
   List<Scenario> _scenarios = [];
   List<Scenario> _filteredScenarios = [];
   List<CompletedScenario> _completedScenarios = [];
+  Map<int, Scenario> _scenarioIndex = {};
 
   // Filter state
   Set<String> _selectedDifficulties = {};
@@ -46,7 +47,7 @@ class _LearningScreenState extends State<LearningScreen>
     _navController.addListener(_handleNavigationChange);
 
     // Load scenarios when screen initializes
-    _loadScenarios();
+    refreshScreen();
     _searchController.addListener(_filterScenario);
   }
 
@@ -56,7 +57,7 @@ class _LearningScreenState extends State<LearningScreen>
     }
     // Only reload scenarios when switching TO the Chat Scenarios tab (index 0)
     if (_navController.currentTabIndex == 0) {
-      _loadScenarios();
+      refreshScreen();
     }
   }
 
@@ -92,7 +93,7 @@ class _LearningScreenState extends State<LearningScreen>
     // Only reload scenarios when the Chat Scenarios tab (index 0) is selected
     if (_tabController.index == 0) {
       debugPrint('DEBUG: Chat Scenarios tab selected, loading scenarios...');
-      _loadScenarios();
+      refreshScreen();
     }
   }
 
@@ -103,6 +104,12 @@ class _LearningScreenState extends State<LearningScreen>
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  // Method to refresh the screen (can be called when returning from other screens)
+  Future<void> refreshScreen() async {
+    debugPrint('Refreshing scenario screen...');
+    await _loadScenarios();
   }
 
   Future<void> _loadScenarios() async {
@@ -125,6 +132,10 @@ class _LearningScreenState extends State<LearningScreen>
         return Scenario.fromJson(data);
       }).toList();
 
+      final scenarioIndex = {
+        for (final scenario in scenarios) scenario.id: scenario,
+      };
+
       // Load completed scenarios for current user
       List<CompletedScenario> completedScenarios = [];
       try {
@@ -139,6 +150,46 @@ class _LearningScreenState extends State<LearningScreen>
           return CompletedScenario.fromJson(data);
         }).toList();
 
+        completedScenarios = completedScenarios.map((completed) {
+          final matchingScenario = scenarioIndex[completed.scenarioId];
+          if (matchingScenario == null) {
+            return completed;
+          }
+
+          final fallbackTitle = 'Scenario #${completed.scenarioId}';
+          final needsTitle =
+              completed.title.trim().isEmpty ||
+              completed.title == fallbackTitle;
+          final needsDescription =
+              completed.description.trim().isEmpty ||
+              completed.description == 'No description available.';
+          final needsCategory =
+              completed.category.trim().isEmpty ||
+              completed.category.toLowerCase() == 'general';
+          final needsDifficulty = completed.difficulty.trim().isEmpty;
+          final needsDuration =
+              completed.estimatedDuration == null &&
+              matchingScenario.estimatedDuration != null;
+
+          if (!needsTitle &&
+              !needsDescription &&
+              !needsCategory &&
+              !needsDifficulty &&
+              !needsDuration) {
+            return completed;
+          }
+
+          return completed.copyWith(
+            title: needsTitle ? matchingScenario.title : null,
+            description: needsDescription ? matchingScenario.description : null,
+            category: needsCategory ? matchingScenario.category : null,
+            difficulty: needsDifficulty ? matchingScenario.difficulty : null,
+            estimatedDuration: needsDuration
+                ? matchingScenario.estimatedDuration
+                : null,
+          );
+        }).toList();
+
         debugPrint(
           ' DEBUG: Successfully parsed ${completedScenarios.length} completed scenarios',
         );
@@ -149,12 +200,25 @@ class _LearningScreenState extends State<LearningScreen>
         // Don't fail the whole load if completed scenarios fail
       }
 
+      final completedScenarioIds = completedScenarios
+          .map((c) => c.scenarioId)
+          .toSet();
+
+      final availableScenarios = scenarios.where((scenario) {
+        final isActive = scenario.isActive;
+        final isCompleted = completedScenarioIds.contains(scenario.id);
+        return isActive && !isCompleted;
+      }).toList();
+
       setState(() {
-        _scenarios = scenarios.where((s) => s.isActive).toList();
+        _scenarioIndex = scenarioIndex;
+        _scenarios = availableScenarios;
         _filteredScenarios =
-            _scenarios; // Initialize filtered list with all scenarios
+            _scenarios; // Initialize filtered list with available scenarios
         _completedScenarios = completedScenarios;
-        debugPrint(' DEBUG: Filtered to ${_scenarios.length} active scenarios');
+        debugPrint(
+          ' DEBUG: Filtered to ${_scenarios.length} scenarios after excluding completed ones',
+        );
         debugPrint(
           ' DEBUG: Set _completedScenarios to ${_completedScenarios.length} items',
         );
@@ -163,6 +227,9 @@ class _LearningScreenState extends State<LearningScreen>
         );
         _isLoading = false;
       });
+
+      // Reapply any active search or difficulty filters after reload
+      _filterScenario();
 
       debugPrint(' DEBUG: Successfully loaded scenarios!');
     } catch (e) {
@@ -241,6 +308,13 @@ class _LearningScreenState extends State<LearningScreen>
   }
 
   Widget _buildScenariosTab() {
+    final totalExploreCount = _filteredScenarios.length;
+    final totalCompletedCount = _completedScenarios.length;
+    final displayedScenarios = _filteredScenarios.take(5).toList();
+    final displayedCompletedScenarios = _completedScenarios.take(5).toList();
+    final showAllExplore = totalExploreCount > 5;
+    final showAllCompleted = totalCompletedCount > 5;
+
     if (_isLoading) {
       return const Center(
         child: Column(
@@ -351,7 +425,13 @@ class _LearningScreenState extends State<LearningScreen>
           ),
           const SizedBox(height: 24),
           // Explore Section
-          _buildSectionHeader('Explore', Icons.explore),
+          _buildSectionHeader(
+            'Explore',
+            Icons.explore,
+            onViewAll: showAllExplore
+                ? () => _showAllScenarios('explore')
+                : null,
+          ),
           const SizedBox(height: 12),
 
           if (_filteredScenarios.isEmpty)
@@ -365,15 +445,21 @@ class _LearningScreenState extends State<LearningScreen>
               ),
             )
           else
-            ..._filteredScenarios.map(
+            ...displayedScenarios.map(
               (scenario) => _buildScenarioCard(scenario),
             ),
 
           if (_completedScenarios.isNotEmpty) ...[
             const SizedBox(height: 32),
-            _buildSectionHeader('Scenarios Done', Icons.check_circle_outline),
+            _buildSectionHeader(
+              'Scenarios Done',
+              Icons.check_circle_outline,
+              onViewAll: showAllCompleted
+                  ? () => _showAllScenarios('completed')
+                  : null,
+            ),
             const SizedBox(height: 12),
-            ..._completedScenarios.map(
+            ...displayedCompletedScenarios.map(
               (completedScenario) =>
                   _buildCompletedScenarioCard(completedScenario),
             ),
@@ -383,15 +469,23 @@ class _LearningScreenState extends State<LearningScreen>
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
+  Widget _buildSectionHeader(
+    String title,
+    IconData icon, {
+    VoidCallback? onViewAll,
+  }) {
     return Row(
       children: [
         Icon(icon, size: 20, color: Colors.grey.shade600),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
         ),
+        if (onViewAll != null)
+          TextButton(onPressed: onViewAll, child: const Text('See All')),
       ],
     );
   }
@@ -405,9 +499,9 @@ class _LearningScreenState extends State<LearningScreen>
         persona: _getPersonaFromCategory(scenario.category),
         difficulty: _capitalizeFirst(scenario.difficulty),
         isReplay: isCompleted,
-        scenarioRuns: isCompleted ? 1 : 0,
-        rating: 4.2, // Default rating - can be enhanced with user ratings
-        totalRatings: 150, // Default - can be enhanced with actual data
+        scenarioRuns: scenario.completionCount ?? 0,
+        rating: scenario.averageRating,
+        totalRatings: scenario.ratingCount,
         duration: scenario.formattedDuration,
         icon: _getIconFromCategory(scenario.category),
         color: _getColorFromCategory(scenario.category),
@@ -432,15 +526,24 @@ class _LearningScreenState extends State<LearningScreen>
 
   void _replayScenario(CompletedScenario completedScenario) {
     // Convert CompletedScenario to Scenario for detail screen
-    final scenario = Scenario(
-      id: completedScenario.scenarioId,
-      title: completedScenario.title,
-      description: completedScenario.description,
-      category: completedScenario.category,
-      difficulty: completedScenario.difficulty,
-      estimatedDuration: completedScenario.estimatedDuration,
-      isActive: true,
-    );
+    final baseScenario = _scenarioIndex[completedScenario.scenarioId];
+
+    final scenario =
+        baseScenario ??
+        Scenario(
+          id: completedScenario.scenarioId,
+          title: completedScenario.title,
+          description: completedScenario.description,
+          category: completedScenario.category,
+          difficulty: completedScenario.difficulty,
+          estimatedDuration: completedScenario.estimatedDuration,
+          isActive: true,
+          averageRating: completedScenario.userRating?.toDouble(),
+          ratingCount: completedScenario.userRating != null
+              ? 1
+              : completedScenario.completionCount,
+          completionCount: completedScenario.completionCount,
+        );
 
     Navigator.push(
       context,
@@ -457,6 +560,46 @@ class _LearningScreenState extends State<LearningScreen>
         builder: (context) => ScenarioDetailScreen(scenario: scenario),
       ),
     );
+  }
+
+  void _showAllScenarios(String section) {
+    if (section == 'explore') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => _AllScenariosScreen(
+            title: 'All Scenarios',
+            scenarios: _filteredScenarios,
+            personaResolver: _getPersonaFromCategory,
+            iconResolver: _getIconFromCategory,
+            colorResolver: _getColorFromCategory,
+            difficultyFormatter: _capitalizeFirst,
+            onScenarioSelected: (scenario) {
+              _startScenario(scenario);
+            },
+          ),
+        ),
+      );
+    } else if (section == 'completed') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => _AllCompletedScenariosScreen(
+            title: 'Completed Scenarios',
+            completedScenarios: _completedScenarios,
+            personaResolver: _getPersonaFromCategory,
+            iconResolver: _getIconFromCategory,
+            colorResolver: _getColorFromCategory,
+            onReplay: (scenario) {
+              _replayScenario(scenario);
+            },
+            onViewDetails: (scenario) {
+              _showCompletionDetails(scenario);
+            },
+          ),
+        ),
+      );
+    }
   }
 
   String _getPersonaFromCategory(String category) {
@@ -805,6 +948,109 @@ class _LearningScreenState extends State<LearningScreen>
   }
 }
 
+class _AllScenariosScreen extends StatelessWidget {
+  final String title;
+  final List<Scenario> scenarios;
+  final void Function(Scenario) onScenarioSelected;
+  final String Function(String) personaResolver;
+  final IconData Function(String) iconResolver;
+  final Color Function(String) colorResolver;
+  final String Function(String) difficultyFormatter;
+
+  const _AllScenariosScreen({
+    required this.title,
+    required this.scenarios,
+    required this.onScenarioSelected,
+    required this.personaResolver,
+    required this.iconResolver,
+    required this.colorResolver,
+    required this.difficultyFormatter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: scenarios.isEmpty
+          ? const Center(child: Text('No scenarios available.'))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              itemCount: scenarios.length,
+              itemBuilder: (context, index) {
+                final scenario = scenarios[index];
+                return ScenarioCard(
+                  title: scenario.title,
+                  description: scenario.description,
+                  persona: personaResolver(scenario.category),
+                  difficulty: difficultyFormatter(scenario.difficulty),
+                  isReplay: false,
+                  scenarioRuns: scenario.completionCount ?? 0,
+                  rating: scenario.averageRating,
+                  totalRatings: scenario.ratingCount,
+                  duration: scenario.formattedDuration,
+                  icon: iconResolver(scenario.category),
+                  color: colorResolver(scenario.category),
+                  onTap: () {
+                    Navigator.pop(context);
+                    onScenarioSelected(scenario);
+                  },
+                );
+              },
+            ),
+    );
+  }
+}
+
+class _AllCompletedScenariosScreen extends StatelessWidget {
+  final String title;
+  final List<CompletedScenario> completedScenarios;
+  final String Function(String) personaResolver;
+  final IconData Function(String) iconResolver;
+  final Color Function(String) colorResolver;
+  final void Function(CompletedScenario) onReplay;
+  final void Function(CompletedScenario) onViewDetails;
+
+  const _AllCompletedScenariosScreen({
+    required this.title,
+    required this.completedScenarios,
+    required this.personaResolver,
+    required this.iconResolver,
+    required this.colorResolver,
+    required this.onReplay,
+    required this.onViewDetails,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: completedScenarios.isEmpty
+          ? const Center(child: Text('No completed scenarios yet.'))
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              itemCount: completedScenarios.length,
+              itemBuilder: (context, index) {
+                final completedScenario = completedScenarios[index];
+                return CompletedScenarioCard(
+                  completedScenario: completedScenario,
+                  persona: personaResolver(completedScenario.category),
+                  icon: iconResolver(completedScenario.category),
+                  color: colorResolver(completedScenario.category),
+                  onReplay: () {
+                    Navigator.pop(context);
+                    onReplay(completedScenario);
+                  },
+                  onViewDetails: () {
+                    Navigator.pop(context);
+                    onViewDetails(completedScenario);
+                  },
+                );
+              },
+            ),
+    );
+  }
+}
+
 class ScenarioCard extends StatelessWidget {
   final String title;
   final String description;
@@ -812,8 +1058,8 @@ class ScenarioCard extends StatelessWidget {
   final String difficulty;
   final bool isReplay;
   final int scenarioRuns;
-  final double rating;
-  final int totalRatings;
+  final double? rating;
+  final int? totalRatings;
   final String duration;
   final IconData icon;
   final Color color;
@@ -827,8 +1073,8 @@ class ScenarioCard extends StatelessWidget {
     required this.difficulty,
     required this.isReplay,
     required this.scenarioRuns,
-    required this.rating,
-    required this.totalRatings,
+    this.rating,
+    this.totalRatings,
     required this.duration,
     required this.icon,
     required this.color,
@@ -863,6 +1109,11 @@ class ScenarioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasRatings = rating != null && (totalRatings ?? 0) > 0;
+    final ratingColor = hasRatings
+        ? Colors.amber.shade600
+        : Colors.grey.shade500;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
       decoration: BoxDecoration(
@@ -1003,16 +1254,18 @@ class ScenarioCard extends StatelessWidget {
                     Row(
                       children: [
                         Icon(
-                          Icons.star,
+                          hasRatings ? Icons.star : Icons.star_border,
                           size: 14,
-                          color: Colors.amber.shade600,
+                          color: ratingColor,
                         ),
                         const SizedBox(width: 2),
                         Text(
-                          '${rating.toStringAsFixed(1)} ($totalRatings)',
-                          style: const TextStyle(
+                          hasRatings
+                              ? '${rating!.toStringAsFixed(1)} (${totalRatings ?? 0})'
+                              : 'No ratings yet',
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey,
+                            color: hasRatings ? Colors.grey[700] : Colors.grey,
                           ),
                         ),
                       ],
@@ -1150,31 +1403,25 @@ class CompletedScenarioCard extends StatelessWidget {
                         horizontal: 8,
                         vertical: 4,
                       ),
+                      margin: const EdgeInsets.only(right: 8),
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
+                        color: _getDifficultyColor(
+                          completedScenario.difficulty,
+                        ),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.green, width: 1),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                            size: 16,
+                      child: Text(
+                        completedScenario.difficulty,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: _getDifficultyTextColor(
+                            completedScenario.difficulty,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Completed',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
+                    
                   ],
                 ),
                 const SizedBox(height: 12),

@@ -91,7 +91,7 @@ class OverlayStatsService implements OverlayStatsRepository {
 
       _isInitialized = true;
     } catch (e) {
-      throw e;
+      rethrow;
     } finally {
       _isInitializing = false;
     }

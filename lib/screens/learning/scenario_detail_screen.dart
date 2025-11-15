@@ -18,6 +18,14 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hasScenarioRatings = widget.scenario.hasRatings;
+    final ratingValue = hasScenarioRatings
+        ? '${widget.scenario.averageRating!.toStringAsFixed(1)}★'
+        : 'New';
+    final ratingLabel = hasScenarioRatings
+        ? 'Rating (${widget.scenario.ratingCount})'
+        : 'Rating';
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
@@ -89,8 +97,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen> {
                         textColor: Colors.white,
                       ),
                       _buildStatCard(
-                        value: "4.2", // Default rating
-                        label: "Rating",
+                        value: ratingValue,
+                        label: ratingLabel,
                         color: Colors.white.withOpacity(0.15),
                         textColor: Colors.white,
                       ),
@@ -133,66 +141,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Rate This Module Section
-                    const Text(
-                      'Rate This Scenario',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        // 5 Star Rating
-                        Row(
-                          children: List.generate(5, (index) {
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _currentRating = index + 1;
-                                  });
-                                  _submitRating(_currentRating);
-                                },
-                                child: Icon(
-                                  index < _currentRating
-                                      ? Icons.star
-                                      : Icons.star_border,
-                                  color: index < _currentRating
-                                      ? Colors.amber.shade600
-                                      : Colors.grey.shade400,
-                                  size: 28,
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                        const SizedBox(width: 16),
-                        if (_currentRating > 0)
-                          Text(
-                            'Thanks for rating!',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.green.shade600,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        else
-                          const Text(
-                            'Tap to rate',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Color(0xFFD55E42),
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
+                  
+                    
                     // Skills You'll Learn Section
                     const Text(
                       'Skills You\'ll Practice',

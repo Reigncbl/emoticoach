@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import '../utils/colors.dart';
 
 // Shared AppBar for book/EPUB readers
