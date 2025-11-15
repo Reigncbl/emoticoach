@@ -99,15 +99,42 @@ class ReadingCard extends StatelessWidget {
 
             // Progress bar
             if (reading.progress > 0) ...[
-              LinearProgressIndicator(
-                value: reading.progress,
-                backgroundColor: Colors.grey.shade300,
-                color: Colors.blueAccent,
+              Row(
+                children: [
+                  Expanded(
+                    child: LinearProgressIndicator(
+                      value: reading.progress,
+                      backgroundColor: Colors.grey.shade300,
+                      color: reading.isCompleted 
+                          ? Colors.green 
+                          : Colors.blueAccent,
+                      minHeight: 4,
+                    ),
+                  ),
+                  if (reading.isCompleted) ...[
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.check_circle,
+                      size: 16,
+                      color: Colors.green.shade600,
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(
-                reading.progressPercentage + ' complete',
-                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                reading.isCompleted 
+                    ? 'Completed!' 
+                    : '${reading.progressPercentage} complete',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: reading.isCompleted 
+                      ? Colors.green.shade700 
+                      : Colors.grey,
+                  fontWeight: reading.isCompleted 
+                      ? FontWeight.w600 
+                      : FontWeight.normal,
+                ),
               ),
             ],
 

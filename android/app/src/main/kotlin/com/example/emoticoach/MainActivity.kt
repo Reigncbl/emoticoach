@@ -3,6 +3,7 @@ package com.example.emoticoach
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.app.AppOpsManager
 import android.content.Context
@@ -10,6 +11,7 @@ import android.util.Log
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.view.WindowManager
+import android.webkit.WebView
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -22,6 +24,34 @@ class MainActivity : FlutterActivity() {
     private val USAGE_STATS_REQUEST_CODE = 1001
     
     private lateinit var overlayMethodChannel: MethodChannel
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // Enable WebView debugging for better error tracking
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+        
+        // Initialize WebView with proper settings for EPUB viewer
+        // This ensures iframes can execute scripts properly
+        try {
+            val webView = WebView(applicationContext)
+            webView.settings.apply {
+                javaScriptEnabled = true
+                domStorageEnabled = true
+                databaseEnabled = true
+                allowFileAccess = true
+                allowContentAccess = true
+                allowFileAccessFromFileURLs = true
+                allowUniversalAccessFromFileURLs = true
+                mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+            }
+            webView.destroy()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error initializing WebView settings: ${e.message}")
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
