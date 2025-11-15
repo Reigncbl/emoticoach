@@ -353,7 +353,14 @@ class _AnalysisViewState extends State<AnalysisView> {
       );
 
       if (ragData['success'] != false) {
-        final last = ragData['last_message'] as Map<String, dynamic>?;
+        // Prefer recent contact messages when provided by the backend. Fallback to
+        // `last_message` for backward compatibility.
+        final recentContacts =
+            (ragData['recent_contact_messages'] as List<dynamic>?) ?? [];
+        final Map<String, dynamic>? last = recentContacts.isNotEmpty
+            ? (recentContacts.first as Map<String, dynamic>?)
+            : (ragData['last_message'] as Map<String, dynamic>?);
+
         final lastEmotion =
             (last != null ? last['emotion_analysis'] : null)
                 as Map<String, dynamic>?;

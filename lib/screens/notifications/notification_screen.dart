@@ -6,6 +6,8 @@ import '../../controllers/reading_content_controller.dart';
 import '../../services/session_service.dart';
 import '../../services/api_service.dart';
 import '../../services/scenario_service.dart';
+import '../../services/local_notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum ActivityType { badgeEarned, moduleCompleted, levelReached, courseStarted, scenarioCompleted }
 
@@ -17,6 +19,7 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
+  static const String _notifiedActivityPrefsKey = 'notified_activity_ids';
   final BadgeController _badgeController = BadgeController();
   final ReadingProgressController _progressController = ReadingProgressController();
   final APIService _apiService = APIService();
@@ -185,6 +188,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       // Sort by date (most recent first)
       activityItems.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
+      await _syncLocalNotifications(activityItems);
+
       setState(() {
         _activities = activityItems;
         isLoading = false;
@@ -195,6 +200,64 @@ class _NotificationScreenState extends State<NotificationScreen> {
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _syncLocalNotifications(List<Map<String, dynamic>> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasExistingSeed = prefs.containsKey(_notifiedActivityPrefsKey);
+    final Set<String> seen =
+        (prefs.getStringList(_notifiedActivityPrefsKey) ?? []).toSet();
+    final Set<String> updated = {...seen};
+
+    if (!hasExistingSeed) {
+      for (final item in items) {
+        updated.add(_composeNotificationKey(item));
+      }
+      await prefs.setStringList(
+        _notifiedActivityPrefsKey,
+        updated.toList(),
+      );
+      return;
+    }
+
+    bool hasNewNotification = false;
+    for (final item in items) {
+      final String key = _composeNotificationKey(item);
+      if (seen.contains(key)) {
+        continue;
+      }
+
+      final ActivityType type = item['type'] as ActivityType;
+      final String title = item['title'] as String;
+      final String description = item['description'] as String;
+
+      await LocalNotificationService.showActivityNotification(
+        id: _generateNotificationId(key),
+        title: _getActivityTitle(type),
+        body: _getActivityMessage(type, title, description),
+      );
+
+      updated.add(key);
+      hasNewNotification = true;
+    }
+
+    if (hasNewNotification) {
+      await prefs.setStringList(
+        _notifiedActivityPrefsKey,
+        updated.toList(),
+      );
+    }
+  }
+
+  String _composeNotificationKey(Map<String, dynamic> item) {
+    final ActivityType type = item['type'] as ActivityType;
+    final String title = item['title'] as String;
+    final DateTime date = item['date'] as DateTime;
+    return '${type.name}_${title}_${date.toIso8601String()}';
+  }
+
+  int _generateNotificationId(String key) {
+    return key.hashCode & 0x7fffffff;
   }
 
   String _getActivityTitle(ActivityType type) {

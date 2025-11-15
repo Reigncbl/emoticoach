@@ -104,11 +104,11 @@ class _ReadingScreenState extends State<ReadingScreen> {
               } else {
                 // Check if this reading has an EPUB file
                 if (rwp.reading.hasEpubFile) {
-                  // For EPUB files, use a simple estimation based on current page
-                  // Assuming most EPUB books have 100-300 pages
-                  progressPercentage = (currentPage / 150).clamp(0.0, 0.95);
+                  // For EPUB files, currentPage is stored as percentage (0-100)
+                  // So we just need to convert it to 0.0-1.0 range
+                  progressPercentage = (currentPage / 100.0).clamp(0.0, 1.0);
                   print(
-                    'EPUB file detected for ${rwp.reading.title}, estimated progress: ${(progressPercentage * 100).toStringAsFixed(1)}%',
+                    'EPUB file detected for ${rwp.reading.title}, progress: ${(progressPercentage * 100).toStringAsFixed(1)}% (from saved: $currentPage)',
                   );
                 } else {
                   // For regular content, fetch total pages

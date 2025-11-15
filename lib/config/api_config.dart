@@ -1,7 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl =
-      'https://emoticoachdisplay.ambitiouscliff-beadd759.eastasia.azurecontainerapps.io/';
+  static const String baseUrl = 'http://192.168.100.144:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';
@@ -17,8 +16,7 @@ class ApiConfig {
   static String deleteUser(String userId) => '$baseUrl/users/delete/$userId';
 
   // === Badge ENDPOINTS ===
-  static String getUserBadges(String userId) =>
-      '$baseUrl/achievements/user/$userId';
+  static String getUserBadges(String userId) => '$baseUrl/achievements/user/$userId';
 
   // === EXPERIENCE ENDPOINTS ===
   static String get myExperience => '$baseUrl/experience';
@@ -67,4 +65,8 @@ class ApiConfig {
   static String get submitFeedback => '$baseUrl/api/support/feedback';
 
   // === NOTIFICATIONS ===
+
+  // === DAILY CHALLENGE ===
+  static String get dailyChallenge => '$baseUrl/daily/challenge';
+  static String get dailyClaim => '$baseUrl/daily/claim';
 }

@@ -578,7 +578,7 @@ Generate a concise interpretation that explains:
 3. The overall emotional tone
 
 Format your response as: "[Your explanation here]"
-Keep it brief and insightful (2-3 sentences max).
+Keep it brief and insightful (1 sentence max).
 """
         
         try:

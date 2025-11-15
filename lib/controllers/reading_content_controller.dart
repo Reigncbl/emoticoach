@@ -296,7 +296,8 @@ class ReadingProgressController {
   Future<ReadingProgress?> updateProgress({
     required String mobileNumber,
     required String readingsId,
-    required int currentPage,
+    required double currentPage,  // Changed to double for decimal precision
+    String? currentCfi,
     DateTime? lastReadAt,
     DateTime? completedAt,
   }) async {
@@ -307,6 +308,7 @@ class ReadingProgressController {
         'mobile_number': mobileNumber,
         'readings_id': readingsId,
         'current_page': currentPage,
+        if (currentCfi != null) 'current_cfi': currentCfi,
         'last_read_at': lastReadAt?.toIso8601String(),
         'completed_at': completedAt?.toIso8601String(),
       };

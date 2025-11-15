@@ -219,7 +219,8 @@ class Reading {
 class ReadingProgress {
   final String progressId;
   final String readingsId;
-  final int? currentPage;
+  final double? currentPage;  // Changed to double for decimal precision (e.g., 89.5 for EPUB)
+  final String? currentCfi;   // Exact EPUB CFI for precise resume
   final String? lastReadAt;
   final String? completedAt;
   final String mobileNumber;
@@ -228,6 +229,7 @@ class ReadingProgress {
     required this.progressId,
     required this.readingsId,
     this.currentPage,
+    this.currentCfi,
     this.lastReadAt,
     this.completedAt,
     required this.mobileNumber,
@@ -237,7 +239,8 @@ class ReadingProgress {
     return ReadingProgress(
       progressId: json['ProgressID'] ?? '',
       readingsId: json['ReadingsID'] ?? '',
-      currentPage: json['CurrentPage'],
+      currentPage: json['CurrentPage']?.toDouble(),  // Ensure it's converted to double
+      currentCfi: json['CurrentCfi'],
       lastReadAt: json['LastReadAt'],
       completedAt: json['CompletedAt'],
       mobileNumber: json['MobileNumber'] ?? '',
@@ -249,6 +252,7 @@ class ReadingProgress {
       'ProgressID': progressId,
       'ReadingsID': readingsId,
       'CurrentPage': currentPage,
+      'CurrentCfi': currentCfi,
       'LastReadAt': lastReadAt,
       'CompletedAt': completedAt,
       'MobileNumber': mobileNumber,
@@ -283,23 +287,20 @@ class ReadingWithProgress {
   Reading get readingWithProgress {
     if (progress == null) return reading;
     
-    // Calculate progress percentage based on current page
-    // For now, we'll use a simple calculation - you might want to get total pages from API
-    double progressValue = 0.0;
+    // progress (EPUB: 0-100 -> 0.0-1.0, Articles: current/total).
+    // Only enforce 100% when backend marks completed.
     if (progress!.isCompleted) {
-      progressValue = 1.0;
-    } else if (progress!.currentPage != null && progress!.currentPage! > 0) {
-      // Assume 10 pages as default - you can improve this by fetching actual page count
-      progressValue = (progress!.currentPage! / 10).clamp(0.0, 1.0);
+      return reading.copyWith(progress: 1.0);
     }
 
-    return reading.copyWith(progress: progressValue);
+    // Leave the progress value as already computed upstream.
+    return reading;
   }
 
   // Helper methods
   bool get hasProgress => progress != null;
   bool get isStarted => progress?.isStarted ?? false;
   bool get isCompleted => progress?.isCompleted ?? false;
-  int? get currentPage => progress?.currentPage;
+  double? get currentPage => progress?.currentPage;  // Changed to double
   String? get lastReadAt => progress?.lastReadAt;
 }

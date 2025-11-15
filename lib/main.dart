@@ -15,6 +15,7 @@ import 'services/session_service.dart';
 import 'utils/overlay_stats_tracker.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'utils/overlay_clipboard_helper.dart';
+import 'services/local_notification_service.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -37,6 +38,7 @@ class LearnScreen extends StatelessWidget {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await LocalNotificationService.initialize();
 
   _registerOverlayClipboardPort();
 

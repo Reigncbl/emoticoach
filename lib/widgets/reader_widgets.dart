@@ -178,109 +178,144 @@ class MinimalAppBar extends StatelessWidget implements PreferredSizeWidget {
 
 class MinimalFooter extends StatelessWidget {
   final double progressPercent;
-  const MinimalFooter({super.key, required this.progressPercent});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-      child: Center(
-        child: Text(
-          '${(progressPercent * 100).toStringAsFixed(0)}%',
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 14,
-            fontWeight: FontWeight.normal,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class PageStatusFooter extends StatelessWidget {
-  final int currentPage;
-  final int totalPages;
-  final double progressPercent;
-  final VoidCallback? onCompleteReading; // New callback for completion
+  final VoidCallback? onCompleteReading;
   
-  const PageStatusFooter({
-    super.key,
-    required this.currentPage,
-    required this.totalPages,
+  const MinimalFooter({
+    super.key, 
     required this.progressPercent,
     this.onCompleteReading,
   });
   
   @override
   Widget build(BuildContext context) {
-    // Check if we're on the last page (or close to the end)
-    final bool isNearEnd = currentPage >= totalPages || progressPercent >= 0.95;
-    
+    final isComplete = progressPercent >= 1.0;
+
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
+    final bottomSafeArea = mediaQuery.padding.bottom;
+
+    final horizontalPadding = screenWidth <= 360 ? 12.0 : 16.0;
+    final verticalPadding = screenHeight <= 700 ? 8.0 : 12.0;
+    final bottomPadding = verticalPadding + (bottomSafeArea > 0 ? bottomSafeArea : 0);
+    final progressFontSize = screenWidth <= 360 ? 13.0 : 14.0;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
+      color: Colors.white,
+      padding: EdgeInsets.only(
+        left: horizontalPadding,
+        right: horizontalPadding,
+        top: verticalPadding,
+        bottom: bottomPadding,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Page $currentPage of $totalPages',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              Text(
-                '${(progressPercent * 100).toStringAsFixed(0)}%',
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 14,
-                  fontWeight: FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-          // Show Complete Reading button when near the end
-          if (isNearEnd && onCompleteReading != null) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: ElevatedButton(
-                onPressed: onCompleteReading,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kBrightOrange,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  elevation: 2,
-                ),
-                child: const Text(
-                  'Complete Reading',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+          // Show "Complete Reading" button when at 100%
+          if (isComplete && onCompleteReading != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onCompleteReading,
+                  label: const Text('Complete Reading'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
             ),
-          ],
+          // Progress percentage text
+          Center(
+            child: Text(
+              '${(progressPercent * 100).toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: progressFontSize,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PageStatusFooter extends StatelessWidget {
+  final double progressPercent;
+  final VoidCallback? onCompleteReading;
+  
+  const PageStatusFooter({
+    super.key, 
+    required this.progressPercent,
+    this.onCompleteReading,
+  });
+  
+  @override
+  Widget build(BuildContext context) {
+    final isComplete = progressPercent >= 1.0;
+    
+    final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
+    final bottomSafeArea = mediaQuery.padding.bottom;
+
+    final horizontalPadding = screenWidth <= 360 ? 12.0 : 16.0;
+    final verticalPadding = screenHeight <= 700 ? 8.0 : 12.0;
+    final bottomPadding = verticalPadding + (bottomSafeArea > 0 ? bottomSafeArea : 0);
+    final progressFontSize = screenWidth <= 360 ? 13.0 : 14.0;
+
+    return Container(
+      width: double.infinity,
+      color: Colors.white,
+      padding: EdgeInsets.only(
+        left: horizontalPadding,
+        right: horizontalPadding,
+        top: verticalPadding,
+        bottom: bottomPadding,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Show "Complete Reading" button when at 100%
+          if (isComplete && onCompleteReading != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: onCompleteReading,
+                  label: const Text('Complete Reading'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          // Progress percentage text
+          Center(
+            child: Text(
+              '${(progressPercent * 100).toStringAsFixed(0)}%',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: progressFontSize,
+                fontWeight: FontWeight.normal,
+              ),
+            ),
+          ),
         ],
       ),
     );

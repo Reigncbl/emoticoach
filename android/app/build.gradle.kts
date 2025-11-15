@@ -38,6 +38,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -53,6 +54,13 @@ android {
         
         // WebView optimization
         multiDexEnabled = true
+        
+        // Increase heap size for dex operations
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments["dexOptions.javaMaxHeapSize"] = "4g"
+            }
+        }
         
         // Prevent WebView crashes
         ndk {
@@ -84,4 +92,5 @@ flutter {
 
 dependencies {
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 }

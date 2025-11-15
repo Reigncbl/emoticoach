@@ -21,8 +21,8 @@ class OverlayScreen extends StatefulWidget {
   @override
   State<OverlayScreen> createState() => _OverlayScreenState();
 }
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
+
+class _OverlayScreenState extends State<OverlayScreen>
     with WidgetsBindingObserver
     implements OverlayStatsListener {
   // Toggle states for each setting
@@ -31,72 +31,114 @@ class OverlayScreen extends StatefulWidget {
   bool smartSuggestionsEnabled = true;
   bool toneAdjusterEnabled = true;
   // bool autoLaunchEnabled = false; // Commented out - not implementing
-            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 30),
+
   // Add preference keys
   static const String _messageAnalysisKey = 'message_analysis_enabled';
   static const String _smartSuggestionsKey = 'smart_suggestions_enabled';
   static const String _toneAdjusterKey = 'tone_adjuster_enabled';
+  static const String _ragContextLimitKey = 'rag_context_limit';
 
-                  'Overlay permission needed',
+  // RAG context limit state
+  int _ragContextLimit = 20;
+
+  // Dynamic statistics state
+  StatisticsPeriod _selectedPeriod = StatisticsPeriod.pastWeek;
+  OverlayStatistics? _currentStatistics = OverlayStatistics.empty(
+    StatisticsPeriod.pastWeek,
+  );
+  bool _isLoadingStats = false;
+  bool _hasLoadedStatsOnce = false;
+  bool _hasLoadedUsageOnce = false;
+
+  final TextEditingController _manualMessageController =
       TextEditingController();
-                    fontSize: 20,
+  bool _isManualAnalyzing = false;
   Map<String, dynamic>? _manualAnalysisResult;
   String? _manualAnalysisError;
   late final ManualAnalysisService _manualAnalysisService;
   bool _isLoadingDailyUsage = false;
   String? _dailyUsageError;
-                const SizedBox(height: 20),
+  List<OverlayDailyUsagePoint> _dailyUsagePoints = [];
   _UsageMetric _selectedUsageMetric = _UsageMetric.messagesAnalyzed;
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 22,
-                  ),
+
   @override
-                    color: kPrimaryBlue.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(22),
+  void initState() {
+    super.initState();
     WidgetsBinding.instance.addObserver(this);
     _manualAnalysisService = ManualAnalysisService();
     _loadSettingsAndInitialize();
   }
-                    size: 62,
+
   Future<void> _loadSettingsAndInitialize() async {
     await _loadSavedSettings();
-                const SizedBox(height: 24),
+    await _checkPermissions();
     await _refreshOverlayPermission();
-                  'Enable overlay and toggle ON in app',
+    await _initializeStatistics();
   }
-                    fontSize: 15,
+
   Future<void> _loadSavedSettings() async {
-                    color: Colors.black87,
+    try {
       final prefs = await SharedPreferences.getInstance();
 
       final bool? storedMessageAnalysis = prefs.getBool(_messageAnalysisKey);
-                const SizedBox(height: 28),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      _openOverlaySettings();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: kDailyChallengeRed,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'NEXT',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
+      final bool? storedSmartSuggestions = prefs.getBool(_smartSuggestionsKey);
+      final bool? storedToneAdjuster = prefs.getBool(_toneAdjusterKey);
+      final int? storedRagLimit = prefs.getInt(_ragContextLimitKey);
+
+      final bool defaultMessageAnalysis = storedMessageAnalysis ?? true;
+      final bool defaultSmartSuggestions = storedSmartSuggestions ?? true;
+      final bool defaultToneAdjuster = storedToneAdjuster ?? true;
+      final int defaultRagLimit = storedRagLimit ?? 20;
+
+      if (mounted) {
+        setState(() {
+          messageAnalysisEnabled = defaultMessageAnalysis;
+          smartSuggestionsEnabled = defaultSmartSuggestions;
+          toneAdjusterEnabled = defaultToneAdjuster;
+          _ragContextLimit = defaultRagLimit;
+          // autoLaunchEnabled = prefs.getBool(_autoLaunchKey) ?? false; // Commented out
+        });
+      }
+
+      bool defaultsCommitted = false;
+      if (storedMessageAnalysis == null) {
+        await prefs.setBool(_messageAnalysisKey, defaultMessageAnalysis);
+        defaultsCommitted = true;
+      }
+      if (storedSmartSuggestions == null) {
+        await prefs.setBool(_smartSuggestionsKey, defaultSmartSuggestions);
+        defaultsCommitted = true;
+      }
+      if (storedToneAdjuster == null) {
+        await prefs.setBool(_toneAdjusterKey, defaultToneAdjuster);
+        defaultsCommitted = true;
+      }
+      if (storedRagLimit == null) {
+        await prefs.setInt(_ragContextLimitKey, defaultRagLimit);
+        defaultsCommitted = true;
+      }
+
+      if (defaultsCommitted) {
+        debugPrint('Default overlay settings persisted for first launch');
+      }
+      debugPrint('Settings loaded from preferences');
+    } catch (e) {
+      debugPrint('Error loading settings: $e');
+    }
+  }
+
+  Future<void> _refreshOverlayPermission() async {
+    final hasOverlayPermission =
+        await FlutterOverlayWindow.isPermissionGranted();
+    if (mounted) {
+      setState(() => messagingOverlayEnabled = hasOverlayPermission);
+    }
+  }
+
+  Future<void> _showOverlayPermissionDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
         return Dialog(
@@ -118,8 +160,21 @@ class OverlayScreen extends StatefulWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    style: TextButton.styleFrom(
+                      foregroundColor: kPrimaryBlue,
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(40, 24),
+                    ),
+                    child: const Text('SKIP'),
+                  ),
+                ),
+                const SizedBox(height: 4),
                 const Text(
-                  'Overlay permission needed',
+                  'How to Use Overlay',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
@@ -141,7 +196,7 @@ class OverlayScreen extends StatefulWidget {
                 ),
                 const SizedBox(height: 22),
                 const Text(
-                  'Enable overlay and toggle ON in app',
+                  '1. Enable overlay and toggle ON in app',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -149,10 +204,37 @@ class OverlayScreen extends StatefulWidget {
                   ),
                   textAlign: TextAlign.center,
                 ),
-
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: kDailyChallengeRed,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    ...List.generate(4, (index) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
                 const SizedBox(height: 26),
                 Align(
-                  alignment: Alignment.center,
+                  alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: () {
                       Navigator.of(dialogContext).pop();
@@ -161,7 +243,7 @@ class OverlayScreen extends StatefulWidget {
                     style: TextButton.styleFrom(padding: EdgeInsets.zero),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 42,
+                        horizontal: 26,
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
@@ -169,7 +251,7 @@ class OverlayScreen extends StatefulWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Text(
-                        'Open Settings',
+                        'NEXT',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w700,

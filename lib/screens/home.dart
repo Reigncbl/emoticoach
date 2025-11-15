@@ -8,6 +8,8 @@ import '../services/telegram_service.dart';
 import '../services/session_service.dart';
 import '../controllers/badge_controller.dart';
 import '../models/badge_model.dart';
+import '../models/dailychallenge_model.dart';
+import '../services/daily_challenge_api.dart';
 import 'notifications/notification_screen.dart';
 import 'profile.dart';
 
@@ -28,12 +30,23 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
   bool _loadingBadges = true;
   bool _showAllBadges = false;
 
+      // == Daily Challenge ==
+  final DailyChallengeApi _dailyApi = DailyChallengeApi();
+  DailyChallenge? _dailyChallenge;
+  bool _dailyLoading = true;
+  bool _dailyClaiming = false;
+  bool _dailyClaimed = false;
+  int? _dailyAwardedXp;
+  String? _dailyError;
+
+
   @override
   void initState() {
     super.initState();
     loadUserData(); // Using the mixin method
     _loadRecentBadges();
     _checkTelegramAuthentication();
+    _loadDailyChallenge();
   }
 
   // === NAVIGATION FUNCTIONS ===
@@ -59,6 +72,117 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
       setState(() => _loadingBadges = false);
     }
   }
+      // ===============================
+  //  DAILY CHALLENGE METHODS
+  // ===============================
+  Future<void> _loadDailyChallenge() async {
+    setState(() {
+      _dailyLoading = true;
+      _dailyError = null;
+      _dailyClaimed = false;
+      _dailyAwardedXp = null;
+    });
+
+    try {
+      final ch = await _dailyApi.getTodayChallenge();
+      setState(() {
+        _dailyChallenge = ch;
+        _dailyLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _dailyError = e.toString();
+        _dailyLoading = false;
+      });
+    }
+  }
+
+  Future<void> _onDailyMarkComplete() async {
+    if (_dailyChallenge == null || _dailyClaiming || _dailyClaimed) return;
+
+    setState(() {
+      _dailyClaiming = true;
+      _dailyError = null;
+    });
+
+    try {
+      final result = await _dailyApi.claimChallenge(_dailyChallenge!.id);
+
+      setState(() {
+        _dailyClaimed = true;
+        _dailyClaiming = false;
+        _dailyAwardedXp = result.awarded;
+      });
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.alreadyClaimed
+                ? 'Already claimed today. Total XP: ${result.totalXp ?? '-'}'
+                : 'Challenge completed! +${result.awarded} XP (Total: ${result.totalXp ?? '-'})',
+          ),
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _dailyClaiming = false;
+        _dailyError = e.toString();
+      });
+    }
+  }
+
+  String _dailyButtonLabel() {
+    if (_dailyChallenge == null) return "Let's do it";
+
+    switch (_dailyChallenge!.type) {
+      case 'open_learning_tab':
+        return 'Go to Learning';
+      case 'open_article':
+        return 'Read an Article';
+      case 'open_book':
+        return 'Read a Book';
+      case 'start_simulation':
+        return 'Start a Simulation';
+      default:
+        return "Let's do it";
+    }
+  }
+
+  Future<void> _onDailyActionPressed() async {
+    if (_dailyChallenge == null) return;
+
+    final chType = _dailyChallenge!.type;
+    final mainScreenState =
+        context.findAncestorStateOfType<MainScreenState>();
+
+    if (mainScreenState != null) {
+      if (chType == 'open_learning_tab') {
+        LearningNavigationController().goToReadings();
+        mainScreenState.changeIndex(2);
+      } else if (chType == 'open_article' || chType == 'open_book') {
+        // For now, go to Readings tab
+        LearningNavigationController().goToReadings();
+        mainScreenState.changeIndex(2);
+
+        // TODO: auto-open random article/book here if you want
+      } else if (chType == 'start_simulation') {
+        LearningNavigationController().goToScenarios();
+        mainScreenState.changeIndex(2);
+
+        // TODO: auto-start random scenario here if you want
+      } else {
+        // Fallback: go to Learn tab
+        LearningNavigationController().goToReadings();
+        mainScreenState.changeIndex(2);
+      }
+    }
+
+    // Treat going to the correct area as completing the challenge for now
+    await _onDailyMarkComplete();
+  }
+
 
   Future<void> _checkTelegramAuthentication() async {
     try {
@@ -290,112 +414,157 @@ class _HomePageState extends State<HomePage> with UserDataMixin {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Daily Challenge Card
-                        Container(
-                          decoration: BoxDecoration(
-                            borderRadius: const BorderRadius.only(
-                              topRight: Radius.circular(18),
-                              bottomRight: Radius.circular(18),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                                offset: const Offset(0, 4),
+                        if (_dailyLoading)
+                          const Text(
+                            'Loading daily challenge...',
+                            style: TextStyle(color: Colors.black54),
+                          )
+                        else if (_dailyError != null)
+                          Text(
+                            'Failed to load daily challenge: $_dailyError',
+                            style: const TextStyle(color: Colors.red, fontSize: 14),
+                          )
+                        else if (_dailyChallenge == null)
+                          const Text(
+                            'No daily challenge for today.',
+                            style: TextStyle(color: Colors.black54),
+                          )
+                        else
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(18),
+                                bottomRight: Radius.circular(18),
                               ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.only(
-                              topRight: Radius.circular(18),
-                              bottomRight: Radius.circular(18),
-                            ),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 12,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 12,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 4),
                                 ),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.centerLeft,
-                                    end: Alignment.centerRight,
-                                    colors: [
-                                      Colors.white,
-                                      Colors.white.withOpacity(0.6),
-                                    ],
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                topRight: Radius.circular(18),
+                                bottomRight: Radius.circular(18),
+                              ),
+                              child: BackdropFilter(
+                                filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
                                   ),
-                                  border: const Border(
-                                    left: BorderSide(
-                                      color: kDailyChallengeRed,
-                                      width: 5,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                      colors: [
+                                        Colors.white,
+                                        Colors.white.withOpacity(0.6),
+                                      ],
+                                    ),
+                                    border: const Border(
+                                      left: BorderSide(
+                                        color: kDailyChallengeRed,
+                                        width: 5,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: const [
-                                        Icon(
-                                          Icons.flag,
-                                          color: kDailyChallengeRed,
-                                        ),
-                                        SizedBox(width: 8),
-                                        Text(
-                                          'Daily Challenge',
-                                          style: TextStyle(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: const [
+                                          Icon(
+                                            Icons.flag,
                                             color: kDailyChallengeRed,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 18,
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            'Daily Challenge',
+                                            style: TextStyle(
+                                              color: kDailyChallengeRed,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _dailyChallenge!.title,
+                                        style: const TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (_dailyChallenge!.description != null &&
+                                          _dailyChallenge!.description!.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          _dailyChallenge!.description!,
+                                          style: const TextStyle(
+                                            color: Colors.black87,
+                                            fontSize: 14,
                                           ),
                                         ),
                                       ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Ask someone about their day and really listen to their response without interrupting.',
-                                      style: TextStyle(
-                                        color: Colors.black87,
-                                        fontSize: 15,
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '+${_dailyChallenge!.xpReward} XP',
+                                        style: const TextStyle(
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: kDailyChallengeRed,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 10,
+                                      const SizedBox(height: 8),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor:
+                                                _dailyClaimed ? Colors.grey : kDailyChallengeRed,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 10,
+                                            ),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(
+                                                12,
+                                              ),
+                                            ),
+                                            elevation: 0,
                                           ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              12,
+                                          onPressed:
+                                              _dailyClaimed || _dailyClaiming ? null : _onDailyActionPressed,
+                                          child: Text(
+                                            _dailyClaimed
+                                                ? 'Completed${_dailyAwardedXp != null ? ' (+$_dailyAwardedXp XP)' : ''}'
+                                                : (_dailyClaiming ? 'Loading...' : _dailyButtonLabel()),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
                                             ),
                                           ),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: () {},
-                                        child: const Text(
-                                          'Mark Complete',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
 
                         const SizedBox(height: 25),
+
+
+                        const SizedBox(height: 25),
+
 
                         // Practice Chat & Learn
                         Row(

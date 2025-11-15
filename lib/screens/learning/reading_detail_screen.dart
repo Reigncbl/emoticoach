@@ -262,8 +262,8 @@ class ReadingDetailScreen extends StatelessWidget {
         final progress = await progressController.fetchProgress(mobileNumber, reading.id);
         
         if (progress != null && progress.currentPage != null && progress.currentPage! > 0) {
-          // If there's progress, start from the current page
-          startingPage = progress.currentPage!;
+          // If there's progress, start from the current page (round for regular books)
+          startingPage = progress.currentPage!.round();
           print('Found progress: starting from page $startingPage');
         } else {
           print('No progress found, starting from page 1');
