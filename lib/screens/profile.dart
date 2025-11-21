@@ -14,6 +14,7 @@ import '../services/experience_service.dart';
 import '../models/user_experience.dart';
 import '../controllers/badge_controller.dart';
 import '../models/badge_model.dart';
+import '../controllers/stats_controller.dart';
 
 late final ExperienceController _xpController;
 
@@ -30,6 +31,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   final TelegramService _telegramService = TelegramService();
   final ExperienceController _xpController = ExperienceController(ExperienceService());
   final BadgeController _badgeController = BadgeController();
+  final StatsController _statsController = StatsController();
 
   // === ACTIVITY STATE ===
   List<Map<String, dynamic>> _activities = [];
@@ -55,6 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
   Future<void> _refreshProfile() async {
     print('🔄 Refreshing profile screen...');
 
+    await _loadStats();
     // Reload name / greeting from mixin
     await loadUserData();
 
@@ -281,6 +284,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
     _loadActivities(); 
     _loadExperience();
     _checkTelegramAuthentication(); // Check Telegram authentication status
+    _loadStats();
   }
 
   Future<void> _loadExperience() async {
@@ -303,6 +307,16 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
       setState(() => _loadingBadges = false);
     }
   }
+
+  // Load user stats
+  Future<void> _loadStats() async {
+  final userId = await AuthUtils.getSafeUserId();
+  if (userId != null) {
+    await _statsController.loadStats(userId);
+    if (mounted) setState(() {});
+  }
+}
+
 
   // Activity Section Subtitle
   String _formatSubtitle(ActivityType type, String subtitle) {
@@ -1137,7 +1151,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                         Expanded(
                           child: _buildStatCard(
                             title: 'Scenarios',
-                            value: '12',
+                            value: '${_statsController.stats?.scenarioCount ?? 0}',
                             color: kBrightBlue,
                           ),
                         ),
@@ -1145,7 +1159,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                         Expanded(
                           child: _buildStatCard(
                             title: 'Articles',
-                            value: '12',
+                            value: '${_statsController.stats?.articleCount ?? 0}',
                             color: kBrightOrange,
                           ),
                         ),
@@ -1153,7 +1167,7 @@ class _ProfileScreenState extends State<ProfileScreen> with UserDataMixin {
                         Expanded(
                           child: _buildStatCard(
                             title: 'Avg. Score',
-                            value: '5',
+                            value: '${_statsController.stats?.overallAvgScore.toStringAsFixed(1) ?? "0"}',
                             color: kBrightBlue,
                           ),
                         ),

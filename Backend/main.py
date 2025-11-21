@@ -20,7 +20,8 @@ from routes import (
     achievement_routes,
     cache_routes,
     support_routes,
-    daily_routes
+    daily_routes,
+    stat_routes
 )
 
 print("Done importing routes...")
@@ -54,6 +55,7 @@ app.include_router(achievement_routes)
 app.include_router(cache_routes)
 app.include_router(support_routes)
 app.include_router(daily_routes)
+app.include_router(stat_routes)
 # Health check endpoint
 @app.get("/")
 async def root():
