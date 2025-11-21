@@ -17,6 +17,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'utils/overlay_clipboard_helper.dart';
 import 'services/local_notification_service.dart';
 import 'firebase_options.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 
 final RouteObserver<PageRoute> routeObserver = RouteObserver<PageRoute>();
 
@@ -41,6 +42,9 @@ void main() async {
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.playIntegrity,
   );
 
   await LocalNotificationService.initialize();

@@ -10,6 +10,7 @@ from .user_achievement_routes import achievement_router as achievement_routes
 from .cache_routes import cache_router as cache_routes
 from .support_routes import support_router as support_routes
 from .daily_routes import router as daily_routes
+from .stat_routes import router as stat_routes
 
 __all__ = [
 	"book_routes",
@@ -24,4 +25,5 @@ __all__ = [
 	"cache_routes",
 	"support_routes",
     "daily_routes"
+    "stat_routes"
 ]

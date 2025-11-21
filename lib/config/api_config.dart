@@ -69,4 +69,7 @@ class ApiConfig {
   // === DAILY CHALLENGE ===
   static String get dailyChallenge => '$baseUrl/daily/challenge';
   static String get dailyClaim => '$baseUrl/daily/claim';
+
+  // === STATS ===
+  static String stats(String userId) => '$baseUrl/stats/$userId';
 }
