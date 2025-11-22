@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_overlay_window/flutter_overlay_window.dart';
@@ -30,9 +31,12 @@ class _OverlayUIState extends State<OverlayUI> {
   Timer? _monitorStartDelayTimer;
   Timer? _positionCheckTimer;
   Timer? _closeDelayTimer;
+  Timer? _loadingTimeoutTimer;
   bool _isInCloseZone = false;
+  bool _loadingTimedOut = false;
   static const double _closeThresholdPercent = 0.80; // 80% down the screen
   static const int _closeDelayMs = 1500; // 500ms delay before closing
+  static const Duration _loadingTimeout = Duration(seconds: 8);
 
   @override
   void initState() {
@@ -49,6 +53,7 @@ class _OverlayUIState extends State<OverlayUI> {
     _stopPositionMonitoring();
     _closeDelayTimer?.cancel();
     _monitorStartDelayTimer?.cancel();
+    _loadingTimeoutTimer?.cancel();
     super.dispose();
   }
 
@@ -187,6 +192,9 @@ class _OverlayUIState extends State<OverlayUI> {
       setState(() {
         _userPhoneNumber = phoneNumber ?? '';
       });
+      if (_userPhoneNumber.isNotEmpty) {
+        _resetLoadingTimeout();
+      }
     }
   }
 
@@ -204,6 +212,31 @@ class _OverlayUIState extends State<OverlayUI> {
     return view.physicalSize.width / view.devicePixelRatio;
   }
 
+  void _startLoadingTimeoutIfNeeded() {
+    if (_loadingTimeoutTimer != null || _loadingTimedOut) {
+      return;
+    }
+    _loadingTimeoutTimer = Timer(_loadingTimeout, () {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _loadingTimedOut = true;
+      });
+    });
+  }
+
+  void _resetLoadingTimeout() {
+    _loadingTimeoutTimer?.cancel();
+    _loadingTimeoutTimer = null;
+    _loadingTimedOut = false;
+  }
+
+  void _retryLoadingSessionData() {
+    _resetLoadingTimeout();
+    _loadUserPhoneNumber();
+  }
+
   Future<void> _setOverlayFocus(bool focusable) async {
     try {
       await FlutterOverlayWindow.updateFlag(
@@ -215,9 +248,11 @@ class _OverlayUIState extends State<OverlayUI> {
   }
 
   int _expandedOverlayWidth() {
-    final width = _deviceLogicalWidth() ?? MediaQuery.of(context).size.width;
-    final desiredWidth = width * 0.95;
-    final clampedWidth = desiredWidth.clamp(400.0, 500.0);
+    final screenWidth = _deviceLogicalWidth() ?? MediaQuery.of(context).size.width;
+    final double maxWidth = math.min(500.0, screenWidth - 20.0);
+    final double minWidth = 400.0;
+    final desiredWidth = screenWidth * 0.95;
+    final clampedWidth = desiredWidth.clamp(minWidth, math.max(minWidth, maxWidth));
     return clampedWidth.toInt();
   }
 
@@ -225,9 +260,14 @@ class _OverlayUIState extends State<OverlayUI> {
     int width,
     int height, {
     required bool enableDrag,
+    double? previousWidth,
+    bool preserveRightEdge = false,
+    double? preferredX,
+    double? preferredY,
   }) async {
     OverlayPosition? originalPosition;
     final screenWidth = _deviceLogicalWidth();
+    final screenHeight = _getScreenHeight();
 
     if (screenWidth != null) {
       try {
@@ -252,33 +292,94 @@ class _OverlayUIState extends State<OverlayUI> {
         currentPosition = originalPosition;
       }
 
-      final double maxAllowedX = (screenWidth - width).clamp(
-        0.0,
-        double.infinity,
-      );
+      final double maxAllowedX = math.max(0.0, screenWidth - width);
+      final double maxAllowedY = screenHeight != null
+          ? math.max(0.0, screenHeight - height.toDouble())
+          : double.infinity;
       final double fallbackY = currentPosition?.y ?? originalPosition?.y ?? 0;
 
-      double? currentX = currentPosition?.x;
+      double? calculatedX;
 
-      // If we still can't determine the current X, keep the overlay on-screen by
-      // anchoring it to the right edge (maxAllowedX) which guarantees visibility.
-      if (currentX == null) {
-        await FlutterOverlayWindow.moveOverlay(
-          OverlayPosition(maxAllowedX, fallbackY),
-        );
-        return;
+      if (preferredX != null) {
+        calculatedX = preferredX;
+      } else if (preserveRightEdge &&
+          previousWidth != null &&
+          previousWidth > 0) {
+        final rightEdge = (originalPosition?.x ?? 0) + previousWidth;
+        calculatedX = rightEdge - width;
+      } else {
+        calculatedX = currentPosition?.x ?? originalPosition?.x;
       }
 
-      final double targetX = currentX.clamp(0.0, maxAllowedX);
+      calculatedX ??= maxAllowedX;
+      final double targetX = calculatedX.clamp(0.0, maxAllowedX);
+      final double currentX = currentPosition?.x ?? calculatedX;
+        final double targetY = ((preferredY ?? fallbackY)
+            .clamp(0.0, maxAllowedY.isFinite ? maxAllowedY : double.infinity))
+          .toDouble();
+      final double currentY = currentPosition?.y ?? fallbackY;
 
-      if ((targetX - currentX).abs() > 0.5) {
+      if ((targetX - currentX).abs() > 0.5 || (targetY - currentY).abs() > 0.5) {
         await FlutterOverlayWindow.moveOverlay(
-          OverlayPosition(targetX, fallbackY),
+          OverlayPosition(targetX, targetY),
         );
       }
     } catch (e) {
       debugPrint('Failed to adjust overlay position after resize: $e');
     }
+  }
+
+  Future<void> _centerExpandedOverlay({int height = 550}) async {
+    final width = _expandedOverlayWidth();
+    final screenWidth =
+        _deviceLogicalWidth() ?? MediaQuery.of(context).size.width;
+    final centeredX = math.max(0.0, (screenWidth - width) / 2);
+    await _resizeOverlaySafely(
+      width,
+      height,
+      enableDrag: false,
+      preferredX: centeredX,
+    );
+  }
+
+  Future<void> _openExpandedOverlayFromCircle({int height = 550}) async {
+    final width = _expandedOverlayWidth();
+    final screenWidth =
+        _deviceLogicalWidth() ?? MediaQuery.of(context).size.width;
+
+    if (screenWidth <= 0) {
+      await _centerExpandedOverlay(height: height);
+      return;
+    }
+
+    double targetX = math.max(0.0, (screenWidth - width) / 2);
+    double? targetY;
+
+    try {
+      final position = await FlutterOverlayWindow.getOverlayPosition();
+      final bubbleDiameter = 80.0;
+      final bubbleCenterX = position.x + (bubbleDiameter / 2);
+      final isRightSide = bubbleCenterX >= (screenWidth / 2);
+
+        final screenHeight = _getScreenHeight();
+        const desiredOffset = 200.0;
+        targetY = screenHeight != null
+          ? math.min(desiredOffset, math.max(0.0, screenHeight - height.toDouble()))
+          : desiredOffset;
+      targetX = isRightSide
+          ? math.max(0.0, screenWidth - width)
+          : 0.0;
+    } catch (e) {
+      debugPrint('Failed to determine bubble side: $e');
+    }
+
+    await _resizeOverlaySafely(
+      width,
+      height,
+      enableDrag: false,
+      preferredX: targetX,
+      preferredY: targetY,
+    );
   }
 
   @override
@@ -304,8 +405,7 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going back to main screen
   void _goBackToMainScreen() async {
-    final overlayWidth = _expandedOverlayWidth();
-    await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
+    await _centerExpandedOverlay();
     setState(() {
       _showEditScreen = false;
     });
@@ -313,8 +413,7 @@ class _OverlayUIState extends State<OverlayUI> {
 
   // Add this method to handle going to edit screen
   void _goToEditScreen(String initialText) async {
-    final overlayWidth = _expandedOverlayWidth();
-    await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
+    await _centerExpandedOverlay();
     await _setOverlayFocus(true);
     setState(() {
       _draftResponse = initialText.isNotEmpty
@@ -327,8 +426,7 @@ class _OverlayUIState extends State<OverlayUI> {
   Widget _buildCircleView() {
     return GestureDetector(
       onTap: () async {
-        final overlayWidth = _expandedOverlayWidth();
-        await _resizeOverlaySafely(overlayWidth, 550, enableDrag: false);
+        await _openExpandedOverlayFromCircle();
         await _setOverlayFocus(true);
         setState(() {
           _currentShape = BoxShape.rectangle;
@@ -389,7 +487,16 @@ class _OverlayUIState extends State<OverlayUI> {
   void _closeOverlay() async {
     _cancelCloseDelay();
     _isInCloseZone = false;
-    await _resizeOverlaySafely(80, 80, enableDrag: true);
+    _resetLoadingTimeout();
+    final expandedWidth = _expandedOverlayWidth().toDouble();
+    await _resizeOverlaySafely(
+      80,
+      80,
+      enableDrag: true,
+      previousWidth: expandedWidth,
+      preserveRightEdge: false,
+      preferredX: 0,
+    );
     await _setOverlayFocus(false);
     setState(() {
       _currentShape = BoxShape.circle;
@@ -403,15 +510,7 @@ class _OverlayUIState extends State<OverlayUI> {
   Widget _buildContactsListView() {
     // Don't show contacts list if user phone number is not loaded yet
     if (_userPhoneNumber.isEmpty) {
-      return Container(
-        width: 400,
-        height: 550,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
+      return _buildLoadingPlaceholder(message: 'Loading your contacts...');
     }
 
     return ContactsListView(
@@ -424,15 +523,7 @@ class _OverlayUIState extends State<OverlayUI> {
   Widget _buildAnalysisView() {
     // Don't show analysis view if user phone number is not loaded yet
     if (_userPhoneNumber.isEmpty) {
-      return Container(
-        width: 400,
-        height: 550,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Center(child: CircularProgressIndicator()),
-      );
+      return _buildLoadingPlaceholder(message: 'Preparing messaging coach...');
     }
 
     return AnalysisView(
@@ -443,6 +534,91 @@ class _OverlayUIState extends State<OverlayUI> {
       onClose: _closeOverlay,
       onEdit: _goToEditScreen,
       onBackToContacts: _goBackToContacts,
+    );
+  }
+
+  Widget _buildLoadingPlaceholder({required String message}) {
+    _startLoadingTimeoutIfNeeded();
+    if (_loadingTimedOut) {
+      return _buildLoadingTimeoutFallback(message: message);
+    }
+    return _buildBaseContainer(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 20),
+          Text(
+            message,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Hang tight, this can take a moment.',
+            style: TextStyle(color: Colors.black54),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingTimeoutFallback({required String message}) {
+    return _buildBaseContainer(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.hourglass_disabled,
+            size: 48,
+            color: Colors.deepPurple,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Still loading...',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "$message\nIt's taking longer than expected.",
+            style: const TextStyle(color: Colors.black54),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+                onPressed: _retryLoadingSessionData,
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.expand_more),
+                label: const Text('Collapse'),
+                onPressed: _closeOverlay,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBaseContainer({required Widget child}) {
+    return Container(
+      width: 400,
+      height: 550,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: child,
     );
   }
 }
