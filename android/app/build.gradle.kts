@@ -51,6 +51,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode
         versionName = flutterVersionName
+        manifestPlaceholders["applicationName"] = "com.example.emoticoach.MainApplication"
         
         // WebView optimization
         multiDexEnabled = true
@@ -91,6 +92,8 @@ flutter {
 }
 
 dependencies {
+    implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
+    implementation("com.google.firebase:firebase-appcheck-playintegrity")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.3")
 }

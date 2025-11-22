@@ -4,14 +4,14 @@ import android.app.Application
 import android.os.Build
 import android.util.Log
 import android.webkit.WebView
-import io.flutter.embedding.engine.FlutterEngine
-import io.flutter.embedding.engine.FlutterEngineCache
-import io.flutter.embedding.engine.dart.DartExecutor
-import io.flutter.plugin.common.MethodChannel
+import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 
 class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        ensureFirebaseAppCheck()
         
         // Enable WebView debugging
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -48,6 +48,21 @@ class MainApplication : Application() {
             Log.d("MainApplication", "WebView default settings configured successfully")
         } catch (e: Exception) {
             Log.e("MainApplication", "Error configuring WebView settings: ${e.message}")
+        }
+    }
+
+    private fun ensureFirebaseAppCheck() {
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this)
+            }
+            val firebaseAppCheck = FirebaseAppCheck.getInstance()
+            firebaseAppCheck.installAppCheckProviderFactory(
+                PlayIntegrityAppCheckProviderFactory.getInstance()
+            )
+            Log.d("MainApplication", "Firebase App Check Play Integrity initialized")
+        } catch (e: Exception) {
+            Log.e("MainApplication", "Failed to initialize Firebase App Check", e)
         }
     }
 }

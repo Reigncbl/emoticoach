@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:developer';
 import 'dart:async';
 import 'dart:isolate';
@@ -44,8 +45,10 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-  );
+  androidProvider: kReleaseMode
+      ? AndroidProvider.playIntegrity
+      : AndroidProvider.debug,
+);
 
   await LocalNotificationService.initialize();
 
