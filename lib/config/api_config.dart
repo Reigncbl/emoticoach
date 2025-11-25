@@ -1,6 +1,6 @@
 class ApiConfig {
   // Change this IP address when needed
-  static const String baseUrl = 'https://192.168.1.7:8000';
+  static const String baseUrl = 'http://192.168.1.7:8000';
 
   // === USER ENDPOINTS ===
   static String get checkMobile => '$baseUrl/users/check-mobile';

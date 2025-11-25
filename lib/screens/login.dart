@@ -114,10 +114,69 @@ class _LoginScreenState extends State<LoginScreen> {
     return phoneInput.startsWith('+') ? phoneInput : '+63$cleaned';
   }
 
-  // Enhanced user existence check - simplified (always return true)
+
   Future<bool> _checkUserExists(String mobileNumber) async {
-    // For simple client-side session, always allow login
-    return true;
+    try {
+      // mobileNumber should already be in +63 format from _formatPhoneNumber()
+
+      final uri = Uri.parse(ApiConfig.checkMobile).replace(
+        queryParameters: {'mobile_number': mobileNumber},
+      );
+
+      final response = await http
+          .get(
+            uri,
+            headers: const {
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      print('checkUserExists status: ${response.statusCode}');
+      print('checkUserExists body: ${response.body}');
+
+      if (response.statusCode != 200) {
+        // Show a message to the user
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to verify your number. Please try again.'),
+          ),
+        );
+        return false;
+      }
+
+      final data = json.decode(response.body);
+
+      if (data['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              (data['error'] ?? 'Unable to verify your number. Please try again.')
+                  .toString(),
+            ),
+          ),
+        );
+        return false;
+      }
+
+      final exists = data['exists'] == true;
+
+      // If it doesn't exist, we don't show a SnackBar here,
+      // because _handleSendSms already shows the "not registered" message.
+      return exists;
+    } catch (e) {
+      print('Error in _checkUserExists: $e');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: $e',
+          ),
+        ),
+      );
+
+      return false;
+    }
   }
 
   // Send verification data to backend after Firebase Auth success

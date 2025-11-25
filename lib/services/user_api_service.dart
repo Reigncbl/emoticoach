@@ -12,17 +12,7 @@ class UserApiService {
 
   UserApiService({http.Client? client}) : _client = client ?? http.Client() {
     // Single source of truth for API base URL
-    if (kIsWeb) {
-      baseUrl = "http://localhost:8000"; // Web
-    } else if (Platform.isAndroid) {
-      baseUrl =
-          "http://192.168.100.195:8000"; // Android - matches your login.dart
-    } else if (Platform.isIOS) {
-      baseUrl = "http://localhost:8000"; // iOS simulator
-    } else {
-      baseUrl = "http://localhost:8000"; // Desktop/other
-    }
-
+    baseUrl = ApiConfig.baseUrl;
     print('UserApiService initialized with baseUrl: $baseUrl');
   }
 
@@ -33,15 +23,14 @@ class UserApiService {
   /// Check if mobile number already exists during registration
   Future<bool> checkMobileExists(String mobileNumber) async {
     try {
-      print('Checking if mobile exists: $mobileNumber');
-      final response = await _client
-          .get(
-            Uri.parse(
-              '$baseUrl/users/check-mobile?mobile_number=$mobileNumber',
-            ),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(const Duration(seconds: 15));
+      final uri = Uri.parse(ApiConfig.checkMobile).replace(
+        queryParameters: {'mobile_number': mobileNumber},
+      );
+
+      final response = await _client.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
 
       print('Check mobile response: ${response.statusCode}');
       print('Check mobile body: ${response.body}');
@@ -65,7 +54,7 @@ class UserApiService {
       final request = SMSRequest(mobileNumber: mobileNumber);
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/users/send-sms'),
+            Uri.parse(ApiConfig.sendSms),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -142,7 +131,7 @@ class UserApiService {
       final request = SMSRequest(mobileNumber: mobileNumber);
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/users/send-login-otp'),
+            Uri.parse(ApiConfig.sendLoginOtp),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -184,7 +173,7 @@ class UserApiService {
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/users/verify-login-otp'),
+            Uri.parse(ApiConfig.verifyLoginOtp),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -216,7 +205,7 @@ class UserApiService {
       final request = LoginRequest(mobileNumber: mobileNumber);
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/users/login-mobile'),
+            Uri.parse(ApiConfig.loginMobile),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(request.toJson()),
           )
@@ -329,7 +318,7 @@ class UserApiService {
 
       final response = await _client
           .post(
-            Uri.parse('$baseUrl/users/create-firebase-user'),
+            Uri.parse(ApiConfig.createFirebaseUser),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(requestBody),
           )
