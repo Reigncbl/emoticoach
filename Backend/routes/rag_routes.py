@@ -25,7 +25,7 @@ class ManualAnalysisRequest(BaseModel):
 def get_messages_for_conversation(
     user_id: str,
     contact_id: int,
-    limit: int = 10,
+    limit: int = 3,
     start_time=None,
     end_time=None,
 ) -> List[Message]:
@@ -131,7 +131,7 @@ def rag_sender_context(
     user_id: str = Query(..., description="The Firebase user ID"),
     contact_id: int = Query(..., description="Contact ID of the contact (Sender or Receiver)"),
     query: str = Query("", description="Optional user instruction or query"),
-    limit: int = Query(10, description="Number of messages to fetch"),
+    limit: int = Query(3, description="Number of messages to fetch"),
     start_time: str = Query(None, description="Start timestamp (YYYY-MM-DD HH:MM:SS)"),
     end_time: str = Query(None, description="End timestamp (YYYY-MM-DD HH:MM:SS)"),
     desired_tone: str | None = Query(
@@ -249,7 +249,8 @@ def recent_emotion_context(
     # one of the user's possible display names (handles varying Telegram names).
     user_true_name = get_true_name_from_userid(user_id)
     user_name_candidates = get_user_name_candidates(user_id)
-    recent_messages = get_messages_for_conversation(user_id, contact_id, limit=50)
+    # Only fetch the most recent 3 messages for context by default
+    recent_messages = get_messages_for_conversation(user_id, contact_id, limit=3)
     # Find most recent message sent by contact
     latest_message = next(
         (m for m in recent_messages if _normalize_name(m.Sender) not in user_name_candidates),

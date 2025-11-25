@@ -226,7 +226,7 @@ async def get_contacts(user_id: str = Query(...), db: Session = Depends(get_db))
         await client.disconnect()
 
 
-# Refactored endpoint: Get last 10 messages from a contact using contact_id (for multiuser setup)
+# Refactored endpoint: Get last 3 messages from a contact using contact_id (for multiuser setup)
 @multiuser_router.post("/contact_messages")
 async def get_contact_messages_multiuser(
     user_id: str = Query(None),
@@ -237,7 +237,7 @@ async def get_contact_messages_multiuser(
     if data:
         user_id = data.get("user_id", user_id)
         contact_id = data.get("contact_id", contact_id)
-    """Gets the last 10 messages from a contact using contact_id, ready for emotion analysis integration."""
+    """Gets the last 3 messages from a contact using contact_id, ready for emotion analysis integration."""
     stmt = select(TelegramSession).where(TelegramSession.user_id == user_id)
     db_session = db.exec(stmt).first()
 
@@ -253,7 +253,7 @@ async def get_contact_messages_multiuser(
 
         history = await client(GetHistoryRequest(
             peer=contact_id,
-            limit=10,
+            limit=3,
             offset_date=None,
             offset_id=0,
             max_id=0,
@@ -264,7 +264,9 @@ async def get_contact_messages_multiuser(
 
         messages = []
         message_texts = []
-        for m in history.messages:
+        # ensure we only handle up to 3 messages, in case Telethon returns more than requested
+        history_messages = list(history.messages)[:3]
+        for m in history_messages:
             if not m.message:
                 continue
             msg_entry = {
@@ -295,7 +297,7 @@ async def get_contact_messages_multiuser(
         await client.disconnect()
 
 
-# Endpoint: Get last 10 messages from a contact_id with embedding and emotion analysis
+# Endpoint: Get last 3 messages from a contact_id with embedding and emotion analysis
 @multiuser_router.post("/contact_messages_embed")
 async def get_contact_messages_embed(
     user_id: str = Query(None),
@@ -306,7 +308,7 @@ async def get_contact_messages_embed(
     if data:
         user_id = data.get("user_id", user_id)
         contact_id = data.get("contact_id", contact_id)
-    """Gets the last 10 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results. Includes contact_id in the response."""
+    """Gets the last 3 messages from a contact (by contact_id), creates semantic and emotion embeddings, saves to DB, and returns results. Includes contact_id in the response."""
     
     # Check cache first
     cached_conversation = MessageCache.get_cached_conversation(user_id, contact_id)

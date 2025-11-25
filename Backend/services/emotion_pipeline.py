@@ -101,6 +101,110 @@ Translation:"""
             print(f"Translation error: {e}")
             return text
 
+    def _translate_batch(self, texts: list, chunk_size: int = 8) -> list:
+        """Translate a list of texts in as few calls as possible using Groq.
+
+        - Checks cache (MessageCache) for already-translated inputs and uses those.
+        - Sends inputs in chunks to avoid token limits.
+        - Attempts to parse a JSON array [{"id":0,"translation":"..."}, ...] from the model.
+        - Falls back to per-item translate if the model output can't be parsed.
+        """
+        if not texts:
+            return []
+
+        # If Groq isn't available, just return originals
+        if not self.groq_client or not self.groq_model:
+            return list(texts)
+
+        # Results array in original order
+        results = [None] * len(texts)
+
+        # Prepare list of items that need translation (skip cache hits)
+        to_translate = []  # list of (idx, text)
+        for idx, t in enumerate(texts):
+            if CACHE_AVAILABLE:
+                cached = MessageCache.get_cached_emotion_analysis(t)
+                if cached and cached.get("processed_text"):
+                    results[idx] = cached.get("processed_text")
+                    continue
+            to_translate.append((idx, t))
+
+        # Helper to parse expected JSON output from model
+        def _parse_json_output(content: str):
+            import json
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, list):
+                    return parsed
+            except Exception:
+                return None
+            return None
+
+        # Chunk the untranslated items and call the model
+        for start in range(0, len(to_translate), chunk_size):
+            chunk = to_translate[start:start + chunk_size]
+            ids = [i for (i, _) in chunk]
+            chunk_texts = [t for (_, t) in chunk]
+
+            # Build a structured prompt asking for JSON output
+            items_block = "\n".join([f"{i}: {t}" for i, t in zip(ids, chunk_texts)])
+            prompt = (
+                "Translate the following texts to English preserving the EXACT emotional intensity, "
+                "informal tone (slang stays slang) and punctuation. Return EXACTLY valid JSON: "
+                "[{\"id\":<id>, \"translation\": \"...\"}, ...] with the original ids.\n\n"
+                f"Texts:\n{items_block}\n\nJSON:"
+            )
+
+            try:
+                resp = self.groq_client.chat.completions.create(
+                    messages=[
+                        {"role": "system", "content": "You are a precise Filipino-English translator, keep emotional intensity and informal language exactly."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    model=self.groq_model,
+                    temperature=0.1,
+                    max_tokens=2000
+                )
+
+                content = resp.choices[0].message.content.strip()
+
+                parsed = _parse_json_output(content)
+                if parsed:
+                    # map back to indices
+                    for item in parsed:
+                        try:
+                            item_id = int(item.get("id"))
+                            translation = item.get("translation") or item.get("text") or ""
+                            results[item_id] = translation
+                        except Exception:
+                            continue
+                else:
+                    # Fallback: try splitting lines and heuristics
+                    lines = [l.strip() for l in content.splitlines() if l.strip()]
+                    for line, (idx, _) in zip(lines, chunk):
+                        # naive assignment — better to fallback to single translations
+                        results[idx] = line
+
+                # If some results were not parsed, fallback to per-item translation for those
+                missing = [i for i, r in zip(ids, [results[i] for i in ids]) if r is None]
+                if missing:
+                    for mi in missing:
+                        _, raw_text = next(filter(lambda x: x[0] == mi, chunk))
+                        results[mi] = self._translate_text(raw_text)
+
+            except Exception as e:
+                # On failure, try per-item translation to be safe
+                print(f"Batch translation failed: {e}, falling back to per-item translations")
+                for idx, raw_text in chunk:
+                    results[idx] = self._translate_text(raw_text)
+
+        # For anything still None, fill with original text
+        for i, r in enumerate(results):
+            if r is None:
+                results[i] = texts[i]
+
+        return results
+
     def get_embedding(self, text: str, translate_if_needed: bool = True) -> List[float]:
         """Generate emotion embedding for the input text.
         
@@ -276,6 +380,96 @@ Translation:"""
             print(f"💾 Cached full emotion analysis")
         
         return result
+
+    def analyze_texts_full(self, texts: list, translate_if_needed: bool = True) -> list:
+        """Analyze multiple texts in one call.
+
+        - Performs batched translation for all texts that need it.
+        - Reuses cache when available.
+        - Returns a list of analysis dicts (same shape as analyze_text_full result) in input order.
+        """
+        # Output list
+        results = [None] * len(texts)
+
+        # Keep track of indices that require processing
+        to_process_idx = []
+        to_process_texts = []
+
+        # Check cache first
+        for i, t in enumerate(texts):
+            if CACHE_AVAILABLE:
+                cached = MessageCache.get_cached_emotion_analysis(t)
+                if cached and 'vector' in cached and 'labels' in cached:
+                    print(f"✅ Cache hit for full emotion analysis (batch) for index {i}")
+                    results[i] = {
+                        "original_text": t,
+                        "processed_text": cached.get('processed_text'),
+                        "embedding": cached['vector'],
+                        "emotion_scores": cached['labels'],
+                        "dominant_emotion": cached.get('top'),
+                        "dominant_score": cached['labels'].get(cached.get('top'), 0.0)
+                    }
+                    continue
+            to_process_idx.append(i)
+            to_process_texts.append(t)
+
+        # Nothing to do
+        if not to_process_texts:
+            return results
+
+        # Translate in batch if requested
+        if translate_if_needed:
+            processed_texts = self._translate_batch(to_process_texts)
+        else:
+            processed_texts = list(to_process_texts)
+
+        # Generate embeddings and analysis per item
+        for local_idx, processed_text in enumerate(processed_texts):
+            i = to_process_idx[local_idx]
+            try:
+                embedding = self.get_embedding(processed_text, translate_if_needed=False)
+                scores = {label: score for label, score in zip(self.label_names, embedding)}
+                dominant_emotion = self.get_final_emotion(processed_text)
+                dominant_score = scores.get(dominant_emotion, 0.0)
+
+                # Generate interpretation (may call Groq per-item)
+                interp = interpretation({"emotion_scores": scores}, dominant_emotion)
+
+                result = {
+                    "original_text": texts[i],
+                    "processed_text": processed_text if processed_text != texts[i] else None,
+                    "embedding": embedding,
+                    "emotion_scores": scores,
+                    "dominant_emotion": dominant_emotion,
+                    "dominant_score": dominant_score,
+                    "interpretation": interp
+                }
+
+                # Cache it
+                if CACHE_AVAILABLE:
+                    cache_data = {
+                        'vector': embedding,
+                        'labels': scores,
+                        'top': dominant_emotion,
+                        'processed_text': processed_text if processed_text != texts[i] else None
+                    }
+                    MessageCache.cache_emotion_analysis(texts[i], cache_data)
+
+                results[i] = result
+
+            except Exception as e:
+                print(f"Batch analysis failed at index {i}: {e}")
+                results[i] = {
+                    "original_text": texts[i],
+                    "processed_text": None,
+                    "embedding": [0.0] * len(self.label_names),
+                    "emotion_scores": {label: 0.0 for label in self.label_names},
+                    "dominant_emotion": "neutral",
+                    "dominant_score": 0.0,
+                    "interpretation": "Unable to analyze emotions for this text."
+                }
+
+        return results
 
     def _detect_filipino_emotion_keywords(self, text: str) -> Dict[str, float]:
         """Detect Filipino emotion keywords and boost corresponding emotions."""
@@ -649,3 +843,20 @@ def analyze_emotion(text: str, user_name: str = None) -> Dict:
             "error": str(e),
             "user_context": user_name
         }
+
+
+def analyze_emotions(texts: list, user_name: str = None) -> list:
+    """Batch variant: analyze multiple texts using the pipeline's batch analyzer.
+
+    Returns a list of analysis dicts in the same order as `texts`.
+    """
+    try:
+        pipeline = get_pipeline()
+        return pipeline.analyze_texts_full(texts, translate_if_needed=True)
+    except Exception as e:
+        print(f"analyze_emotions error: {e}")
+        # Fallback: attempt to analyze one by one
+        results = []
+        for t in texts:
+            results.append(analyze_emotion(t, user_name=user_name))
+        return results

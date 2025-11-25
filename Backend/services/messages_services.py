@@ -185,8 +185,17 @@ async def save_messages_to_db(messages: list, phone_number: str, embeddings: lis
                     emo_labels = emo_out["labels"]
                     top_emotion = emo_out["top"]
                     interpretation_text = emo_out.get("interpretation", "No interpretation available.")
-                    if emo_out.get("processed_text") and emo_out["processed_text"] != emo_out["original_text"]:
-                        print(f"Message translated: '{emo_out['original_text']}' -> '{emo_out['processed_text']}'")
+                    # Safely handle optional translation/processing fields that may be
+                    # present in some emotion outputs but not others. Older or different
+                    # emotion providers may omit `original_text` while providing
+                    # `processed_text`, which previously caused a KeyError and aborted
+                    # the DB save. Use .get() and log accordingly.
+                    processed_text = emo_out.get("processed_text")
+                    original_text = emo_out.get("original_text")
+                    if processed_text and original_text and processed_text != original_text:
+                        print(f"Message translated: '{original_text}' -> '{processed_text}'")
+                    elif processed_text and not original_text:
+                        print(f"Message has processed_text but missing original_text: processed='{processed_text[:80]}'")
 
                 message_id = str(uuid.uuid4())
                 message = Message(
@@ -230,6 +239,31 @@ def get_conversation_context(sender: str, receiver: str, limit: int ) -> str:
         print(f"Error getting conversation context: {e}")
         return ""
 
+
+# Helper: resolve a friendly display name for the app user (accepts either Firebase UID or phone)
+def _resolve_display_name_for_user(user_identifier: str) -> str:
+    try:
+        with Session(engine) as session:
+            from model.userinfo import UserInfo
+            # Try by UserId first
+            user = session.get(UserInfo, user_identifier)
+            if user:
+                full = " ".join(filter(None, [user.FirstName, user.LastName])).strip()
+                return full if full else user.UserId
+
+            # Fallback: try MobileNumber
+            stmt = select(UserInfo).where(UserInfo.MobileNumber == user_identifier)
+            user2 = session.exec(stmt).first()
+            if user2:
+                full = " ".join(filter(None, [user2.FirstName, user2.LastName])).strip()
+                return full if full else user2.UserId
+
+    except Exception as e:
+        print(f"Error resolving display name for '{user_identifier}': {e}")
+
+    # Fallback to returning the identifier itself
+    return user_identifier
+
 async def get_contact_messages(phone_number: str , contact_data: dict = None) -> dict:
     client = await get_client(phone_number)
     await client.connect()
@@ -249,7 +283,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
     message_texts = []
     
     # First, collect all messages
-    async for msg in client.iter_messages(user.id, limit=10):
+    async for msg in client.iter_messages(user.id, limit=3):
         if not msg.text:
             continue
             
@@ -284,37 +318,29 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
                     embedding_vectors.append([0.0] * 1024)
             
             # Create emotion outputs using the new method with interpretations
-            emotion_outputs = []
-            for text in message_texts:
-                try:
-                    # Get emotion data from RAG pipeline
-                    emotion_data = rag.get_emotion_data(text)
-                    
-                    # Generate interpretation using the emotion pipeline
-                    from services.emotion_pipeline import analyze_emotion, interpretation
-                    emotion_analysis = analyze_emotion(text)
-                    
-                    if emotion_analysis.get("pipeline_success"):
-                        interpretation_text = interpretation(emotion_analysis)
-                        emotion_data["interpretation"] = interpretation_text
-                        print(f"Generated interpretation for '{text[:30]}...': {interpretation_text[:100]}...")
-                    else:
-                        emotion_data["interpretation"] = "Failed to analyze emotion for this message."
-                    
-                    emotion_outputs.append(emotion_data)
-                except Exception as e:
-                    print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")
-                    emotion_result = {
-                        "vector": [0.0] * 7,  # 7-dimensional emotion vector
-                        "labels": {
-                            "joy": 0.0, "sadness": 0.0, "anger": 0.0,
-                            "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
-                            "neutral": 1.0
-                        },
-                        "top": "neutral",
-                        "interpretation": "Unable to analyze emotion for this message."
-                    }
-                    emotion_outputs.append(emotion_result)
+            # Use batch analysis for all messages (translation + embedding + interpretation)
+            from services.emotion_pipeline import analyze_emotions
+            try:
+                emotion_outputs = analyze_emotions(message_texts)
+                if not isinstance(emotion_outputs, list):
+                    # Defensive: ensure we have a list of results
+                    emotion_outputs = [emotion_outputs]
+            except Exception as e:
+                print(f"ERROR - Batch emotion analysis failed: {e}")
+                # Fallback to per-message handling
+                emotion_outputs = []
+                for text in message_texts:
+                    try:
+                        emotion_data = rag.get_emotion_data(text)
+                        emotion_outputs.append(emotion_data)
+                    except Exception as ee:
+                        print(f"ERROR - Fallback emotion analysis failed: {ee}")
+                        emotion_outputs.append({
+                            "vector": [0.0] * 7,
+                            "labels": {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0, "neutral": 1.0},
+                            "top": "neutral",
+                            "interpretation": "Unable to analyze emotion for this message."
+                        })
             
             print(f"DEBUG - Created {len(embedding_vectors)} embeddings and {len(emotion_outputs)} emotion outputs with interpretations")
             
@@ -339,8 +365,17 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
                         print(f"Warning: No message_id for index {i}")
                         continue
                         
-                # Bulk add to RAG system
+                # Bulk add to RAG system. Enrich metadata so RAG can generate replies
+                # in the voice of the app user (`app_user_id` / `app_user_display_name`).
                 for doc, metadata in rag_documents:
+                    try:
+                        # Attach the app user id (phone number) and resolve a display name
+                        metadata["app_user_id"] = phone_number
+                        metadata["app_user_display_name"] = _resolve_display_name_for_user(phone_number)
+                        # Mark whether this message was sent by the app user
+                        metadata["is_user_message"] = (metadata.get("sender") == metadata.get("app_user_display_name"))
+                    except Exception as _e:
+                        print(f"Warning: failed to enrich RAG metadata: {_e}")
                     rag.add_document(doc, metadata=metadata)
                     
         except Exception as e:
@@ -348,7 +383,7 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
             # Continue without embeddings if there's an error
         
     # Get conversation context for RAG
-    conversation_context = get_conversation_context(me.first_name, user.first_name, 50)
+    conversation_context = get_conversation_context(me.first_name, user.first_name, 3)
     
     response = {
         "sender": me.first_name,
@@ -357,6 +392,8 @@ async def get_contact_messages(phone_number: str , contact_data: dict = None) ->
         "conversation_context": conversation_context,
         "saved_message_ids": message_ids
     }
+    # Return gathered response
+    return response
 
 
 async def embed_messages(messages: list, metadata: dict = None):
@@ -371,6 +408,14 @@ async def embed_messages(messages: list, metadata: dict = None):
                 "date": message.get('date', str(datetime.now())),
                 "message_id": str(uuid.uuid4())
             })
+            try:
+                # If an app user id is present in the provided metadata, attach display name
+                app_id = msg_metadata.get("app_user_id")
+                if app_id:
+                    msg_metadata["app_user_display_name"] = _resolve_display_name_for_user(app_id)
+                    msg_metadata["is_user_message"] = (msg_metadata.get("sender") == msg_metadata.get("app_user_display_name"))
+            except Exception as _e:
+                print(f"Warning: failed to enrich embed metadata: {_e}")
             rag.add_document(message['text'], metadata=msg_metadata)
             
             
@@ -433,8 +478,8 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
         me = await client.get_me()
         receiver = await client.get_entity(contact_id)
 
-        # Find last saved message ID for this contact
-        last_message_id = None
+        # Find last saved message timestamp for this contact (use DateSent)
+        last_saved_date = None
         with Session(engine) as session:
             from model.message import Message
             last_msg = session.exec(
@@ -443,12 +488,13 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 .order_by(Message.DateSent.desc())
             ).first()
             if last_msg:
-                last_message_id = last_msg.MessageId
+                # Use DateSent to determine which Telethon messages are newer
+                last_saved_date = last_msg.DateSent
 
         # Fetch all new messages after last_message_id
         history = await client(GetHistoryRequest(
             peer=contact_id,
-            limit=20,
+            limit=3,
             offset_id=0,
             offset_date=None,
             max_id=0,
@@ -458,10 +504,16 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
         ))
 
         new_messages = []
-        for m in history.messages:
-            # Skip if already saved
-            if last_message_id and str(m.id) == str(last_message_id):
-                break
+        # Telethon may return more messages than requested in some cases (or tests),
+        # make sure we only consider the first 3 messages from history (newest first).
+        history_messages = list(history.messages)[:3]
+
+        for m in history_messages:
+            # If we have a last saved timestamp, skip any messages older or equal to it.
+            # Telethon message.date is a datetime (with tzinfo) — we compare datetimes.
+            if last_saved_date and getattr(m, "date", None) and m.date <= last_saved_date:
+                # skip older/equal messages
+                continue
             if not m.message:
                 continue
             sender = me.first_name if getattr(m.from_id, "user_id", None) == me.id else receiver.first_name
@@ -476,11 +528,20 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
 
         if not new_messages:
             return {"error": "No new messages found for this contact."}
+        # Only analyze (embed + emotion) the latest new message — avoid embedding a whole backlog
+        # Find the latest message by date
+        try:
+            latest_msg = max(new_messages, key=lambda x: x.get("date"))
+        except Exception:
+            latest_msg = new_messages[-1]
 
-        # Analyze and save all new messages
         embeddings = []
         emotions = []
-        for msg in new_messages:
+
+        # We will only analyze and save the single latest message
+        msgs_to_process = [latest_msg]
+
+        for msg in msgs_to_process:
             try:
                 embedding = rag._embed(msg["text"])
             except Exception as e:
@@ -523,11 +584,12 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 }
             emotions.append(emotion_data)
 
-        message_ids = await save_messages_to_db(new_messages, user_id, embeddings, emotions)
+        # Save only the processed message(s)
+        message_ids = await save_messages_to_db(msgs_to_process, user_id, embeddings, emotions)
 
         # Prepare response: return all analyzed messages
         analyzed_messages = []
-        for i, msg in enumerate(new_messages):
+        for i, msg in enumerate(msgs_to_process):
             analyzed_messages.append({
                 "message_id": message_ids[i] if message_ids else None,
                 "sender": msg["from"],
@@ -539,7 +601,7 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
                 "interpretation": emotions[i].get("interpretation")
             })
         
-        # Cache the latest message (most recent one is at index 0)
+        # Cache the latest message (only the one we analyzed)
         if analyzed_messages:
             MessageCache.cache_latest_message(user_id, contact_id, analyzed_messages[0])
             print(f"💾 Cached latest message for {user_id}:{contact_id}")
@@ -556,7 +618,9 @@ async def append_latest_contact_message(user_id: str, contact_id: int, db: Sessi
 
 async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session = None) -> dict:
     """
-    Fetch last 10 messages with a contact (by contact_id), create semantic and emotion embeddings, save to DB, and return results.
+    Fetch the last 3 messages with a contact (by contact_id), create semantic and emotion
+    embeddings, save to DB, and return results. The function enforces a limit of 3 messages
+    from Telegram to ensure only the most recent messages are processed.
     """
     # Use provided db session or create one
     local_db = db is None
@@ -573,7 +637,7 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
 
         history = await client(GetHistoryRequest(
             peer=contact_id,
-            limit=10,
+            limit=3,
             offset_date=None,
             offset_id=0,
             max_id=0,
@@ -584,7 +648,10 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
 
         messages = []
         message_texts = []
-        for m in history.messages:
+        # Only consider up to 3 messages returned by GetHistoryRequest.
+        history_messages = list(history.messages)[:3]
+
+        for m in history_messages:
             if not m.message:
                 continue
             sender = me.first_name if getattr(m.from_id, "user_id", None) == me.id else receiver.first_name
@@ -611,43 +678,32 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
                         print(f"ERROR - Failed to create embedding for text '{text[:50]}...': {e}")
                         embedding_vectors.append([0.0] * 1024)
 
-                emotion_outputs = []
-                for text in message_texts:
-                    # Check cache first for emotion analysis
-                    cached_emotion = MessageCache.get_cached_emotion_analysis(text)
-                    if cached_emotion:
-                        print(f"✅ Cache hit for emotion analysis")
-                        emotion_outputs.append(cached_emotion)
-                        continue
-                    
-                    try:
-                        emotion_data = rag.get_emotion_data(text)
-                        from services.emotion_pipeline import analyze_emotion, interpretation
-                        emotion_analysis = analyze_emotion(text)
-                        if emotion_analysis.get("pipeline_success"):
-                            interpretation_text = interpretation(emotion_analysis)
-                            emotion_data["interpretation"] = interpretation_text
-                        else:
-                            emotion_data["interpretation"] = "Failed to analyze emotion for this message."
-                        
-                        # Cache the emotion analysis result
-                        MessageCache.cache_emotion_analysis(text, emotion_data)
-                        print(f"💾 Cached emotion analysis")
-                        
-                        emotion_outputs.append(emotion_data)
-                    except Exception as e:
-                        print(f"ERROR - Failed to create emotion data for text '{text[:50]}...': {e}")
-                        emotion_result = {
-                            "vector": [0.0] * 7,
-                            "labels": {
-                                "joy": 0.0, "sadness": 0.0, "anger": 0.0,
-                                "fear": 0.0, "surprise": 0.0, "disgust": 0.0,
-                                "neutral": 1.0
-                            },
-                            "top": "neutral",
-                            "interpretation": "Unable to analyze emotion for this message."
-                        }
-                        emotion_outputs.append(emotion_result)
+                # Use batched analysis for these messages
+                from services.emotion_pipeline import analyze_emotions
+                try:
+                    emotion_outputs = analyze_emotions(message_texts)
+                    if not isinstance(emotion_outputs, list):
+                        emotion_outputs = [emotion_outputs]
+                except Exception as e:
+                    print(f"ERROR - Batch emotion analysis failed: {e}")
+                    # Fallback to per-message analysis maintaining cache checks
+                    emotion_outputs = []
+                    for text in message_texts:
+                        cached_emotion = MessageCache.get_cached_emotion_analysis(text)
+                        if cached_emotion:
+                            emotion_outputs.append(cached_emotion)
+                            continue
+                        try:
+                            emotion_data = rag.get_emotion_data(text)
+                            emotion_outputs.append(emotion_data)
+                        except Exception as ee:
+                            print(f"ERROR - Fallback emotion analysis failed: {ee}")
+                            emotion_outputs.append({
+                                "vector": [0.0] * 7,
+                                "labels": {"joy": 0.0, "sadness": 0.0, "anger": 0.0, "fear": 0.0, "surprise": 0.0, "disgust": 0.0, "neutral": 1.0},
+                                "top": "neutral",
+                                "interpretation": "Unable to analyze emotion for this message."
+                            })
 
                 message_ids = await save_messages_to_db(messages, user_id, embedding_vectors, emotion_outputs)
 
@@ -661,17 +717,23 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
                                 "sender": msg["from"],
                                 "receiver": msg["to"],
                                 "date": msg["date"],
-                                "message_id": msg_id
+                                "message_id": msg_id,
+                                "app_user_id": user_id
                             }
                             rag_documents.append((message_texts[i], metadata))
                         except IndexError:
                             continue
                     for doc, metadata in rag_documents:
+                        try:
+                            metadata["app_user_display_name"] = _resolve_display_name_for_user(metadata.get("app_user_id", user_id))
+                            metadata["is_user_message"] = (metadata.get("sender") == metadata.get("app_user_display_name"))
+                        except Exception as _e:
+                            print(f"Warning: failed to enrich RAG metadata: {_e}")
                         rag.add_document(doc, metadata=metadata)
             except Exception as e:
                 print(f"ERROR - Failed to process embeddings: {e}")
 
-        conversation_context = get_conversation_context(me.first_name, receiver.first_name, 50)
+        conversation_context = get_conversation_context(me.first_name, receiver.first_name, 3)
 
         return {
             "sender": me.first_name,
@@ -699,7 +761,7 @@ async def get_contact_messages_by_id(user_id: str, contact_id: int, db: Session 
             
 
 # New helper function to get messages with interpretations
-async def get_messages_with_interpretations(user_id: str, limit: int = 50) -> list:
+async def get_messages_with_interpretations(user_id: str, limit: int = 3) -> list:
     """
     Retrieve messages with their emotion interpretations from the database.
     
