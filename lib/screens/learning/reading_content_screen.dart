@@ -31,7 +31,6 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
     super.dispose();
   }
 
-  bool _minimalMode = false;
   late int _currentPage;
   late Future<ChapterPage> _chapterDataFuture;
   
@@ -327,28 +326,16 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
         children: [
           Column(
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                transitionBuilder: (child, animation) => SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, -0.2),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-                child: _minimalMode
-                    ? const SizedBox(height: 36)
-                    : BookReaderAppBar(
-                        key: const ValueKey('fullAppBar'),
-                        title: _currentChapterData?.title ?? "Loading...",
-                        chapterBlockType: 
-                          (_lastValidChapter != null && _lastValidChapter!.trim().isNotEmpty)
-                              ? _lastValidChapter!
-                              : (_currentChapterData?.chapterTitle ?? "..."),
-                        currentPage: _currentPage,
-                        totalPages: _totalPages,
-                        onBackPressed: _handleBackPressed,
-                      ),
+              BookReaderAppBar(
+                key: const ValueKey('fullAppBar'),
+                title: _currentChapterData?.title ?? "Loading...",
+                chapterBlockType: 
+                  (_lastValidChapter != null && _lastValidChapter!.trim().isNotEmpty)
+                      ? _lastValidChapter!
+                      : (_currentChapterData?.chapterTitle ?? "..."),
+                currentPage: _currentPage,
+                totalPages: _totalPages,
+                onBackPressed: _handleBackPressed,
               ),
               Expanded(
                 child: FutureBuilder<ChapterPage>(
@@ -371,35 +358,35 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                     
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        setState(() {
-                          _minimalMode = !_minimalMode;
-                        });
+                      onTapUp: (details) {
+                        final width = MediaQuery.of(context).size.width;
+                        final dx = details.globalPosition.dx;
+
+                        // Left 30% -> Previous Page
+                        if (dx < width * 0.3) {
+                          _previousChapter();
+                        }
+                        // Right 30% -> Next Page
+                        else if (dx > width * 0.7) {
+                          _nextChapter();
+                        }
                       },
-                      child: NotificationListener<ScrollNotification>(
-                        onNotification: (notification) {
-                          if (notification is ScrollUpdateNotification) {
-                            final max =
-                                _scrollController.position.maxScrollExtent;
-                            final current = _scrollController.position.pixels;
-                            final dy = notification.scrollDelta ?? 0;
-                            // At bottom: exit minimal mode
-                            if (_minimalMode && current >= max - 2) {
-                              setState(() {
-                                _minimalMode = false;
-                              });
-                            }
-                            // Scrolling up anywhere: enter minimal mode
-                            else if (!_minimalMode && dy < 0) {
-                              setState(() {
-                                _minimalMode = true;
-                              });
-                            }
-                          }
-                          return false;
-                        },
-                        child: ListView.builder(
-                          controller: _scrollController,
+                      onHorizontalDragEnd: (details) {
+                        if (details.primaryVelocity == null) return;
+
+                        // Add threshold to prevent accidental swipes during taps
+                        if (details.primaryVelocity!.abs() < 500) return;
+
+                        if (details.primaryVelocity! < 0) {
+                          // Swipe Left -> Next Page
+                          _nextChapter();
+                        } else if (details.primaryVelocity! > 0) {
+                          // Swipe Right -> Previous Page
+                          _previousChapter();
+                        }
+                      },
+                      child: ListView.builder(
+                        controller: _scrollController,
                           padding: const EdgeInsets.all(16),
                           itemCount: blocks.length + 1, // Always one extra for navigation
                           itemBuilder: (context, index) {
@@ -506,43 +493,26 @@ class _ReadingContentScreenState extends State<ReadingContentScreen> {
                             }
                           },
                         ),
-                      ),
                     );
                   },
                 ),
               ),
             ],
           ),
-          // MinimalFooter is always present, but slides in/out
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
+          // Main footer (NextChapterWidget) always visible
+          Positioned(
             left: 0,
             right: 0,
-            bottom: _minimalMode ? 0 : -60,
-            child: MinimalFooter(
-              chapterBlockType: 
-                (_lastValidChapter != null && _lastValidChapter!.trim().isNotEmpty)
-                    ? _lastValidChapter!
-                    : (_currentChapterData?.chapterTitle ?? "..."),
-              progressPercent: _progress / 100,
+            bottom: 0,
+            child: NextChapterWidget(
+              onTap: _nextChapter,
+              text: _currentPage >= _totalPages ? 'Complete Reading' : 'Next Page',
+              showBackButton: _currentPage > 1,
+              onBackPressed: _currentPage > 1 ? _previousChapter : null,
+              currentPage: _currentPage,
+              totalPages: _totalPages,
             ),
           ),
-          // Main footer (NextChapterWidget) only when not minimal
-          if (!_minimalMode)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: NextChapterWidget(
-                onTap: _nextChapter,
-                text: _currentPage >= _totalPages ? 'Complete Reading' : 'Next Page',
-                showBackButton: _currentPage > 1,
-                onBackPressed: _currentPage > 1 ? _previousChapter : null,
-                currentPage: _currentPage,
-                totalPages: _totalPages,
-              ),
-            ),
           ],
         ),
       ),

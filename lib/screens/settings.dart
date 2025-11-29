@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/session_service.dart';
 import '../services/support_service.dart';
 import '../services/book_cache_service.dart';
+import '../services/epub_cache_service.dart';
 import 'login.dart';
 import '../utils/auth_utils.dart';
 import '../services/user_deletion.dart';
@@ -801,36 +803,6 @@ class SettingsOptions extends StatelessWidget {
                 style: TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              FutureBuilder<Map<String, dynamic>>(
-                future: _getCacheInfo(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    final info = snapshot.data!;
-                    final count = info['cachedBooksCount'] as int;
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline, size: 20, color: Colors.blue),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$count ${count == 1 ? 'book' : 'books'} cached',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
             ],
           ),
           actions: [
@@ -839,8 +811,8 @@ class SettingsOptions extends StatelessWidget {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              onPressed: () {
-                _clearCache();
+              onPressed: () async {
+                await _clearCache();
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -868,19 +840,33 @@ class SettingsOptions extends StatelessWidget {
     );
   }
 
-  // Get cache info from BookCacheService
+  // Get cache info from BookCacheService and EpubCacheService
   Future<Map<String, dynamic>> _getCacheInfo() async {
     try {
-      return BookCacheService.getCacheInfo();
+      final bookCacheInfo = BookCacheService.getCacheInfo();
+      final epubCacheSize = await EpubCacheService.getCacheSize();
+      
+      return {
+        ...bookCacheInfo,
+        'epubCacheSize': epubCacheSize,
+      };
     } catch (e) {
-      return {'cachedBooksCount': 0, 'cachedBookIds': []};
+      return {'cachedBooksCount': 0, 'cachedBookIds': [], 'epubCacheSize': '0 MB'};
     }
   }
 
   // Clear the cache
-  void _clearCache() {
+  Future<void> _clearCache() async {
     try {
+      // Clear in-memory book cache
       BookCacheService.clearCache();
+      
+      // Clear all EPUB caches (both SharedPreferences and file-based)
+      await EpubCacheService.clearAllCache();
+      
+      // Clear the epub navigation tutorial preference
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('epub_navigation_tutorial_shown');
     } catch (e) {
       print('Error clearing cache: $e');
     }

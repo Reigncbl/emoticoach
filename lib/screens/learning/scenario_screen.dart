@@ -299,9 +299,17 @@ class _LearningScreenState extends State<LearningScreen>
             ],
           ),
         ),
-        body: TabBarView(
-          controller: _tabController,
-          children: [_buildScenariosTab(), const ReadingScreen()],
+        body: Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/home_bg.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildScenariosTab(), const ReadingScreen()],
+          ),
         ),
       ),
     );
@@ -370,7 +378,7 @@ class _LearningScreenState extends State<LearningScreen>
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search for specific chat scenarios...',
+                    hintText: 'Search for specific scenario...',
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
@@ -380,11 +388,24 @@ class _LearningScreenState extends State<LearningScreen>
                           )
                         : const Icon(Icons.search),
                     filled: true,
-                    fillColor: const Color(0xFFF0F0F0),
+                    fillColor: Colors.white,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(50),
-                      borderSide: BorderSide.none,
-                    ),
+                        borderRadius: BorderRadius.circular(50),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.2),
+                          width: 1.0,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(50),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.2),
+                          width: 1.0,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 0,
@@ -1128,6 +1149,7 @@ class ScenarioCard extends StatelessWidget {
       ),
       child: Card(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        color: Colors.white,
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
           onTap: onTap,

@@ -269,11 +269,18 @@ class _ReadingScreenState extends State<ReadingScreen> {
     final catB = _getCatB();
     final hasAny = _filteredReadings.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: Colors.white, // White background
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: ListView(
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/home_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: ListView(
           children: [
             const SizedBox(height: 12),
 
@@ -287,10 +294,23 @@ class _ReadingScreenState extends State<ReadingScreen> {
                       hintText: 'Search by title, author, or skill...',
                       suffixIcon: const Icon(Icons.search),
                       filled: true,
-                      fillColor: const Color(0xFFF0F0F0),
+                      fillColor: Colors.white,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(50),
-                        borderSide: BorderSide.none,
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.2),
+                          width: 1.0,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(50),
+                        borderSide: BorderSide(
+                          color: Colors.black.withOpacity(0.2),
+                          width: 1.0,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(50),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -370,6 +390,7 @@ class _ReadingScreenState extends State<ReadingScreen> {
             ],
           ],
         ),
+      ),
       ),
     );
   }
