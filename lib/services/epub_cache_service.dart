@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
+import 'package:path_provider/path_provider.dart';
 
 /// Service for caching parsed EPUB pages and images locally
 /// This dramatically improves performance when reopening books
@@ -174,12 +176,13 @@ class EpubCacheService {
     }
   }
 
-  /// Clear all EPUB caches
+  /// Clear all EPUB caches (both SharedPreferences and file-based)
   static Future<void> clearAllCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
       
+      // Clear SharedPreferences-based cache (parsed pages/images)
       for (final key in keys) {
         if (key.startsWith(_prefixPages) || 
             key.startsWith(_prefixImages) || 
@@ -190,21 +193,76 @@ class EpubCacheService {
         }
       }
       
-      print('🗑️ All EPUB caches cleared');
+      print('🗑️ All EPUB SharedPreferences caches cleared');
+      
+      // Clear file-based EPUB cache
+      await clearCache();
     } catch (e) {
       print('❌ Error clearing all EPUB caches: $e');
     }
   }
 
-  /// Get cache statistics
+  /// Clear file-based EPUB cache (from epub_viewer)
+  static Future<void> clearCache() async {
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${appDocDir.path}/epub_cache');
+      
+      if (await cacheDir.exists()) {
+        await cacheDir.delete(recursive: true);
+        print('🗑️ EPUB file cache directory cleared');
+      }
+      
+      // Clear all file cache references from SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys();
+      for (final key in keys) {
+        if (key.startsWith('epub_cache_')) {
+          await prefs.remove(key);
+        }
+      }
+      print('✅ EPUB file cache references cleared from SharedPreferences');
+    } catch (e) {
+      print('Error clearing EPUB file cache: $e');
+      rethrow;
+    }
+  }
+
+  /// Get total file-based EPUB cache size in MB
+  static Future<String> getCacheSize() async {
+    try {
+      final appDocDir = await getApplicationDocumentsDirectory();
+      final cacheDir = Directory('${appDocDir.path}/epub_cache');
+      
+      if (!await cacheDir.exists()) {
+        return '0 MB';
+      }
+      
+      int totalSize = 0;
+      await for (final entity in cacheDir.list(recursive: true)) {
+        if (entity is File) {
+          totalSize += await entity.length();
+        }
+      }
+      
+      final sizeMB = (totalSize / 1024 / 1024).toStringAsFixed(2);
+      return '$sizeMB MB';
+    } catch (e) {
+      print('Error calculating EPUB cache size: $e');
+      return 'Unknown';
+    }
+  }
+
+  /// Get comprehensive cache statistics (both types)
   static Future<Map<String, dynamic>> getCacheStats() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final keys = prefs.getKeys();
       
       final bookIds = <String>{};
-      int totalSize = 0;
+      int sharedPrefSize = 0;
       
+      // Calculate SharedPreferences cache size
       for (final key in keys) {
         if (key.startsWith(_prefixPages)) {
           final bookId = key.substring(_prefixPages.length);
@@ -212,25 +270,34 @@ class EpubCacheService {
           
           final data = prefs.getString(key);
           if (data != null) {
-            totalSize += data.length;
+            sharedPrefSize += data.length;
           }
         }
         if (key.startsWith(_prefixImages)) {
           final data = prefs.getString(key);
           if (data != null) {
-            totalSize += data.length;
+            sharedPrefSize += data.length;
           }
         }
       }
       
+      // Get file cache size
+      final fileCacheSize = await getCacheSize();
+      
       return {
         'cachedBooks': bookIds.length,
-        'totalSizeBytes': totalSize,
-        'totalSizeMB': (totalSize / (1024 * 1024)).toStringAsFixed(2),
+        'sharedPrefsSizeBytes': sharedPrefSize,
+        'sharedPrefsSizeMB': (sharedPrefSize / (1024 * 1024)).toStringAsFixed(2),
+        'fileCacheSize': fileCacheSize,
       };
     } catch (e) {
       print('❌ Error getting cache stats: $e');
-      return {'cachedBooks': 0, 'totalSizeBytes': 0, 'totalSizeMB': '0.00'};
+      return {
+        'cachedBooks': 0,
+        'sharedPrefsSizeBytes': 0,
+        'sharedPrefsSizeMB': '0.00',
+        'fileCacheSize': '0 MB',
+      };
     }
   }
 }

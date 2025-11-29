@@ -1,13 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_epub_viewer/flutter_epub_viewer.dart' as epub;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../controllers/reading_content_controller.dart';
 import '../../services/session_service.dart';
 import '../../widgets/reader_widgets.dart';
+import '../../utils/colors.dart';
 
 class EpubViewer extends StatefulWidget {
   final List<int> epubBytes;
@@ -33,7 +37,6 @@ class _EpubViewerState extends State<EpubViewer> {
   String? _initialCfi;
   List<epub.EpubChapter> _chapters = [];
   bool _showToc = false;
-  bool _showChrome = true; // Controls visibility of AppBar and footer
   double _progressPercent = 0.0; // Track reading progress as percentage (0.0 to 1.0)
   bool _isRestoringPosition = false; // Flag to prevent interference during restoration
   String? _currentCfi; // Track the last known exact CFI to store in DB
@@ -44,27 +47,142 @@ class _EpubViewerState extends State<EpubViewer> {
   bool _isSavingDialogVisible = false; // Track custom saving overlay visibility
   // ignore: unused_field
   double _loadingProgress = 0.0; // Track loading progress for large files
+  bool _shouldShowTutorial = false; // Track if first-time tutorial should be shown
 
   @override
   void initState() {
     super.initState();
+    _checkFirstTimeUser();
     _loadBook();
+  }
+
+  Future<void> _checkFirstTimeUser() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      const tutorialKey = 'epub_navigation_tutorial_shown';
+      final hasSeenTutorial = prefs.getBool(tutorialKey) ?? false;
+      
+      if (!hasSeenTutorial) {
+        setState(() {
+          _shouldShowTutorial = true;
+        });
+        // Mark tutorial as shown
+        await prefs.setBool(tutorialKey, true);
+      }
+    } catch (e) {
+      print('Error checking first-time user: $e');
+    }
+  }
+
+  void _showNavigationTutorial() {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.swipe,
+                  size: 48,
+                  color: Colors.blue,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Navigation Tip',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Swipe or tap left and right to navigate through pages',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Got it!',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
   void dispose() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    if (_epubFilePath != null) {
-      try {
-        final file = File(_epubFilePath!);
-        if (file.existsSync()) {
-          file.deleteSync();
-        }
-      } catch (e) {
-        print('Error deleting temporary EPUB file: $e');
-      }
-    }
+    // Don't delete cached EPUB files - they're persistent for reuse
     super.dispose();
+  }
+
+  // Get cached EPUB file path if it exists
+  Future<String?> _getCachedEpubPath() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cachedHash = prefs.getString('epub_cache_${widget.bookId}');
+      
+      if (cachedHash != null) {
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final cachedFilePath = '${appDocDir.path}/epub_cache/$cachedHash.epub';
+        final cachedFile = File(cachedFilePath);
+        
+        if (await cachedFile.exists()) {
+          print('✅ Found cached EPUB: $cachedFilePath');
+          return cachedFilePath;
+        } else {
+          print('⚠️ Cache reference exists but file missing, will re-cache');
+          // Clean up stale reference
+          await prefs.remove('epub_cache_${widget.bookId}');
+        }
+      }
+    } catch (e) {
+      print('Error checking EPUB cache: $e');
+    }
+    return null;
   }
 
   // CFI is now persisted via backend only; no local persistence
@@ -79,36 +197,42 @@ class _EpubViewerState extends State<EpubViewer> {
         _loadingProgress = 0.1; // Started loading
       });
       
-      // Create temporary file path
-      final tempDir = await getTemporaryDirectory();
-      final tempFilePath = '${tempDir.path}/${widget.bookId}.epub';
+      // Check if EPUB is already cached
+      final cachedPath = await _getCachedEpubPath();
+      if (cachedPath != null) {
+        print('📚 Using cached EPUB from: $cachedPath');
+        _epubFilePath = cachedPath;
+        setState(() { _loadingProgress = 0.85; });
+      } else {
+        print('💾 Caching EPUB for first time...');
+        // Create cache directory in application documents (persistent storage)
+        final appDocDir = await getApplicationDocumentsDirectory();
+        final cacheDir = Directory('${appDocDir.path}/epub_cache');
+        if (!await cacheDir.exists()) {
+          await cacheDir.create(recursive: true);
+        }
 
-      setState(() { _loadingProgress = 0.2; });
+        // Generate hash from EPUB bytes for unique identification
+        final bytes = widget.epubBytes is Uint8List
+            ? widget.epubBytes as Uint8List
+            : Uint8List.fromList(widget.epubBytes);
+        
+        final hash = sha256.convert(bytes).toString();
+        final cachedFilePath = '${cacheDir.path}/$hash.epub';
 
-      // Write the file in a single operation on a background microtask to avoid
-      // allocating dozens of intermediate chunk lists (each sublist() call copies).
-      // The previous chunked approach actually increased peak memory (many temporary
-      // 512KB lists). For large EPUBs (e.g. 22MB) this can spike allocations and
-      // trigger the WebView renderer OOM shortly after load. A single write keeps
-      // memory flatter and lets the GC reclaim the original byte list sooner.
-      // We still keep a few progress milestones for user feedback.
-      final bytes = widget.epubBytes is Uint8List
-          ? widget.epubBytes as Uint8List
-          : Uint8List.fromList(widget.epubBytes); // ensures contiguous storage
+        setState(() { _loadingProgress = 0.2; });
 
-      // Hint early progress
-      setState(() { _loadingProgress = 0.25; });
-
-      // Perform synchronous file write inside an async boundary (not in build phase)
-      await File(tempFilePath).writeAsBytes(bytes, flush: false);
-
-      // Note: do not mutate `bytes` after writing. In some cases it can be an
-      // unmodifiable view (UnmodifiableUint8ArrayView), and attempts like
-      // fillRange would throw. Let GC reclaim the original list naturally.
-
-      _epubFilePath = tempFilePath;
-      setState(() { _loadingProgress = 0.85; });
-      print('EPUB file saved to: $_epubFilePath (single write)');
+        // Write EPUB to cache
+        await File(cachedFilePath).writeAsBytes(bytes, flush: false);
+        
+        // Save mapping in SharedPreferences (bookId -> hash)
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('epub_cache_${widget.bookId}', hash);
+        
+        _epubFilePath = cachedFilePath;
+        setState(() { _loadingProgress = 0.85; });
+        print('EPUB cached to: $_epubFilePath with hash: $hash');
+      }
 
       // WebView paginated renderer
 
@@ -162,7 +286,7 @@ class _EpubViewerState extends State<EpubViewer> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error loading book: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.white,
             duration: const Duration(seconds: 5),
           ),
         );
@@ -307,7 +431,7 @@ class _EpubViewerState extends State<EpubViewer> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Unable to save your progress. Please try again.'),
-            backgroundColor: Colors.red,
+            backgroundColor: Colors.white,
             duration: Duration(seconds: 3),
           ),
         );
@@ -371,6 +495,7 @@ class _EpubViewerState extends State<EpubViewer> {
       return Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
+          backgroundColor: kWhite,
           title: const Text('Error'),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
@@ -420,36 +545,38 @@ class _EpubViewerState extends State<EpubViewer> {
         return false; // We handle the pop ourselves
       },
       child: Scaffold(
-        appBar: _showChrome
-            ? AppBar(
-                title: Text(widget.title ?? 'EPUB Reader'),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back),
-                  onPressed: () {
-                    _triggerNavigationExit(markComplete: false);
-                  },
-                ),
-                actions: [
-                  // Table of Contents button
-                  IconButton(
-                    icon: const Icon(Icons.list),
-                    onPressed: () {
-                      setState(() {
-                        _showToc = !_showToc;
-                      });
-                    },
-                    tooltip: 'Table of Contents',
-                  ),
-                ],
-              )
-            : null,
-        body: Column(
+        backgroundColor: kWhite,
+        appBar: AppBar(
+          backgroundColor: kWhite,
+          title: Text(widget.title ?? 'EPUB Reader'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              _triggerNavigationExit(markComplete: false);
+            },
+          ),
+          actions: [
+            // Table of Contents button
+            IconButton(
+              icon: const Icon(Icons.list),
+              onPressed: () {
+                setState(() {
+                  _showToc = !_showToc;
+                });
+              },
+              tooltip: 'Table of Contents',
+            ),
+          ],
+        ),
+        body: Stack(
           children: [
-            Expanded(
-              child: SafeArea(
-                top: !_showChrome,
-                bottom: false,
-                child: Stack(
+            Column(
+              children: [
+                Expanded(
+                  child: SafeArea(
+                    top: false,
+                    bottom: false,
+                    child: Stack(
                   children: [
                     epub.EpubViewer(
                         epubSource: epub.EpubSource.fromFile(File(_epubFilePath!)),
@@ -505,6 +632,16 @@ class _EpubViewerState extends State<EpubViewer> {
                               _epubReady = true;
                               _initialCfi = null;
                             });
+                            
+                            // Show tutorial for first-time users after a short delay
+                            if (_shouldShowTutorial) {
+                              Future.delayed(const Duration(milliseconds: 500), () {
+                                if (mounted) {
+                                  _showNavigationTutorial();
+                                  _shouldShowTutorial = false; // Prevent showing again on rebuild
+                                }
+                              });
+                            }
                           } else {
                             _epubReady = true;
                             _initialCfi = null;
@@ -556,17 +693,88 @@ class _EpubViewerState extends State<EpubViewer> {
                           // You can show a context menu or handle the selection
                         },
                       ),
-                      // Tap detector overlay for toggling chrome (positioned only in center third)
+                      // Left Tap Zone (Previous Page)
                       Positioned(
-                        left: MediaQuery.of(context).size.width / 3,
-                        right: MediaQuery.of(context).size.width / 3,
+                        left: 0,
+                        width: MediaQuery.of(context).size.width * 0.3,
                         top: 0,
                         bottom: 0,
                         child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
                           onTap: () {
-                            setState(() {
-                              _showChrome = !_showChrome;
-                            });
+                            print('Tap Left Detected - Going to Previous Page');
+                            _epubController.prev();
+                          },
+                          onHorizontalDragEnd: (details) {
+                            if (details.primaryVelocity == null) return;
+                            if (details.primaryVelocity!.abs() < 500) return;
+
+                            if (details.primaryVelocity! < 0) {
+                              print('Swipe Left Detected - Going to Next Page');
+                              _epubController.next();
+                            } else if (details.primaryVelocity! > 0) {
+                              print('Swipe Right Detected - Going to Previous Page');
+                              _epubController.prev();
+                            }
+                          },
+                          child: Container(color: Colors.transparent),
+                        ),
+                      ),
+
+                      // Right Tap Zone (Next Page)
+                      Positioned(
+                        right: 0,
+                        width: MediaQuery.of(context).size.width * 0.3,
+                        top: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () {
+                            print('Tap Right Detected - Going to Next Page');
+                            _epubController.next();
+                          },
+                          onHorizontalDragEnd: (details) {
+                            if (details.primaryVelocity == null) return;
+                            if (details.primaryVelocity!.abs() < 500) return;
+
+                            if (details.primaryVelocity! < 0) {
+                              print('Swipe Left Detected - Going to Next Page');
+                              _epubController.next();
+                            } else if (details.primaryVelocity! > 0) {
+                              print('Swipe Right Detected - Going to Previous Page');
+                              _epubController.prev();
+                            }
+                          },
+                          child: Container(color: Colors.transparent),
+                        ),
+                      ),
+
+                      // Center Tap Zone (Toggle Chrome)
+                      Positioned(
+                        left: MediaQuery.of(context).size.width * 0.3,
+                        right: MediaQuery.of(context).size.width * 0.3,
+                        top: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onDoubleTap: () {
+                            // Consume double tap to prevent unwanted navigation/zoom
+                          },
+                          onHorizontalDragEnd: (details) {
+                            if (details.primaryVelocity == null) return;
+
+                            // Add threshold to prevent accidental swipes during taps
+                            if (details.primaryVelocity!.abs() < 500) return;
+
+                            if (details.primaryVelocity! < 0) {
+                              // Swipe Left -> Next Page
+                              print('Swipe Left Detected - Going to Next Page');
+                              _epubController.next();
+                            } else if (details.primaryVelocity! > 0) {
+                              // Swipe Right -> Previous Page
+                              print('Swipe Right Detected - Going to Previous Page');
+                              _epubController.prev();
+                            }
                           },
                           child: Container(
                             color: Colors.transparent,
@@ -727,20 +935,55 @@ class _EpubViewerState extends State<EpubViewer> {
                   ),
                 ),
               ),
-            // Footer - toggle between full status and minimal
-            if (_showChrome)
-              PageStatusFooter(
-                progressPercent: progressPercent,
-                onCompleteReading: () {
-                  _triggerNavigationExit(markComplete: true);
-                },
-              )
-            else
-              MinimalFooter(
-                progressPercent: progressPercent,
-                onCompleteReading: () {
-                  _triggerNavigationExit(markComplete: true);
-                },
+            // Footer - always show full status (Progress only)
+            Container(
+              width: double.infinity,
+              color: Colors.white,
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 12,
+                bottom: 12 + (MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom : 0),
+              ),
+              child: Center(
+                child: Text(
+                  '${(progressPercent * 100).toStringAsFixed(0)}%',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+            // Floating "Complete Reading" button
+            if (progressPercent >= 1.0)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 10 + (MediaQuery.of(context).padding.bottom > 0 ? MediaQuery.of(context).padding.bottom : 0),
+                child: SafeArea(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _triggerNavigationExit(markComplete: true);
+                      },
+                      label: const Text('Complete Reading'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 4,
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
