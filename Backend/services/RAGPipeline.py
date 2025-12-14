@@ -59,7 +59,7 @@ EMBEDDING_DIM = 1024 # BGE-M3 embedding dimension
 # Weight for combining semantic and emotional similarity
 EMOTION_WEIGHT = 0.3  # Adjust this to control the importance of emotional similarity
 
-# Tone mapping for response policy - maps emotion to appropriate response tone
+# Tone mapping for response policy
 RESPONSE_POLICY = {
     "anger": "Calm",
     "sadness": "Encouraging",
@@ -67,20 +67,7 @@ RESPONSE_POLICY = {
     "disgust": "Understanding",
     "joy": "Supportive",
     "neutral": "Reflective",
-    "surprise": "Supportive"
-}
-
-# Emotions that are considered negative and need problem-resolving responses
-NEGATIVE_EMOTIONS = {"anger", "sadness", "fear", "disgust"}
-
-# Response tone instructions - guides the AI on how to respond appropriately (NO profanity allowed)
-TONE_INSTRUCTIONS = {
-    "Calm": "Be gentle, patient, and soothing. Help them feel heard and offer a solution or perspective to resolve their frustration. Never use profanity or harsh language.",
-    "Encouraging": "Be warm, uplifting, and hopeful. Acknowledge their pain and suggest something positive or a way forward to help them feel better. Never use profanity or negative language.",
-    "Reassuring": "Be comforting and steady. Help them feel safe and offer practical advice or reassurance to address their worry. Never use profanity or alarming language.",
-    "Understanding": "Be empathetic and non-judgmental. Validate their feelings and help them see the situation differently or find a resolution. Never use profanity or dismissive language.",
-    "Supportive": "Be positive and affirming. Celebrate with them or offer help. Never use profanity or critical language.",
-    "Reflective": "Be thoughtful and balanced. Engage naturally without strong emotion. Never use profanity or inappropriate language."
+    "surprise": "Supportive"  # Add if needed for completeness
 }
 
 class SimpleRAG:
@@ -308,11 +295,8 @@ class SimpleRAG:
         # Determine what to reply to - prioritize explicit latest_message
         message_to_reply = latest_message if latest_message else query
         
-        # Get the mapped response tone and detect emotion
-        emotion_data = self.emotion_embedder.analyze_text_full(message_to_reply)
-        dominant_emotion = emotion_data.get("dominant_emotion", "neutral").lower()
-        response_tone = RESPONSE_POLICY.get(dominant_emotion, "Supportive")
-        is_negative = dominant_emotion in NEGATIVE_EMOTIONS
+        # Get the mapped response tone based on the message to reply to
+        response_tone = self.get_response_tone(message_to_reply)
 
         # Build prompt with clear structure
         prompt_parts = []
@@ -331,19 +315,16 @@ class SimpleRAG:
         
         prompt = "\n".join(prompt_parts)
         
-        # Get tone guide from response policy
-        tone_guide = TONE_INSTRUCTIONS.get(response_tone, "Be natural and conversational. Never use profanity or vulgar language.")
+        # Build a more human, emotionally-aware system prompt
+        tone_instructions = {
+            "Calm and reassuring": "Be gentle and soothing. Acknowledge their feelings without being preachy.",
+            "Encouraging and supportive": "Be warm and uplifting. Show you care without overdoing it.",
+            "Friendly and casual": "Be chill and relatable. Keep it light and fun.",
+            "Curious and engaged": "Show genuine interest. Ask follow-ups naturally.",
+            "Warm and affirming": "Celebrate with them! Share their excitement authentically."
+        }
         
-        # Add problem-resolving instruction for negative emotions
-        problem_solving_guide = ""
-        if is_negative:
-            problem_solving_guide = (
-                "\nIMPORTANT: They seem upset or troubled. Your reply should:\n"
-                "- Acknowledge their feelings first\n"
-                "- Offer comfort, a helpful perspective, or a gentle suggestion\n"
-                "- Help them feel better or see a way forward\n"
-                "- Be supportive without being preachy\n"
-            )
+        tone_guide = tone_instructions.get(response_tone, "Be natural and conversational.")
         
         # Build length/style guidance from interpretation layer + set dynamic token limits
         length_guide = ""
@@ -360,15 +341,10 @@ class SimpleRAG:
                 length_guide = "Reply in 1 sentence max. Keep it super short."
                 max_tokens = 50  # Short for casual
         
-        # Allow slightly longer responses for negative emotions to properly address the issue
-        if is_negative and max_tokens < 100:
-            max_tokens = 100
-        
         try:
             resp = self.client.chat.completions.create(model=self.model, messages=[
                 {"role": "system", "content": (
                     f"You're texting a close friend. {tone_guide}\n"
-                    f"{problem_solving_guide}"
                     f"{length_guide}\n\n"
                     "RULES:\n"
                     "- Sound like a real person, not a bot or therapist\n"
@@ -376,7 +352,7 @@ class SimpleRAG:
                     "- React genuinely - be empathetic but not fake\n"
                     "- Match their vibe (Tagalog/English/Taglish)\n"
                     "- NO names, NO quotes around reply, NO prefixes like 'Reply:'\n"
-                    "- ABSOLUTELY NO curse words, profanity, swearing, or vulgar language - this is a strict policy\n"
+                    "- NEVER use curse words, profanity, or vulgar language\n"
                     "- Just output the message text directly"
                 )},
                 {"role": "user", "content": prompt}
